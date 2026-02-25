@@ -688,11 +688,6 @@ function parseContextFromUrl(pageUrl) {
   }
 }
 
-function defaultFilename() {
-  const d = new Date();
-  return "ListExport_" + d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") + "_" + String(d.getHours()).padStart(2, "0") + "-" + String(d.getMinutes()).padStart(2, "0");
-}
-
 // SharePoint system field names (same on all lists/libraries), used for column picker defaults.
 const REQUIRED_FIELDS = ["ID", "Created", "Modified", "Author", "Editor", "_UIVersionString"];
 
@@ -751,17 +746,19 @@ async function runExport(selectedColumns = null) {
       const pageLimit = await getPageSize();
       const reportType = reportSelect && reportSelect.value ? reportSelect.value : null;
       const exportFormat = (formatSelect && formatSelect.value) ? formatSelect.value : "csv";
+      const chkMatrixWholeSite = document.getElementById("chkMatrixWholeSite");
       const msg = {
         action: "runExportCSV",
         siteUrl,
         listId,
         viewId,
-        exportFilename: defaultFilename(),
+        exportFilename: "", // Extension builds: sitename_listname_datetime.ext
         pageLimit,
         includeVersions,
         selectedColumns: selectedColumns && selectedColumns.length > 0 ? selectedColumns : null,
         report: reportType,
-        format: exportFormat
+        format: exportFormat,
+        permissionsMatrixWholeSite: !!(chkMatrixWholeSite && chkMatrixWholeSite.checked)
       };
       response = await chrome.tabs.sendMessage(tab.id, msg);
     } catch (sendErr) {
@@ -824,8 +821,10 @@ function toggleReportOptions() {
   const value = reportSelect.value;
   const showPanel = value === "exportCSV" || value === "folderCount" || value === "pathLengths" || value === "permissions" || value === "permissionsMatrix";
   reportOptions.style.display = showPanel ? "block" : "none";
-  const optionsRow = reportOptions.querySelector(".options-row");
-  if (optionsRow) optionsRow.style.display = value === "exportCSV" ? "" : "none";
+  const matrixWholeSiteRow = document.getElementById("matrixWholeSiteRow");
+  if (matrixWholeSiteRow) matrixWholeSiteRow.style.display = value === "permissionsMatrix" ? "" : "none";
+  const exportOptionsRow = document.getElementById("exportOptionsRow");
+  if (exportOptionsRow) exportOptionsRow.style.display = value === "exportCSV" ? "" : "none";
 }
 if (reportSelect) reportSelect.addEventListener("change", toggleReportOptions);
 

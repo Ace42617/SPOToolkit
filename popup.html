@@ -470,7 +470,13 @@
         </select>
       </div>
       <div id="reportOptions" class="report-options" style="display: none;">
-        <div class="options-row">
+        <div class="options-row" id="matrixWholeSiteRow" style="display: none;">
+          <label class="toggle-row">
+            <input type="checkbox" id="chkMatrixWholeSite">
+            <span>Include whole site (all lists and libraries)</span>
+          </label>
+        </div>
+        <div class="options-row" id="exportOptionsRow">
           <label class="toggle-row">
             <input type="checkbox" id="chkIncludeVersions">
             <span>Include versions</span>

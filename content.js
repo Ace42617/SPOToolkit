@@ -171,7 +171,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   (async () => {
     showProgress("Starting export");
     setupListeners();
-    const { siteUrl, listId, viewId, exportFilename, pageLimit, includeVersions, selectedColumns, report, format } = message;
+    const { siteUrl, listId, viewId, exportFilename, pageLimit, includeVersions, selectedColumns, report, format, permissionsMatrixWholeSite } = message;
     const params = {
       u: (siteUrl || "").replace(/\/$/, ""),
       lid: listId || "",
@@ -183,6 +183,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (report) params.report = report;
     if (format) params.format = format;
     if (selectedColumns && Array.isArray(selectedColumns) && selectedColumns.length > 0) params.cols = selectedColumns;
+    if (permissionsMatrixWholeSite === true) params.matrixWholeSite = true;
     let el = document.getElementById("spcsv-params-json");
     if (el) el.remove();
     el = document.createElement("script");

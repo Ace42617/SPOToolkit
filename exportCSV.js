@@ -375,13 +375,13 @@
     var v = row[colName];
     if (v != null && String(v).trim() !== "") {
       if (SIZE_COLUMNS[colName]) return formatSizeAsMB(v);
-      return v;
+      return cleanValue(v);
     }
-    if (colName === "ID" || colName === "Id") return row.ID || row.Id || "";
-    if (colName === "Title") return row.Title || row.title || "";
-    if (colName === "Name" || colName === "FileLeafRef") return row.Name || row.FileLeafRef || row.LinkFilename || "";
-    if (colName === "FSObjType") return row.FSObjType != null ? row.FSObjType : "";
-    return v != null ? v : "";
+    if (colName === "ID" || colName === "Id") return cleanValue(row.ID || row.Id || "");
+    if (colName === "Title") return cleanValue(row.Title || row.title || "");
+    if (colName === "Name" || colName === "FileLeafRef") return cleanValue(row.Name || row.FileLeafRef || row.LinkFilename || "");
+    if (colName === "FSObjType") return row.FSObjType != null ? cleanValue(row.FSObjType) : "";
+    return v != null ? cleanValue(v) : "";
   }
 
   function toCSV(rowMapById, columns) {
@@ -441,9 +441,28 @@
   // Delete working view at end? (default true unless keep=1)
   var DELETE_VIEW_AT_END = !(params.keep === 1 || params.keep === "1" || params.keep === true || params.keep === "true");
 
+  function getSiteNameFromUrl(url) {
+    try {
+      var u = new URL(url);
+      var segs = u.pathname.replace(/\/$/, "").split("/").filter(Boolean);
+      return segs.length > 0 ? segs[segs.length - 1] : "Site";
+    } catch (_) { return "Site"; }
+  }
+  function sanitizeFilenamePart(s) {
+    return String(s).replace(/[\s\\/:*?"<>|]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "") || "Export";
+  }
+  function buildDefaultExportFilename() {
+    var siteName = sanitizeFilenamePart(getSiteNameFromUrl(siteUrl));
+    var listTitle = getListTitleFromContext();
+    var listPart = (listTitle && String(listTitle).trim()) ? sanitizeFilenamePart(String(listTitle).trim()) : "";
+    var d = new Date();
+    var pad = function (n) { n = parseInt(n, 10); return (n >= 0 && n <= 9) ? "0" + n : String(n); };
+    var dt = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "_" + pad(d.getHours()) + "-" + pad(d.getMinutes());
+    return listPart ? siteName + "_" + listPart + "_" + dt : siteName + "_" + dt;
+  }
   var exportFilename = (params.f && String(params.f).trim())
-    ? String(params.f).trim().replace(/[^\w\s\-]/g, "_").replace(/\s+/g, "_")
-    : "ListExport_" + new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-").replace(/-$/, "");
+    ? String(params.f).trim().replace(/[\s\\/:*?"<>|]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "") || buildDefaultExportFilename()
+    : buildDefaultExportFilename();
 
   // -----------------------------
   // REST helpers
@@ -558,12 +577,22 @@
     } catch (_) { return null; }
   }
 
+  // Wait for page/context to be ready (avoids 403 when script runs before SharePoint is ready).
+  async function waitForPageReady(maxMs) {
+    maxMs = maxMs || 4000;
+    var deadline = Date.now() + maxMs;
+    while (Date.now() < deadline) {
+      if (document.readyState === "complete" && (typeof window._spPageContextInfo === "object" && window._spPageContextInfo)) {
+        await sleep(400);
+        return;
+      }
+      await sleep(300);
+    }
+  }
+
   // Creates a temporary RPC view with ALL columns and "Show all items without folders" (Scope 1).
   // Always creates fresh: deletes existing "RPC" view if present, then creates new one.
   async function getOrCreateRpcViewForDownload() {
-    var digest = await getDigest();
-    if (!digest) return { ok: false, error: "Could not get request digest" };
-
     var accept = { "Accept": "application/json;odata=nometadata" };
     var lb = listBaseUrl();
 
@@ -591,28 +620,40 @@
       await sleep(200);
     }
 
-    // Create new view with Scope 2 (RecursiveAll). owssvr URL uses RootFolder=<list root path> for doc lib so all folders are returned.
-    var createResp = await fetch(lb + "/views", {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        "Accept": "application/json;odata=nometadata",
-        "Content-Type": "application/json;odata=nometadata",
-        "X-RequestDigest": digest
-      },
-      body: JSON.stringify({
-        Title: RPC_VIEW_TITLE,
-        PersonalView: false,
-        RowLimit: Math.min(PAGE_LIMIT, 5000000),
-        Scope: 2,  // RecursiveAll = Show all items (files + folders)
-        ViewQuery: ""
-      })
-    });
+    // Create new view with Scope 2 (RecursiveAll). Retry on 403/503 (often timing/context not ready).
+    var createResp = null;
+    var lastStatus = 0;
+    var lastDetail = "";
+    for (var attempt = 1; attempt <= 3; attempt++) {
+      var digest = await getDigest();
+      if (!digest) return { ok: false, error: "Could not get request digest" };
 
-    if (!createResp.ok) {
-      var t = "";
-      try { t = await createResp.text(); } catch (_) {}
-      return { ok: false, error: "Create RPC view failed: " + createResp.status, detail: t };
+      createResp = await fetch(lb + "/views", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Accept": "application/json;odata=nometadata",
+          "Content-Type": "application/json;odata=nometadata",
+          "X-RequestDigest": digest
+        },
+        body: JSON.stringify({
+          Title: RPC_VIEW_TITLE,
+          PersonalView: false,
+          RowLimit: Math.min(PAGE_LIMIT, 5000000),
+          Scope: 2,  // RecursiveAll = Show all items (files + folders)
+          ViewQuery: ""
+        })
+      });
+
+      lastStatus = createResp.status;
+      if (createResp.ok) break;
+      try { lastDetail = await createResp.text(); } catch (_) {}
+      if (createResp.status !== 403 && createResp.status !== 503) break;
+      await sleep(attempt * 1200);
+    }
+
+    if (!createResp || !createResp.ok) {
+      return { ok: false, error: "Create RPC view failed: " + lastStatus, detail: lastDetail };
     }
 
     var created = await createResp.json();
@@ -1976,19 +2017,8 @@
   async function exportPermissionsMatrixReport() {
     var accept = { "Accept": "application/json;odata=nometadata" };
     var acceptVerbose = { "Accept": "application/json;odata=verbose" };
-    var listTitle = getListTitleFromContext();
-    var listBase = listTitle ? listByTitleUrl(listTitle) : listBaseUrl();
     var PAGE_SIZE = 5000;
     var CONCURRENCY = 6;
-    reportProgress("Permissions matrix: Loading list…");
-    var listMeta = await fetch(listBase + "?$select=ItemCount,HasUniqueRoleAssignments", { credentials: "include", headers: accept });
-    if (!listMeta.ok) {
-      reportDone(false, "Could not load list: " + listMeta.status);
-      return;
-    }
-    var listData = await listMeta.json();
-    var totalItemCount = Math.max(0, parseInt(listData.ItemCount, 10) || 0);
-    var listHasUnique = listData.HasUniqueRoleAssignments === true;
     async function fetchWithRetry(url, opts, tries) {
       tries = tries || 8;
       for (var attempt = 1; attempt <= tries; attempt++) {
@@ -2004,6 +2034,363 @@
       }
       throw new Error("Throttled too many times.");
     }
+
+    if (params.matrixWholeSite) {
+      reportProgress("Permissions matrix: Loading role definitions…");
+      var roleDefRespWs = await fetch(siteUrl + "/_api/web/roledefinitions?$select=Name,Order&$filter=Hidden eq false&$orderby=Order asc", { credentials: "include", headers: accept });
+      var roleNamesWs = [];
+      if (roleDefRespWs.ok) {
+        var roleDefDataWs = await roleDefRespWs.json();
+        var defsWs = roleDefDataWs.value || roleDefDataWs.results || [];
+        for (var rdw = 0; rdw < defsWs.length; rdw++) {
+          var nw = (defsWs[rdw].Name || "").trim();
+          if (nw && roleNamesWs.indexOf(nw) < 0) roleNamesWs.push(nw);
+        }
+      }
+      if (roleNamesWs.length === 0) roleNamesWs = ["Full Control", "Design", "Contribute", "Edit", "Read", "View Only", "Restricted Read", "Approve", "Manage Hierarchy", "Restricted View", "Restricted Interfaces for Translation"];
+      reportProgress("Permissions matrix: Loading site lists…");
+      var listsResp = await fetch(siteUrl + "/_api/web/lists?$select=Id,Title,BaseTemplate,HasUniqueRoleAssignments,ItemCount&$filter=Hidden eq false&$top=5000", { credentials: "include", headers: accept });
+      if (!listsResp.ok) {
+        reportDone(false, "Could not load site lists: " + listsResp.status);
+        return;
+      }
+      var listsData = await listsResp.json();
+      var allLists = listsData.value || listsData.results || [];
+      var webResp = await fetch(siteUrl + "/_api/web?$select=Title,ServerRelativeUrl", { credentials: "include", headers: accept });
+      var webTitle = "Site";
+      var webPath = "";
+      if (webResp.ok) {
+        var webData = await webResp.json();
+        webTitle = (webData.Title || webData.title || "Site").trim();
+        webPath = (webData.ServerRelativeUrl || webData.serverRelativeUrl || "").trim();
+      }
+      var allMatrixRowsWs = [];
+      var webRaResp = await fetch(siteUrl + "/_api/web/roleassignments?$expand=Member,RoleDefinitionBindings&$top=5000", { credentials: "include", headers: accept });
+      if (webRaResp.ok) {
+        var webRaData = await webRaResp.json();
+        var webRaPage = webRaData.value || webRaData.results || [];
+        var webRaNext = webRaData["@odata.nextLink"];
+        while (webRaNext) {
+          var wnResp = await fetchWithRetry(webRaNext, { credentials: "include", headers: accept }, 6);
+          var wnData = await wnResp.json();
+          webRaPage = webRaPage.concat(wnData.value || wnData.results || []);
+          webRaNext = wnData["@odata.nextLink"] || null;
+        }
+        var webPrincipals = [];
+        for (var wpi = 0; wpi < webRaPage.length; wpi++) {
+          var wra = webRaPage[wpi];
+          var wm = wra.Member || wra.member;
+          if (!wm) continue;
+          var wbindings = wra.RoleDefinitionBindings || wra.roleDefinitionBindings || [];
+          var wroleSet = {};
+          for (var wbi = 0; wbi < wbindings.length; wbi++) {
+            var wrn = (wbindings[wbi].Name || wbindings[wbi].name || "").trim();
+            if (wrn) wroleSet[wrn] = true;
+          }
+          var wpt = principalTypeLabel(wm.PrincipalType);
+          var wtit = (wm.Title || wm.LoginName || "").trim();
+          var wlog = (wm.LoginName || "").trim();
+          var wisGrp = (parseInt(wm.PrincipalType, 10) === 4 || parseInt(wm.PrincipalType, 10) === 8);
+          webPrincipals.push({ title: wtit, loginName: wlog, principalType: wpt, givenThroughSuffix: "", roleSet: wroleSet, isGroup: wisGrp, groupId: wisGrp ? (wm.Id != null ? String(wm.Id) : "") : "" });
+        }
+        var webExpanded = [];
+        for (var wei = 0; wei < webPrincipals.length; wei++) {
+          var wip = webPrincipals[wei];
+          if (!wip.isGroup) {
+            webExpanded.push({ title: wip.title, loginName: wip.loginName, principalType: wip.principalType, givenThroughSuffix: wip.givenThroughSuffix, roleSet: wip.roleSet });
+            continue;
+          }
+          webExpanded.push({ title: wip.title, loginName: wip.loginName, principalType: wip.principalType, givenThroughSuffix: wip.givenThroughSuffix, roleSet: wip.roleSet });
+          if (!wip.groupId) continue;
+          try {
+            var wguResp = await fetch(siteUrl + "/_api/web/sitegroups/GetById(" + wip.groupId + ")/users", { credentials: "include", headers: accept });
+            if (!wguResp.ok) continue;
+            var wguData = await wguResp.json();
+            var wgUsers = wguData.value || wguData.results || [];
+            for (var wg = 0; wg < wgUsers.length; wg++) {
+              var wu = wgUsers[wg];
+              webExpanded.push({
+                title: (wu.Title || wu.LoginName || "").trim(),
+                loginName: (wu.LoginName || "").trim(),
+                principalType: "User",
+                givenThroughSuffix: " - " + (wip.title || "Group") + " Members",
+                roleSet: wip.roleSet
+              });
+            }
+          } catch (_) {}
+        }
+        var siteGivenBase = "Inherited (From ItemPath: " + (webPath || webTitle) + ")";
+        for (var wxi = 0; wxi < webExpanded.length; wxi++) {
+          var wp = webExpanded[wxi];
+          allMatrixRowsWs.push({
+            containerName: webTitle,
+            containerType: "Page",
+            itemPath: webPath || webTitle,
+            inheritance: "Inherited",
+            details: "",
+            userOrGroup: wp.title,
+            principalType: wp.principalType,
+            accountName: wp.loginName,
+            givenThrough: siteGivenBase + (wp.givenThroughSuffix || ""),
+            roleSet: wp.roleSet
+          });
+        }
+      }
+      for (var listIdx = 0; listIdx < allLists.length; listIdx++) {
+        var lst = allLists[listIdx];
+        var listIdCur = normalizeGuid(lst.Id);
+        var listBaseCur = siteUrl + "/_api/web/lists(guid'" + listIdCur + "')";
+        var listTitleCur = (lst.Title || lst.title || "").trim() || ("List " + listIdCur);
+        var listHasUniqueCur = lst.HasUniqueRoleAssignments === true;
+        var totalItemCountCur = Math.max(0, parseInt(lst.ItemCount, 10) || 0);
+        var containerTypeCur = parseInt(lst.BaseTemplate, 10) === 101 ? "Library" : "List";
+        reportProgress("Permissions matrix: " + listTitleCur + "…", { currentCount: listIdx + 1, totalCount: allLists.length + 1 });
+        var inheritedSourcePathCur = "";
+        try {
+          if (listHasUniqueCur) {
+            var lrfCur = await fetch(listBaseCur + "/rootfolder?$select=ServerRelativeUrl", { credentials: "include", headers: accept });
+            if (lrfCur.ok) {
+              var lrfDataCur = await lrfCur.json();
+              inheritedSourcePathCur = (lrfDataCur.ServerRelativeUrl || lrfDataCur.serverRelativeUrl || "").trim();
+            }
+          }
+          if (!inheritedSourcePathCur) {
+            inheritedSourcePathCur = (webPath || webTitle);
+          }
+          if (!inheritedSourcePathCur) inheritedSourcePathCur = listTitleCur;
+        } catch (_) {}
+        var inheritedRaUrlCur = listHasUniqueCur ? (listBaseCur + "/roleassignments") : (siteUrl + "/_api/web/roleassignments");
+        var inheritedRaRespCur = await fetch(inheritedRaUrlCur + "?$expand=Member,RoleDefinitionBindings&$top=5000", { credentials: "include", headers: accept });
+        var inheritedPrincipalsCur = [];
+        if (inheritedRaRespCur.ok) {
+          var inheritedRaDataCur = await inheritedRaRespCur.json();
+          var iraPageCur = inheritedRaDataCur.value || inheritedRaDataCur.results || [];
+          var iraNextCur = inheritedRaDataCur["@odata.nextLink"];
+          while (iraNextCur) {
+            var iraRCur = await fetchWithRetry(iraNextCur, { credentials: "include", headers: accept }, 6);
+            var iraDCur = await iraRCur.json();
+            iraPageCur = iraPageCur.concat(iraDCur.value || iraDCur.results || []);
+            iraNextCur = iraDCur["@odata.nextLink"] || null;
+          }
+          for (var irac = 0; irac < iraPageCur.length; irac++) {
+            var raCur = iraPageCur[irac];
+            var mCur = raCur.Member || raCur.member;
+            if (!mCur) continue;
+            var bindCur = raCur.RoleDefinitionBindings || raCur.roleDefinitionBindings || [];
+            var roleSetCur = {};
+            for (var rbc = 0; rbc < bindCur.length; rbc++) {
+              var rnc = (bindCur[rbc].Name || bindCur[rbc].name || "").trim();
+              if (rnc) roleSetCur[rnc] = true;
+            }
+            var ptCur = principalTypeLabel(mCur.PrincipalType);
+            var titCur = (mCur.Title || mCur.LoginName || "").trim();
+            var logCur = (mCur.LoginName || "").trim();
+            var isGrpCur = (parseInt(mCur.PrincipalType, 10) === 4 || parseInt(mCur.PrincipalType, 10) === 8);
+            inheritedPrincipalsCur.push({ title: titCur, loginName: logCur, principalType: ptCur, givenThroughSuffix: "", roleSet: roleSetCur, isGroup: isGrpCur, groupId: isGrpCur ? (mCur.Id != null ? String(mCur.Id) : "") : "" });
+          }
+          var expandedCur = [];
+          for (var eic = 0; eic < inheritedPrincipalsCur.length; eic++) {
+            var ipCur = inheritedPrincipalsCur[eic];
+            if (!ipCur.isGroup) {
+              expandedCur.push({ title: ipCur.title, loginName: ipCur.loginName, principalType: ipCur.principalType, givenThroughSuffix: ipCur.givenThroughSuffix, roleSet: ipCur.roleSet });
+              continue;
+            }
+            expandedCur.push({ title: ipCur.title, loginName: ipCur.loginName, principalType: ipCur.principalType, givenThroughSuffix: ipCur.givenThroughSuffix, roleSet: ipCur.roleSet });
+            if (!ipCur.groupId) continue;
+            try {
+              var guRespCur = await fetch(siteUrl + "/_api/web/sitegroups/GetById(" + ipCur.groupId + ")/users", { credentials: "include", headers: accept });
+              if (!guRespCur.ok) continue;
+              var guDataCur = await guRespCur.json();
+              var gUsersCur = guDataCur.value || guDataCur.results || [];
+              for (var guc = 0; guc < gUsersCur.length; guc++) {
+                var uCur = gUsersCur[guc];
+                expandedCur.push({
+                  title: (uCur.Title || uCur.LoginName || "").trim(),
+                  loginName: (uCur.LoginName || "").trim(),
+                  principalType: "User",
+                  givenThroughSuffix: " - " + (ipCur.title || "Group") + " Members",
+                  roleSet: ipCur.roleSet
+                });
+              }
+            } catch (_) {}
+          }
+          inheritedPrincipalsCur = expandedCur;
+        }
+        var allItemsCur = [];
+        var nextUrlCur = listBaseCur + "/items?$select=Id,FileRef,FileDirRef,FileLeafRef,FSObjType,HasUniqueRoleAssignments&$top=" + PAGE_SIZE;
+        while (nextUrlCur) {
+          var rCur = await fetchWithRetry(nextUrlCur, { credentials: "include", headers: acceptVerbose }, 6);
+          var dCur = await rCur.json();
+          var batchCur = (dCur.d && dCur.d.results) || [];
+          allItemsCur = allItemsCur.concat(batchCur);
+          nextUrlCur = (dCur.d && dCur.d.__next) || null;
+          if (batchCur.length < PAGE_SIZE) break;
+          await sleep(100);
+        }
+        var exceptionsCur = [];
+        var inheritedItemsCur = [];
+        for (var eic2 = 0; eic2 < allItemsCur.length; eic2++) {
+          var itmCur = allItemsCur[eic2];
+          var itemLabelCur = itmCur.FileRef || (itmCur.FileDirRef && itmCur.FileLeafRef ? (itmCur.FileDirRef + "/" + itmCur.FileLeafRef).replace(/\/+/g, "/") : null) || itmCur.FileLeafRef || ("(ID " + itmCur.Id + ")");
+          if (itemLabelCur && itemLabelCur.indexOf("#") >= 0) itemLabelCur = itemLabelCur.slice(itemLabelCur.indexOf("#") + 1).trim();
+          if (itmCur.HasUniqueRoleAssignments === true) {
+            exceptionsCur.push({ Id: itmCur.Id, Item: itemLabelCur });
+          } else {
+            inheritedItemsCur.push({ Id: itmCur.Id, Item: itemLabelCur });
+          }
+        }
+        function normalizePathCur(p) {
+          if (!p || typeof p !== "string") return "";
+          return p.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "").replace(/^\//, "").trim();
+        }
+        function getPathAncestorsCur(path) {
+          var n = normalizePathCur(path);
+          if (!n) return [];
+          var parts = n.split("/").filter(Boolean);
+          if (parts.length <= 1) return [];
+          var ancestors = [];
+          for (var a = 1; a < parts.length; a++) ancestors.push(parts.slice(0, a).join("/"));
+          return ancestors;
+        }
+        function getTopmostInheritanceSourceCur(itemPath, exceptionPathSetCur, defaultRootCur) {
+          var ancestors = getPathAncestorsCur(itemPath);
+          for (var ai = 0; ai < ancestors.length; ai++) {
+            if (exceptionPathSetCur[ancestors[ai]]) return "/" + ancestors[ai];
+          }
+          return defaultRootCur || inheritedSourcePathCur;
+        }
+        var exceptionPathSetCur = {};
+        for (var exi = 0; exi < exceptionsCur.length; exi++) exceptionPathSetCur[normalizePathCur(exceptionsCur[exi].Item)] = true;
+        async function getMatrixRowsForItemCur(itemIdCur, itemPathCur) {
+          var urlCur = listBaseCur + "/items(" + itemIdCur + ")/RoleAssignments?$expand=Member,RoleDefinitionBindings&$top=5000";
+          var rowsCur = [];
+          var nextCur = urlCur;
+          while (nextCur) {
+            var respCur = await fetchWithRetry(nextCur, { credentials: "include", headers: accept }, 8);
+            var dataCur = await respCur.json();
+            var pageCur = dataCur.value || dataCur.results || [];
+            for (var pi = 0; pi < pageCur.length; pi++) {
+              var ra = pageCur[pi];
+              var m = ra.Member || ra.member;
+              if (!m) continue;
+              var bindings = ra.RoleDefinitionBindings || ra.roleDefinitionBindings || [];
+              var roleSet = {};
+              for (var bi = 0; bi < bindings.length; bi++) {
+                var rn = (bindings[bi].Name || bindings[bi].name || "").trim();
+                if (rn) roleSet[rn] = true;
+              }
+              var principalType = principalTypeLabel(m.PrincipalType);
+              var title = (m.Title || m.LoginName || "").trim();
+              var loginName = (m.LoginName || "").trim();
+              var isGroup = (parseInt(m.PrincipalType, 10) === 4 || parseInt(m.PrincipalType, 10) === 8);
+              rowsCur.push({ title: title, loginName: loginName, principalType: principalType, givenThrough: "Explicit", roleSet: roleSet, isGroup: isGroup, groupId: isGroup ? (m.Id != null ? String(m.Id) : "") : "" });
+            }
+            nextCur = dataCur["@odata.nextLink"] || null;
+          }
+          var expandedCur2 = [];
+          for (var ri = 0; ri < rowsCur.length; ri++) {
+            var row = rowsCur[ri];
+            if (!row.isGroup) {
+              expandedCur2.push({ title: row.title, loginName: row.loginName, principalType: row.principalType, givenThrough: row.givenThrough, roleSet: row.roleSet, viaGroup: false });
+              continue;
+            }
+            expandedCur2.push({ title: row.title, loginName: row.loginName, principalType: row.principalType, givenThrough: row.givenThrough, roleSet: row.roleSet, viaGroup: false });
+            if (!row.groupId) continue;
+            try {
+              var usersRespCur = await fetch(siteUrl + "/_api/web/sitegroups/GetById(" + row.groupId + ")/users", { credentials: "include", headers: accept });
+              if (!usersRespCur.ok) continue;
+              var usersDataCur = await usersRespCur.json();
+              var groupUsersCur = usersDataCur.value || usersDataCur.results || [];
+              for (var gu = 0; gu < groupUsersCur.length; gu++) {
+                var u = groupUsersCur[gu];
+                expandedCur2.push({
+                  title: (u.Title || u.LoginName || "").trim(),
+                  loginName: (u.LoginName || "").trim(),
+                  principalType: "User",
+                  givenThrough: (row.title || "Group") + " Members",
+                  roleSet: row.roleSet,
+                  viaGroup: true
+                });
+              }
+            } catch (_) {}
+          }
+          return expandedCur2.map(function (e) {
+            return {
+              itemPath: itemPathCur,
+              inheritance: e.viaGroup ? "Inherited" : "Custom",
+              details: "",
+              userOrGroup: e.title,
+              principalType: e.principalType,
+              accountName: e.loginName,
+              givenThrough: e.givenThrough,
+              roleSet: e.roleSet
+            };
+          });
+        }
+        for (var exIdx = 0; exIdx < exceptionsCur.length; exIdx++) {
+          var exCur = exceptionsCur[exIdx];
+          var itemRowsCur = await getMatrixRowsForItemCur(exCur.Id, exCur.Item);
+          for (var irc = 0; irc < itemRowsCur.length; irc++) {
+            var rowCur = itemRowsCur[irc];
+            rowCur.containerName = listTitleCur;
+            rowCur.containerType = containerTypeCur;
+            allMatrixRowsWs.push(rowCur);
+          }
+        }
+        var givenThroughBaseCur = "Inherited (From ItemPath: " + inheritedSourcePathCur + ")";
+        for (var ii = 0; ii < inheritedItemsCur.length; ii++) {
+          var pathCur = inheritedItemsCur[ii].Item;
+          var sourcePathCur = getTopmostInheritanceSourceCur(pathCur, exceptionPathSetCur, inheritedSourcePathCur);
+          var givenBaseCur = "Inherited (From ItemPath: " + sourcePathCur + ")";
+          for (var ip = 0; ip < inheritedPrincipalsCur.length; ip++) {
+            var pCur = inheritedPrincipalsCur[ip];
+            allMatrixRowsWs.push({
+              containerName: listTitleCur,
+              containerType: containerTypeCur,
+              itemPath: pathCur,
+              inheritance: "Inherited",
+              details: "",
+              userOrGroup: pCur.title,
+              principalType: pCur.principalType,
+              accountName: pCur.loginName,
+              givenThrough: givenBaseCur + (pCur.givenThroughSuffix || ""),
+              roleSet: pCur.roleSet
+            });
+          }
+        }
+      }
+      var headerWs = ["List/Library/Page name", "Type", "Item path", "Inheritance", "Details", "User/group", "Principal type", "Account name", "Given through"].concat(roleNamesWs);
+      var aoaWs = [headerWs];
+      for (var mr = 0; mr < allMatrixRowsWs.length; mr++) {
+        var rowWs = allMatrixRowsWs[mr];
+        var rWs = [rowWs.containerName, rowWs.containerType, rowWs.itemPath, rowWs.inheritance, rowWs.details, rowWs.userOrGroup, rowWs.principalType, rowWs.accountName, rowWs.givenThrough];
+        for (var rn = 0; rn < roleNamesWs.length; rn++) rWs.push(rowWs.roleSet[roleNamesWs[rn]] ? "X" : "");
+        aoaWs.push(rWs);
+      }
+      reportProgress("Permissions matrix: Building report…");
+      var fnBaseWs = (exportFilename || "PermissionsMatrix").replace(/\.(csv|xls|xlsx|xml)$/i, "") + "_PermissionsMatrix_WholeSite";
+      if (params.format === "xlsx") {
+        downloadExport({ sheets: [{ name: "Permissions Matrix", aoa: aoaWs }] }, fnBaseWs, {});
+      } else {
+        var csvLinesWs = [headerWs.map(escapeCSV).join(",")];
+        for (var c = 0; c < aoaWs.length - 1; c++) csvLinesWs.push(aoaWs[c + 1].map(escapeCSV).join(","));
+        downloadExport({ csv: "\ufeff" + csvLinesWs.join("\r\n") }, fnBaseWs, { sheetName: "Permissions Matrix" });
+      }
+      reportDone(true, "Done! Permissions matrix (whole site) downloaded (" + allMatrixRowsWs.length + " rows).");
+      return;
+    }
+
+    var listTitle = getListTitleFromContext();
+    var listBase = listTitle ? listByTitleUrl(listTitle) : listBaseUrl();
+    reportProgress("Permissions matrix: Loading list…");
+    var listMeta = await fetch(listBase + "?$select=ItemCount,HasUniqueRoleAssignments", { credentials: "include", headers: accept });
+    if (!listMeta.ok) {
+      reportDone(false, "Could not load list: " + listMeta.status);
+      return;
+    }
+    var listData = await listMeta.json();
+    var totalItemCount = Math.max(0, parseInt(listData.ItemCount, 10) || 0);
+    var listHasUnique = listData.HasUniqueRoleAssignments === true;
     reportProgress("Permissions matrix: Loading role definitions…");
     var roleDefResp = await fetch(siteUrl + "/_api/web/roledefinitions?$select=Name,Order&$filter=Hidden eq false&$orderby=Order asc", { credentials: "include", headers: accept });
     var roleNames = [];
@@ -2285,6 +2672,8 @@
   (async function () {
     var rpcViewId = "";
     try {
+      await waitForPageReady(4000);
+
       if (!siteUrl) {
         reportDone(false, "Could not detect site. Ensure you are on a SharePoint list/library page.");
         return;
@@ -2293,12 +2682,12 @@
         var resolved = await resolveListIdFromListUrl();
         if (resolved) listId = resolved;
       }
-      if (!listId) {
-        reportDone(false, "Could not detect list. Ensure you are on a SharePoint list/library view page (URL should have List= or pageListId).");
+      if (!listId && !params.matrixWholeSite) {
+        reportDone(false, "Could not detect list. Ensure you are on a SharePoint list/library view page (URL should have List= or pageListId), or use Permissions matrix with Include whole site.");
         return;
       }
 
-      listBaseTemplate = await getListBaseTemplate();
+      listBaseTemplate = listId ? await getListBaseTemplate() : null;
       if (params.report === "permissions") {
         await exportPermissionsReport();
         return;
