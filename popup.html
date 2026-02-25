@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { box-sizing: border-box; }
+    html { overflow-x: hidden; }
+    body {
+      width: 520px;
+      min-width: 520px;
+      margin: 0;
+      padding: 0;
+      font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+      font-size: 14px;
+      color: #323130;
+      background: #faf9f8;
+    }
+    .tab-bar {
+      display: flex;
+      background: #292827;
+      padding: 0;
+      margin: 0;
+      border-bottom: 2px solid transparent;
+    }
+    .tab {
+      flex: 1 1 0%;
+      width: 0;
+      min-width: 0;
+      padding: 12px 4px;
+      background: transparent;
+      border: none;
+      color: rgba(255,255,255,0.9);
+      font-size: 13px;
+      font-weight: 400;
+      cursor: pointer;
+      text-align: center;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tab.tab-two-lines {
+      overflow: visible;
+      white-space: normal;
+      line-height: 1.25;
+      word-break: break-word;
+    }
+    .tab:hover { background: rgba(255,255,255,0.06); color: #fff; }
+    .tab.active {
+      background: #faf9f8;
+      color: #0078d4;
+      font-weight: 600;
+      border-bottom: 2px solid #0078d4;
+      margin-bottom: -2px;
+    }
+    .tab-content {
+      display: none;
+      padding: 12px 14px;
+      background: #faf9f8;
+    }
+    .tab-content.active { display: block; }
+
+    /* Quick links - Fluent */
+    .quicklinks-section { margin-bottom: 20px; }
+    .quicklinks-section h3 {
+      margin: 0 0 8px 0;
+      font-size: 12px;
+      font-weight: 600;
+      color: #605e5c;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+    .quicklinks-list { list-style: none; padding: 0; margin: 0; }
+    .quicklinks-list a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      color: #323130;
+      text-decoration: none;
+      font-size: 14px;
+      border-bottom: 1px solid #edebe9;
+    }
+    .quicklinks-list a:hover { background: #f3f2f1; color: #0078d4; }
+    .quicklinks-scroll { max-height: 500px; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
+
+    /* Page Properties - Fluent typography and polish */
+    .context-header {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #323130;
+      letter-spacing: -0.01em;
+      line-height: 1.4;
+    }
+    .context-filter { margin-bottom: 12px; }
+    .context-filter input {
+      width: 100%;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      border: 1px solid #8a8886;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+      background: #fff;
+    }
+    .context-filter input:focus { outline: none; border-color: #0078d4; box-shadow: 0 0 0 1px #0078d4; }
+    .context-filter input::placeholder { color: #605e5c; }
+    .context-actions { margin-bottom: 12px; }
+    .context-actions button {
+      padding: 8px 16px;
+      background: #0078d4;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .context-actions button:hover { background: #106ebe; }
+    .context-list { max-height: 340px; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
+    /* sp-editor style: property name on top, value in light grey box with copy button (light blue, white icon) */
+    .context-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 12px 0;
+      border-bottom: 1px solid #edebe9;
+      font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .context-row .name {
+      word-break: break-word;
+      color: #323130;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .context-value-row {
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+    }
+    .context-row .value-box {
+      flex: 1;
+      min-width: 0;
+      padding: 8px 12px;
+      background: #f3f2f1;
+      border: 1px solid #edebe9;
+      border-radius: 6px;
+      color: #605e5c;
+      font-size: 13px;
+      word-break: break-word;
+    }
+    .context-row .copy-btn {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #0078d4;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .context-row .copy-btn img { width: 16px; height: 16px; display: block; pointer-events: none; }
+    .context-row .copy-btn:hover { background: #106ebe; }
+    .context-row .copy-btn.copied { background: #107c10; }
+
+    /* Search Schema (Columns) tab - cap at 600px; only the list scrolls */
+    body.columns-tab-active { max-height: 600px; overflow: hidden; }
+    body.columns-tab-active #searchSchemaPanel.tab-content.active {
+      display: flex;
+      flex-direction: column;
+      height: 556px;
+      max-height: 556px;
+      overflow: hidden;
+    }
+    body.columns-tab-active #searchSchemaPanel.tab-content.active > *:not(#searchSchemaList) {
+      flex-shrink: 0;
+    }
+    body.columns-tab-active #searchSchemaPanel .search-schema-list {
+      flex: 1 1 0;
+      min-height: 0;
+      max-height: none;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-gutter: stable;
+    }
+    .search-schema-list { max-height: 340px; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
+    .search-schema-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid #edebe9;
+      font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .search-schema-row .col-name { flex: 0 0 28%; word-break: break-word; color: #323130; font-weight: 500; }
+    .search-schema-row .col-internal { flex: 0 0 28%; word-break: break-word; color: #605e5c; }
+    .search-schema-row .col-type { flex: 1; word-break: break-word; min-width: 0; color: #605e5c; font-size: 12px; }
+    .search-schema-header { font-weight: 600; color: #605e5c; border-bottom: 2px solid #8a8886; padding-bottom: 8px; margin-bottom: 4px; }
+    .search-schema-header .col-name, .search-schema-header .col-internal, .search-schema-header .col-type { color: #605e5c; }
+
+    /* Reports tab - Fluent */
+    h1 { margin: 0 0 6px 0; font-size: 18px; font-weight: 600; color: #323130; }
+    p.hint { font-size: 13px; color: #605e5c; margin: 0 0 10px 0; line-height: 1.45; }
+    button:not(.tab):not(.icon-btn) {
+      padding: 8px 16px;
+      background: #0078d4;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:not(.tab):not(.icon-btn):hover { background: #106ebe; }
+    button.secondary { background: #fff; color: #323130; border: 1px solid #8a8886; border-radius: 8px; }
+    button.secondary:hover { background: #f3f2f1; border-color: #323130; }
+    .btn-block { width: 100%; box-sizing: border-box; }
+    #btnExport { margin-top: 24px; }
+    button.link-btn,
+    #btnChooseColumns {
+      background: none !important;
+      border: none !important;
+      padding: 0;
+      font-size: 14px;
+      font-weight: 400;
+      color: #0078d4;
+      text-decoration: underline;
+      cursor: pointer;
+      font-family: inherit;
+      box-shadow: none !important;
+    }
+    button.link-btn:hover,
+    #btnChooseColumns:hover { color: #004578; text-decoration: underline; background: none !important; }
+    .report-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .report-label { font-size: 14px; font-weight: 500; color: #323130; }
+    .report-select {
+      flex: 1;
+      min-width: 0;
+      padding: 8px 12px;
+      font-size: 14px;
+      font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+      border: 1px solid #8a8886;
+      border-radius: 8px;
+      background: #fff;
+      color: #323130;
+    }
+    .report-select:focus { outline: none; border-color: #0078d4; }
+    .report-options { margin-top: 4px; }
+    .report-options .options-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 0; flex-wrap: wrap; }
+    .report-options .options-row .toggle-row { margin: 0; }
+    .report-options .btn-block { margin-bottom: 0; }
+    .action-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+    .toggle-row { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-size: 14px; cursor: pointer; color: #323130; }
+    .toggle-row input { width: 16px; height: 16px; cursor: pointer; accent-color: #0078d4; }
+    #status { margin-top: 10px; padding: 10px 12px; border-radius: 8px; font-size: 13px; display: none; }
+    #status.info { background: #e1f5fe; color: #0d47a1; display: block; border: 1px solid #b3e5fc; }
+    #status.error { background: #ffebee; color: #b71c1c; display: block; border: 1px solid #ffcdd2; }
+    #status.success { background: #e8f5e9; color: #2e7d32; display: block; border: 1px solid #c8e6c9; }
+    #downloadMain.hidden { display: none; }
+    #pickerPanel { display: none; padding-top: 12px; }
+    #pickerPanel.visible { display: block; }
+    #settingsPanel { display: none; }
+    #settingsPanel.visible { display: block; }
+    #downloadPanel.hidden { display: none; }
+    .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .header-row h1 { margin: 0; }
+    .icon-btn { background: transparent; color: #605e5c; border: none; padding: 4px 8px; font-size: 16px; cursor: pointer; border-radius: 8px; }
+    .icon-btn:hover { background: #f3f2f1; color: #323130; }
+    .settings-row { display: flex; align-items: center; gap: 12px; margin: 12px 0; }
+    .settings-row label { font-weight: 500; min-width: 80px; color: #323130; }
+    .settings-row select { padding: 8px 12px; font-size: 14px; border: 1px solid #8a8886; border-radius: 8px; min-width: 100px; background: #fff; }
+    .picker-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .picker-header h2 { margin: 0; font-size: 15px; font-weight: 600; color: #323130; flex: 1; min-width: 0; }
+    .picker-header .secondary { flex-shrink: 0; }
+    .picker-actions { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+    .picker-actions button { padding: 6px 12px; font-size: 13px; }
+    #columnList { max-height: 220px; overflow-y: auto; border: 1px solid #edebe9; border-radius: 8px; padding: 8px; margin-bottom: 10px; background: #fff; }
+    .picker-status { margin-top: 8px; padding: 8px; border-radius: 8px; font-size: 13px; display: none; }
+    .column-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 14px; }
+    .column-item input { flex-shrink: 0; accent-color: #0078d4; }
+    .column-item label { cursor: pointer; flex: 1; }
+    .required-badge { font-size: 11px; color: #605e5c; }
+    #pickerStatus.info { background: #e1f5fe; color: #0d47a1; }
+    #pickerStatus.error { background: #ffebee; color: #b71c1c; }
+
+    /* Views tab - fits in 600px; only Columns list and Filters scroll */
+    body.views-tab-active { max-height: 700px; overflow: hidden; }
+    #viewsPanel { padding: 6px 12px 10px; }
+    #viewsPanel .context-header { margin: 0 0 2px 0; font-size: 12px; font-weight: 600; }
+    #viewsPanel > .hint { margin: 0 0 6px 0; font-size: 11px; line-height: 1.3; }
+    #viewsPanel .views-section { margin-bottom: 6px; }
+    #viewsPanel .views-section h3 { margin: 0 0 2px 0; font-size: 10px; font-weight: 600; color: #605e5c; text-transform: uppercase; letter-spacing: 0.02em; }
+    #viewsPanel .views-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+    #viewsPanel .views-row:last-child { margin-bottom: 0; }
+    #viewsPanel .views-row label { min-width: 56px; font-size: 12px; color: #323130; }
+    #viewsPanel .views-row select,
+    #viewsPanel .views-row input[type="text"] {
+      flex: 1; min-width: 0; padding: 4px 8px; font-size: 12px; border: 1px solid #8a8886; border-radius: 4px; background: #fff;
+    }
+    #viewsPanel #viewColumnsList { max-height: 92px; overflow-y: auto; overflow-x: hidden; border: 1px solid #edebe9; border-radius: 4px; padding: 4px; background: #fff; }
+    #viewsPanel .view-column-item { display: flex; align-items: center; gap: 4px; padding: 2px 0; font-size: 11px; }
+    #viewsPanel .view-column-item input[type="checkbox"] { accent-color: #0078d4; flex-shrink: 0; }
+    #viewsPanel .view-column-item label { cursor: pointer; flex: 1; margin: 0; min-width: 0; }
+    #viewsPanel .view-column-item .col-move { display: flex; gap: 1px; flex-shrink: 0; }
+    #viewsPanel .view-column-item .col-move button { padding: 1px 4px; font-size: 10px; line-height: 1; background: #f3f2f1; border: 1px solid #8a8886; border-radius: 3px; cursor: pointer; color: #323130; }
+    #viewsPanel .view-column-item .col-move button:hover { background: #edebe9; }
+    #viewsPanel .view-filters-scroll { max-height: 200px; overflow-y: auto; overflow-x: hidden; border: 1px solid #edebe9; border-radius: 4px; padding: 4px; background: #faf9f8; margin-bottom: 2px; }
+    #viewsPanel .view-filter-block { margin-bottom: 6px; padding: 4px 6px; background: #f3f2f1; border-radius: 4px; border: 1px solid #edebe9; }
+    #viewsPanel .view-filter-block:last-child { margin-bottom: 0; }
+    #viewsPanel .view-filter-block .filter-row { margin-bottom: 2px; display: flex; align-items: center; gap: 4px; }
+    #viewsPanel .view-filter-block .filter-row:last-child { margin-bottom: 0; }
+    #viewsPanel .view-filter-block .filter-row label { min-width: 48px; font-size: 11px; color: #323130; }
+    #viewsPanel .view-filter-block .filter-row select, #viewsPanel .view-filter-block .filter-row input[type="text"] { flex: 1; min-width: 0; padding: 3px 6px; font-size: 11px; border: 1px solid #8a8886; border-radius: 4px; }
+    #viewsPanel .view-filter-remove { font-size: 11px; color: #0078d4; cursor: pointer; text-decoration: none; margin-top: 1px; display: inline-block; }
+    #viewsPanel .view-filter-remove:hover { text-decoration: underline; }
+    #viewsPanel .add-filter-link { font-size: 11px; color: #0078d4; cursor: pointer; text-decoration: none; display: inline-block; margin-bottom: 4px; }
+    #viewsPanel .add-filter-link:hover { text-decoration: underline; }
+    #viewsPanel #btnSaveView { margin-top: 4px; padding: 5px 12px; font-size: 12px; }
+    #viewsPanel #viewsStatus { margin-top: 4px; padding: 6px 8px; border-radius: 4px; font-size: 11px; display: none; }
+    #viewsPanel #viewsStatus.info { background: #e1f5fe; color: #0d47a1; display: block; }
+    #viewsPanel #viewsStatus.error { background: #ffebee; color: #b71c1c; display: block; }
+    #viewsPanel #viewsStatus.success { background: #e8f5e9; color: #2e7d32; display: block; }
+  </style>
+</head>
+<body>
+  <div class="tab-bar">
+    <button type="button" class="tab active" data-tab="quicklinks">Quick links</button>
+    <button type="button" class="tab tab-two-lines" data-tab="context">Page<br>Properties</button>
+    <button type="button" class="tab" id="tabColumns" data-tab="searchSchema" style="display:none;">Columns</button>
+    <button type="button" class="tab" id="tabViews" data-tab="views" style="display:none;">Views</button>
+    <button type="button" class="tab" data-tab="download">Reports</button>
+  </div>
+
+  <div id="quicklinksPanel" class="tab-content active">
+    <p id="quicklinksHint" class="hint" style="display:none;">Open a SharePoint page to see links.</p>
+    <div id="quicklinksContent" style="display:none;">
+      <div class="quicklinks-scroll">
+        <div class="quicklinks-section">
+          <h3>Current site</h3>
+          <ul class="quicklinks-list" id="quicklinksCurrentSite"></ul>
+        </div>
+        <div class="quicklinks-section">
+          <h3>Current user</h3>
+          <ul class="quicklinks-list" id="quicklinksCurrentUser"></ul>
+        </div>
+        <div class="quicklinks-section">
+          <h3>Modes</h3>
+          <ul class="quicklinks-list" id="quicklinksModes"></ul>
+        </div>
+        <div class="quicklinks-section">
+          <h3>Tenant</h3>
+          <ul class="quicklinks-list" id="quicklinksTenant"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="contextPanel" class="tab-content">
+    <div class="context-header">
+      <span id="contextCount">ContextInfo properties: 0</span>
+    </div>
+    <div class="context-filter">
+      <input type="text" id="contextFilterInput" placeholder="Filter properties..." class="context-filter-input">
+      <label class="toggle-row" style="margin:0 0 8px 0;">
+        <input type="checkbox" id="contextFilterByValue">
+        <span>Filter by value</span>
+      </label>
+    </div>
+    <div class="context-actions">
+      <button type="button" id="btnRefreshContext">Refresh</button>
+    </div>
+    <div id="contextList" class="context-list"></div>
+  </div>
+
+  <div id="searchSchemaPanel" class="tab-content">
+    <div class="context-header">
+      <span id="searchSchemaCount">Columns: 0</span>
+    </div>
+    <div class="context-filter">
+      <input type="text" id="searchSchemaFilter" placeholder="Search name, internal name, or type…" class="context-filter-input">
+    </div>
+    <div class="context-actions">
+      <button type="button" id="btnRefreshSearchSchema">Refresh</button>
+    </div>
+    <div class="search-schema-header search-schema-row">
+      <span class="col-name">Name</span>
+      <span class="col-internal">Internal Name</span>
+      <span class="col-type">Type</span>
+    </div>
+    <div id="searchSchemaList" class="search-schema-list"></div>
+    <p id="searchSchemaError" class="hint" style="color:#a4262c;display:none;"></p>
+  </div>
+
+  <div id="viewsPanel" class="tab-content">
+    <div class="context-header">List views</div>
+    <p class="hint">Select an existing view to edit or create a new one. Configure columns, sort, filter, and grouping.</p>
+    <div class="views-section">
+      <h3>View</h3>
+      <div class="views-row">
+        <label for="viewSelect">View:</label>
+        <select id="viewSelect" class="report-select">
+          <option value="">Loading…</option>
+        </select>
+      </div>
+      <div class="views-row" id="viewNameRow">
+        <label for="viewNameInput">Name:</label>
+        <input type="text" id="viewNameInput" placeholder="View name (for new view)">
+      </div>
+    </div>
+    <div class="views-section">
+      <h3>Columns</h3>
+      <p class="hint" style="margin:0 0 3px 0;font-size:11px;">Check to include; use ↑↓ to reorder.</p>
+      <div id="viewColumnsList"></div>
+    </div>
+    <div class="views-section">
+      <h3>Sort</h3>
+      <div class="views-row">
+        <label for="viewSortColumn">Column:</label>
+        <select id="viewSortColumn">
+          <option value="">— None —</option>
+        </select>
+        <select id="viewSortDirection">
+          <option value="asc">Ascending</option>
+          <option value="desc">Descending</option>
+        </select>
+      </div>
+    </div>
+    <div class="views-section">
+      <h3>Filter</h3>
+      <div class="view-filters-scroll">
+        <div id="viewFiltersContainer"></div>
+      </div>
+      <a href="#" class="add-filter-link" id="viewAddFilterLink">Add Filter</a>
+    </div>
+    <div class="views-section">
+      <h3>Group by</h3>
+      <div class="views-row">
+        <label for="viewGroupBy">Column:</label>
+        <select id="viewGroupBy">
+          <option value="">— None —</option>
+        </select>
+      </div>
+    </div>
+    <button type="button" id="btnSaveView" class="btn-block">Save view</button>
+    <div id="viewsStatus"></div>
+  </div>
+
+  <div id="downloadPanel" class="tab-content">
+    <div id="downloadMain">
+      <div class="header-row">
+        <h1>SharePoint Reports</h1>
+        <button id="btnSettings" class="icon-btn" title="Settings" aria-label="Settings">⚙</button>
+      </div>
+      <p class="hint">Open a SharePoint list or library, select a report, and then click Export.</p>
+      <div class="report-row">
+        <label for="reportSelect" class="report-label">Report:</label>
+        <select id="reportSelect" class="report-select">
+          <option value="">Select a report</option>
+          <option value="exportCSV">Download list/library contents</option>
+          <option value="folderCount">Folder count (nested)</option>
+          <option value="pathLengths">Path lengths</option>
+          <option value="permissions">List/library permissions</option>
+          <option value="permissionsMatrix">Permissions matrix</option>
+        </select>
+      </div>
+      <div id="reportOptions" class="report-options" style="display: none;">
+        <div class="options-row">
+          <label class="toggle-row">
+            <input type="checkbox" id="chkIncludeVersions">
+            <span>Include versions</span>
+          </label>
+          <button type="button" id="btnChooseColumns" class="link-btn">Column Selection</button>
+        </div>
+        <div class="options-row">
+          <label for="formatSelect">Format:</label>
+          <select id="formatSelect" class="report-select">
+            <option value="csv">CSV</option>
+            <option value="xlsx">Excel (XLSX)</option>
+            <option value="xls">Excel (XLS)</option>
+          </select>
+        </div>
+        <button id="btnExport" class="btn-block">Export</button>
+      </div>
+      <div id="status"></div>
+    </div>
+
+    <div id="pickerPanel">
+      <div class="picker-header">
+        <h2>Select columns to export</h2>
+        <button id="btnBack" class="secondary">← Back</button>
+      </div>
+      <div class="picker-actions">
+        <button id="btnSelectAll">Select all</button>
+        <button id="btnSelectNone">Select none</button>
+        <button id="btnSelectDefaults">Select defaults</button>
+      </div>
+      <div id="columnList"></div>
+      <label class="toggle-row" style="margin-bottom:10px;">
+        <input type="checkbox" id="chkIncludeVersionsPicker">
+        <span>Include versions</span>
+      </label>
+      <button id="btnExportSelected" class="btn-block">Export selected columns</button>
+      <div id="pickerStatus" class="picker-status"></div>
+    </div>
+
+    <div id="settingsPanel">
+      <div class="picker-header">
+        <h2>Settings</h2>
+        <button id="btnSettingsBack" class="secondary">← Back</button>
+      </div>
+      <div class="settings-row">
+        <label for="pageSizeSelect">Page size</label>
+        <select id="pageSizeSelect">
+          <option value="500">500</option>
+          <option value="1000">1000</option>
+          <option value="5000" selected>5000</option>
+          <option value="10000">10,000</option>
+          <option value="20000">20,000</option>
+        </select>
+      </div>
+      <p class="hint" style="margin-top:8px;">Number of items fetched per request.</p>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
