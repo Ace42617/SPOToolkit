@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "SharePoint Toolkit",
+  "name": "SPO Toolkit",
   "version": "1.0.0",
-  "description": "Open a SharePoint list or library, then click Export.",
+  "description": "Export list/library data, run reports, manage views, and quick links on SharePoint.",
   "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": ["*://*.sharepoint.com/*"],
   "content_scripts": [
