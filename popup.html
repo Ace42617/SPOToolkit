@@ -204,11 +204,12 @@
       font-size: 13px;
       line-height: 1.5;
     }
-    .search-schema-row .col-name { flex: 0 0 28%; word-break: break-word; color: #323130; font-weight: 500; }
-    .search-schema-row .col-internal { flex: 0 0 28%; word-break: break-word; color: #605e5c; }
+    .search-schema-row .col-name { flex: 0 0 20%; word-break: break-word; color: #323130; font-weight: 500; }
+    .search-schema-row .col-internal { flex: 0 0 22%; word-break: break-word; color: #605e5c; font-size: 12px; }
+    .search-schema-row .col-crawled { flex: 0 0 28%; word-break: break-all; color: #605e5c; font-size: 11px; }
     .search-schema-row .col-type { flex: 1; word-break: break-word; min-width: 0; color: #605e5c; font-size: 12px; }
     .search-schema-header { font-weight: 600; color: #605e5c; border-bottom: 2px solid #8a8886; padding-bottom: 8px; margin-bottom: 4px; }
-    .search-schema-header .col-name, .search-schema-header .col-internal, .search-schema-header .col-type { color: #605e5c; }
+    .search-schema-header .col-name, .search-schema-header .col-internal, .search-schema-header .col-crawled, .search-schema-header .col-type { color: #605e5c; }
 
     /* Reports tab - Fluent */
     h1 { margin: 0 0 6px 0; font-size: 18px; font-weight: 600; color: #323130; }
@@ -352,7 +353,7 @@
       <span id="searchSchemaCount">Columns: 0</span>
     </div>
     <div class="context-filter">
-      <input type="text" id="searchSchemaFilter" placeholder="Search name, internal name, or type…" class="context-filter-input">
+      <input type="text" id="searchSchemaFilter" placeholder="Search name, internal name, crawled, or type…" class="context-filter-input">
     </div>
     <div class="context-actions">
       <button type="button" id="btnRefreshSearchSchema">Refresh</button>
@@ -360,6 +361,7 @@
     <div class="search-schema-header search-schema-row">
       <span class="col-name">Name</span>
       <span class="col-internal">Internal Name</span>
+      <span class="col-crawled">Crawled Property (Inferred)</span>
       <span class="col-type">Type</span>
     </div>
     <div id="searchSchemaList" class="search-schema-list"></div>

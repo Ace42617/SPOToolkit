@@ -656,8 +656,6 @@
       var digest = await getDigest(attempt > 1);
       if (!digest) return { ok: false, error: "Could not get request digest" };
 
-      if (attempt > 1) reportProgress("Retrying view creation (attempt " + attempt + "/" + maxAttempts + ")…");
-
       createResp = await fetch(lb + "/views", {
         method: "POST",
         credentials: "include",
@@ -2763,10 +2761,13 @@
           return;
         }
         rpcViewId = vr.viewId;
-        await sleep(500);
-        await exportViaOwssvrWithView(rpcViewId, itemCount);
-        if (DELETE_VIEW_AT_END && rpcViewId) {
-          try { await deleteViewById(rpcViewId); } catch (_) {}
+        try {
+          await sleep(500);
+          await exportViaOwssvrWithView(rpcViewId, itemCount);
+        } finally {
+          if (DELETE_VIEW_AT_END && rpcViewId) {
+            try { await deleteViewById(rpcViewId); } catch (_) {}
+          }
         }
       }
     } catch (e) {

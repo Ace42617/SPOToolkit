@@ -134,6 +134,22 @@ async function renderQuickLinks() {
 
 let contextData = null;
 
+/** Flatten nested object to single-level keys (e.g. Web.WebAbsoluteUrl) for display. */
+function flattenContext(obj, prefix) {
+  if (obj === null || typeof obj !== "object") return prefix ? { [prefix]: obj } : {};
+  const out = {};
+  for (const k of Object.keys(obj)) {
+    const v = obj[k];
+    const key = prefix ? prefix + "." + k : k;
+    if (v !== null && typeof v === "object" && !Array.isArray(v) && Object.prototype.toString.call(v) === "[object Object]") {
+      Object.assign(out, flattenContext(v, key));
+    } else {
+      out[key] = v !== null && typeof v === "object" ? JSON.stringify(v) : v;
+    }
+  }
+  return out;
+}
+
 async function loadContextInfo() {
   const list = document.getElementById("contextList");
   const countEl = document.getElementById("contextCount");
@@ -146,13 +162,30 @@ async function loadContextInfo() {
       list.innerHTML = "<p class=\"hint\">Open a SharePoint page, then click Refresh to load page properties.</p>";
       return;
     }
+    // Try _spPageContextInfo in all frames (classic list/library and some modern iframes)
     const results = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
+      target: { tabId: tab.id, allFrames: true },
       func: () => (typeof window._spPageContextInfo !== "undefined" ? window._spPageContextInfo : null),
       world: "MAIN"
     });
-    const ctx = results && results[0] && results[0].result;
+    let ctx = results && results.length > 0
+      ? results.map((r) => r.result).find((r) => r && typeof r === "object" && Object.keys(r).length > 0)
+      : null;
     contextData = ctx && typeof ctx === "object" ? ctx : null;
+    // Modern pages (e.g. home) often don't set _spPageContextInfo; fetch ?as=json in page context
+    if (!contextData || Object.keys(contextData).length === 0) {
+      try {
+        const res = await new Promise((resolve) => {
+          chrome.tabs.sendMessage(tab.id, { action: "getPageContextJson" }, (r) => {
+            if (chrome.runtime.lastError) resolve({ ok: false, error: chrome.runtime.lastError.message });
+            else resolve(r || { ok: false, error: "No response" });
+          });
+        });
+        if (res.ok && res.data && typeof res.data === "object" && Object.keys(res.data).length > 0) {
+          contextData = flattenContext(res.data);
+        }
+      } catch (_) {}
+    }
     renderContextList();
   } catch (e) {
     countEl.textContent = "ContextInfo properties: 0";
@@ -304,7 +337,8 @@ function renderSearchSchemaList() {
           (c.internalName && c.internalName.toLowerCase().indexOf(q) >= 0) ||
           (c.title && c.title.toLowerCase().indexOf(q) >= 0) ||
           (c.type && c.type.toLowerCase().indexOf(q) >= 0) ||
-          (c.group && c.group.toLowerCase().indexOf(q) >= 0)
+          (c.group && c.group.toLowerCase().indexOf(q) >= 0) ||
+          (c.crawledProperty && c.crawledProperty.toLowerCase().indexOf(q) >= 0)
       )
     : searchSchemaColumns;
   if (countEl) countEl.textContent = "Columns: " + filtered.length;
@@ -315,6 +349,7 @@ function renderSearchSchemaList() {
     row.innerHTML =
       '<span class="col-name">' + escapeHtml(c.title || "") +
       '</span><span class="col-internal">' + escapeHtml(c.internalName || "") +
+      '</span><span class="col-crawled">' + escapeHtml(c.crawledProperty || "") +
       '</span><span class="col-type">' + escapeHtml(c.type || "") + '</span>';
     listEl.appendChild(row);
   });

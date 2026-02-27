@@ -28,12 +28,17 @@
         var f = raw[i];
         var internalName = f.InternalName || f.Title || "";
         if (!internalName || /^_|^vti_|^ows_|^tp_/.test(internalName)) continue;
+        var crawled = "ows_" + internalName;
+        if (/_x003a__x0020_/i.test(internalName)) {
+          crawled = "ows_" + internalName.replace(/_x003a__x0020_/gi, ":_x0020_");
+        }
         columns.push({
           internalName: internalName,
           title: f.Title || f.InternalName || "",
           type: f.TypeAsString || "",
           group: f.Group || "",
-          alias: f.EntityPropertyName || null
+          alias: f.EntityPropertyName || null,
+          crawledProperty: crawled
         });
       }
       window.postMessage({ __spcsv: true, type: "SPCSVSearchSchemaResult", columns: columns, error: null }, "*");

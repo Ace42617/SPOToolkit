@@ -101,6 +101,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === "getPageContextJson") {
+    injectAndWait(
+      "getPageContextJson.js",
+      "SPCSVPageContextJson",
+      (data) => (data.error ? { ok: false, error: data.error } : { ok: true, data: data.data || {} }),
+      sendResponse,
+      { timeoutMs: 12000, errorPayload: { ok: false, error: "Timeout or page did not return context" } }
+    );
+    return true;
+  }
+
   if (message.action === "rest") {
     const method = (message.method || "GET").toUpperCase();
     const path = message.path || "";
