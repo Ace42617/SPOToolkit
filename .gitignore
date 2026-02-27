@@ -12,5 +12,5 @@ node_modules/
 *.log
 *.tmp
 
-# Release build artifacts (zip is generated, not committed)
+# Release build artifacts (zips generated for releases, not committed)
 release/*.zip

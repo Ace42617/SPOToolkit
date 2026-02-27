@@ -178,6 +178,11 @@
         var cells = [];
         for (var c = 0; c < nc; c++) {
           var v = row[c];
+          if (typeof v === "string" && v.trim() !== "") {
+            var s = v.trim();
+            if (/^-?\d+$/.test(s)) v = parseInt(s, 10);
+            else if (/^-?\d+\.\d*$/.test(s) || /^-?\d*\.\d+$/.test(s)) { var n = parseFloat(s); if (!isNaN(n)) v = n; }
+          }
           var ref = colToLetter(c) + (r + 1);
           var isNum = typeof v === "number" && !isNaN(v);
           if (isNum) cells.push("<c r=\"" + ref + "\" t=\"n\"><v>" + v + "</v></c>");
@@ -467,10 +472,11 @@
   // -----------------------------
   // REST helpers
   // -----------------------------
-  async function getDigest() {
-    var d = getDigestFromDomOrContext();
-    if (d) return d;
-
+  async function getDigest(forceRefresh) {
+    if (!forceRefresh) {
+      var d = getDigestFromDomOrContext();
+      if (d) return d;
+    }
     var r = await fetch(siteUrl + "/_api/contextinfo", {
       method: "POST",
       credentials: "include",
@@ -512,6 +518,26 @@
   }
 
   var BATCH_SIZE_VERSIONS = 100;
+  var VERSIONS_PAGE_SIZE = 5000;
+
+  /** Fetches all versions for one item, following @odata.nextLink. Returns array of version objects or null on failure. */
+  async function fetchAllVersionsForItem(itemId, selectQuery) {
+    var lb = listBaseUrl();
+    var url = lb + "/items(" + itemId + ")/versions?$select=" + encodeURIComponent(selectQuery) + "&$top=" + VERSIONS_PAGE_SIZE;
+    var all = [];
+    var accept = { "Accept": "application/json;odata=nometadata" };
+    while (url) {
+      var r = await fetch(url, { credentials: "include", headers: accept });
+      if (!r.ok) return null;
+      var j = await r.json();
+      var page = j.value || j.d?.results || [];
+      if (!Array.isArray(page)) return null;
+      for (var i = 0; i < page.length; i++) all.push(page[i]);
+      url = j["@odata.nextLink"] || null;
+      if (page.length < VERSIONS_PAGE_SIZE) break;
+    }
+    return all;
+  }
 
   function buildBatchBody(itemIds, selectQuery) {
     var boundary = "batch_" + Math.random().toString(36).slice(2) + "_" + Date.now();
@@ -620,13 +646,17 @@
       await sleep(200);
     }
 
-    // Create new view with Scope 2 (RecursiveAll). Retry on 403/503 (often timing/context not ready).
+    // Create new view with Scope 2 (RecursiveAll). Retry on 403/503 (often timing/session not ready on first load).
     var createResp = null;
     var lastStatus = 0;
     var lastDetail = "";
-    for (var attempt = 1; attempt <= 3; attempt++) {
-      var digest = await getDigest();
+    var maxAttempts = 5;
+    var retryDelayMs = 1500;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      var digest = await getDigest(attempt > 1);
       if (!digest) return { ok: false, error: "Could not get request digest" };
+
+      if (attempt > 1) reportProgress("Retrying view creation (attempt " + attempt + "/" + maxAttempts + ")…");
 
       createResp = await fetch(lb + "/views", {
         method: "POST",
@@ -649,7 +679,7 @@
       if (createResp.ok) break;
       try { lastDetail = await createResp.text(); } catch (_) {}
       if (createResp.status !== 403 && createResp.status !== 503) break;
-      await sleep(attempt * 1200);
+      await sleep(attempt * retryDelayMs);
     }
 
     if (!createResp || !createResp.ok) {
@@ -812,49 +842,70 @@
   }
 
   async function setViewQueryById(viewId, viewQuery) {
-    var digest = await getDigest();
-    if (!digest) return { ok: false, error: "Could not get request digest" };
-
     var vId = normalizeGuid(viewId);
     var apiUrl = listBaseUrl() + "/views(guid'" + vId + "')";
+    var lastStatus = 0;
+    var lastError = "";
+    var maxAttempts = 3;
+    var retryDelayMs = 1200;
 
-    var resp = await fetch(apiUrl, {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        "Accept": "application/json;odata=nometadata",
-        "Content-Type": "application/json;odata=nometadata",
-        "X-RequestDigest": digest,
-        "IF-MATCH": "*",
-        "X-HTTP-Method": "MERGE"
-      },
-      body: JSON.stringify({ ViewQuery: viewQuery })
-    });
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      var digest = await getDigest(true);
+      if (!digest) return { ok: false, error: "Could not get request digest" };
 
-    var errText = "";
-    if (!resp.ok) { try { errText = await resp.text(); } catch (_) {} }
-    return { ok: resp.ok, status: resp.status, error: errText };
+      var resp = await fetch(apiUrl, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Accept": "application/json;odata=nometadata",
+          "Content-Type": "application/json;odata=nometadata",
+          "X-RequestDigest": digest,
+          "IF-MATCH": "*",
+          "X-HTTP-Method": "MERGE"
+        },
+        body: JSON.stringify({ ViewQuery: viewQuery })
+      });
+
+      lastStatus = resp.status;
+      lastError = "";
+      if (!resp.ok) { try { lastError = await resp.text(); } catch (_) {} }
+
+      if (resp.ok) return { ok: true, status: resp.status, error: "" };
+      var isSecurityValidation = lastStatus === 403 ||
+        (lastError && (lastError.indexOf("security validation") !== -1 || lastError.indexOf("2130575252") !== -1 || lastError.indexOf("invalid and might be corrupted") !== -1));
+      if (!isSecurityValidation || attempt >= maxAttempts) return { ok: false, status: lastStatus, error: lastError };
+      await sleep(attempt * retryDelayMs);
+    }
+    return { ok: false, status: lastStatus, error: lastError };
   }
 
   async function removeAllViewFields(viewId) {
-    var digest = await getDigest();
-    if (!digest) return { ok: false, error: "Could not get request digest" };
-
     var accept = { "Accept": "application/json;odata=nometadata" };
     var vfBase = listBaseUrl() + "/views(guid'" + normalizeGuid(viewId) + "')/ViewFields";
+    var maxAttempts = 3;
+    var retryDelayMs = 1200;
 
-    // Fast path (if supported)
-    try {
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      var digest = await getDigest(true);
+      if (!digest) return { ok: false, error: "Could not get request digest" };
+
       var ra = await fetch(vfBase + "/RemoveAllViewFields", {
         method: "POST",
         credentials: "include",
         headers: { ...accept, "X-RequestDigest": digest }
       });
       if (ra.ok) return { ok: true };
-      // fall through to enumeration
-    } catch (_) {}
+      var errText = "";
+      try { errText = await ra.text(); } catch (_) {}
+      var isSecurityValidation = ra.status === 403 ||
+        (errText && (errText.indexOf("security validation") !== -1 || errText.indexOf("2130575252") !== -1 || errText.indexOf("invalid and might be corrupted") !== -1));
+      if (!isSecurityValidation || attempt >= maxAttempts) {
+        if (ra.status === 404 || ra.status === 501) break;
+        return { ok: false, error: "RemoveAllViewFields failed: " + ra.status, detail: errText };
+      }
+      await sleep(attempt * retryDelayMs);
+    }
 
-    // Fallback: enumerate Items and remove one-by-one
     var cur = await fetch(vfBase, { credentials: "include", headers: accept });
     if (!cur.ok) {
       var t = "";
@@ -865,34 +916,50 @@
     var items = j.Items || j.value || [];
     for (var i = 0; i < items.length; i++) {
       var f = String(items[i]).replace(/'/g, "''");
-      try {
-        await fetch(vfBase + "/removeviewfield('" + f + "')", {
+      for (var attempt = 1; attempt <= 2; attempt++) {
+        var digest = await getDigest(true);
+        if (!digest) return { ok: false, error: "Could not get request digest" };
+        var r = await fetch(vfBase + "/removeviewfield('" + f + "')", {
           method: "POST",
           credentials: "include",
           headers: { ...accept, "X-RequestDigest": digest }
         });
-      } catch (_) {}
+        if (r.ok) break;
+        if (r.status !== 403 && r.status !== 503) break;
+        await sleep(attempt * 800);
+      }
     }
     return { ok: true };
   }
 
   async function addViewField(viewId, internalName) {
-    var digest = await getDigest();
-    if (!digest) return { ok: false, error: "Could not get request digest" };
-
     var accept = { "Accept": "application/json;odata=nometadata" };
     var vfBase = listBaseUrl() + "/views(guid'" + normalizeGuid(viewId) + "')/ViewFields";
-
     var name = String(internalName).replace(/'/g, "''");
-    var r = await fetch(vfBase + "/addviewfield('" + name + "')", {
-      method: "POST",
-      credentials: "include",
-      headers: { ...accept, "X-RequestDigest": digest }
-    });
+    var maxAttempts = 3;
+    var retryDelayMs = 1200;
+    var lastStatus = 0;
+    var lastError = "";
 
-    var err = "";
-    if (!r.ok) { try { err = await r.text(); } catch (_) {} }
-    return { ok: r.ok, status: r.status, error: err };
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      var digest = await getDigest(true);
+      if (!digest) return { ok: false, status: 0, error: "Could not get request digest" };
+
+      var r = await fetch(vfBase + "/addviewfield('" + name + "')", {
+        method: "POST",
+        credentials: "include",
+        headers: { ...accept, "X-RequestDigest": digest }
+      });
+      lastStatus = r.status;
+      lastError = "";
+      if (!r.ok) { try { lastError = await r.text(); } catch (_) {} }
+      if (r.ok) return { ok: true, status: r.status, error: "" };
+      var isSecurityValidation = lastStatus === 403 ||
+        (lastError && (lastError.indexOf("security validation") !== -1 || lastError.indexOf("2130575252") !== -1 || lastError.indexOf("invalid and might be corrupted") !== -1));
+      if (!isSecurityValidation || attempt >= maxAttempts) return { ok: false, status: lastStatus, error: lastError };
+      await sleep(attempt * retryDelayMs);
+    }
+    return { ok: false, status: lastStatus, error: lastError };
   }
 
   async function setViewFieldsBatch(viewId, fieldNames) {
@@ -928,11 +995,13 @@
     }
     if (!seen["ID"]) { seen["ID"] = true; names.unshift("ID"); }
 
+    var failed = 0;
     for (var i = 0; i < names.length; i++) {
       var r = await addViewField(viewId, names[i]);
-      if (!r.ok) {
-        // Best-effort: keep going
-      }
+      if (!r.ok) failed++;
+    }
+    if (failed > names.length / 2) {
+      return { ok: false, error: "View field setup failed (403 or permission denied). Try refreshing the page and run the export again." };
     }
     return { ok: true };
   }
@@ -1273,6 +1342,10 @@
       return;
     }
     var rows = parsed.rows;
+    if (rows.length === 0) {
+      reportDone(false, "No rows to export. View setup may have failed (check permissions). Try refreshing the page and run again.");
+      return;
+    }
     var allColumns = { ID: true, Title: true, FileLeafRef: true, FSObjType: true };
     for (var i = 0; i < rows.length; i++) {
       var r = rows[i];
@@ -1405,6 +1478,10 @@
       rowsToExport = Object.keys(byId).sort(function (a, b) { return parseInt(a, 10) - parseInt(b, 10); }).map(function (id) { return byId[id]; });
     }
 
+    if (rowsToExport.length === 0) {
+      reportDone(false, "No data to export; view setup may have failed (check permissions). Try refreshing the page and run again.");
+      return;
+    }
     finishOwssvrExport({ rows: rowsToExport, columns: [] });
   }
 
@@ -1455,8 +1532,8 @@
     var MAX_PAGES = 200;
 
     if (params.incVer !== false) {
-      reportProgress("List export with version history uses one request per item and may take longer. Starting…");
-      await sleep(2500);
+      reportProgress("List export with version history (paginated per item). Starting…");
+      await sleep(500);
       var itemIds = [];
       lastId = 0;
       pageNum = 0;
@@ -1478,59 +1555,32 @@
         if (idItems.length < PAGE_LIMIT) break;
       }
       var rows = [];
-      var numBatches = Math.ceil(itemIds.length / BATCH_SIZE_VERSIONS);
-      var batchDigest = await getDigest();
-      for (var batchIndex = 0; batchIndex < numBatches; batchIndex++) {
-        var start = batchIndex * BATCH_SIZE_VERSIONS;
-        var batchIds = itemIds.slice(start, start + BATCH_SIZE_VERSIONS);
-        var built = buildBatchBody(batchIds, selectWithVersion);
-        var batchHeaders = {
-          "Content-Type": "multipart/mixed; boundary=" + built.boundary,
-          "Accept": "application/json;odata=nometadata"
-        };
-        if (batchDigest) batchHeaders["X-RequestDigest"] = batchDigest;
-        var batchResp = await fetch(siteUrl + "/_api/$batch", {
-          method: "POST",
-          credentials: "include",
-          headers: batchHeaders,
-          body: built.body
-        });
-        if (!batchResp.ok) {
-          for (var fi = 0; fi < batchIds.length; fi++) {
-            var fallbackUrl = listBaseUrl() + "/items(" + batchIds[fi] + ")/versions?$select=" + encodeURIComponent(selectWithVersion);
-            var fallback = await fetch(fallbackUrl, { credentials: "include", headers: accept });
-            if (!fallback.ok) continue;
-            var fallbackJson = await fallback.json();
-            var vlist = fallbackJson.value || fallbackJson.d?.results || [];
-            for (var vi = 0; vi < vlist.length; vi++) {
-              var r = restItemToRow(vlist[vi]);
-              r.ID = batchIds[fi];
-              if (vlist[vi].VersionLabel != null) r._UIVersionString = String(vlist[vi].VersionLabel);
-              rows.push(r);
-              for (var k in r) { if (Object.prototype.hasOwnProperty.call(r, k)) allColumns[k] = true; }
-            }
+      for (var idx = 0; idx < itemIds.length; idx++) {
+        var itemId = itemIds[idx];
+        var versions = await fetchAllVersionsForItem(itemId, selectWithVersion);
+        if (versions && versions.length > 0) {
+          for (var vi = 0; vi < versions.length; vi++) {
+            var row = restItemToRow(versions[vi]);
+            row.ID = itemId;
+            if (versions[vi].VersionLabel != null) row._UIVersionString = String(versions[vi].VersionLabel);
+            rows.push(row);
+            for (var k in row) { if (Object.prototype.hasOwnProperty.call(row, k)) allColumns[k] = true; }
           }
         } else {
-          var batchText = await batchResp.text();
-          var respBoundary = batchResp.headers && batchResp.headers.get ? batchResp.headers.get("Content-Type") : "";
-          var batchResults = parseBatchResponse(batchText, built.boundary, respBoundary);
-          for (var bi = 0; bi < batchResults.length && bi < batchIds.length; bi++) {
-            var itemId = batchIds[bi];
-            var verJson = batchResults[bi];
-            var versions = verJson && (verJson.value || verJson.d?.results || []);
-            if (!Array.isArray(versions)) continue;
-            for (var vi = 0; vi < versions.length; vi++) {
-              var row = restItemToRow(versions[vi]);
-              row.ID = itemId;
-              if (versions[vi].VersionLabel != null) row._UIVersionString = String(versions[vi].VersionLabel);
-              rows.push(row);
-              for (var k in row) {
-                if (Object.prototype.hasOwnProperty.call(row, k)) allColumns[k] = true;
-              }
-            }
+          var currentUrl = listBaseUrl() + "/items(" + itemId + ")?$select=" + encodeURIComponent(selectWithVersion);
+          var currentResp = await fetch(currentUrl, { credentials: "include", headers: accept });
+          if (currentResp.ok) {
+            var currentJson = await currentResp.json();
+            var row = restItemToRow(currentJson);
+            if (!row.ID) row.ID = itemId;
+            if (currentJson.VersionLabel != null) row._UIVersionString = String(currentJson.VersionLabel);
+            rows.push(row);
+            for (var k in row) { if (Object.prototype.hasOwnProperty.call(row, k)) allColumns[k] = true; }
           }
         }
-        reportProgress("", { currentCount: Math.min(start + batchIds.length, itemIds.length), totalCount: itemIds.length });
+        if ((idx + 1) % 50 === 0 || idx === itemIds.length - 1) {
+          reportProgress("", { currentCount: idx + 1, totalCount: itemIds.length });
+        }
       }
       if (rows.length === 0) {
         reportDone(false, "No rows found.");
@@ -2672,7 +2722,7 @@
   (async function () {
     var rpcViewId = "";
     try {
-      await waitForPageReady(4000);
+      await waitForPageReady(6000);
 
       if (!siteUrl) {
         reportDone(false, "Could not detect site. Ensure you are on a SharePoint list/library page.");
