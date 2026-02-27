@@ -272,6 +272,7 @@
     document.getElementById("viewScope").value = "2";
     document.getElementById("btnDelete").classList.add("hide");
     document.getElementById("btnSetDefault").classList.add("hide");
+    document.getElementById("btnDuplicate").classList.add("hide");
     renderColumnList();
     renderSortLevels();
     renderFilterConditions();
@@ -297,6 +298,7 @@
       selectedViewId = defaultView.id;
       document.getElementById("viewSelect").value = defaultView.id;
       document.getElementById("btnDelete").classList.remove("hide");
+      document.getElementById("btnDuplicate").classList.remove("hide");
       loadViewDetails(defaultView.id);
     } else {
       setNewViewDefaults();
@@ -312,6 +314,7 @@
       return;
     }
     document.getElementById("btnDelete").classList.remove("hide");
+    document.getElementById("btnDuplicate").classList.remove("hide");
     updateSetDefaultVisibility();
     loadViewDetails(val);
   }
@@ -354,7 +357,7 @@
       const div = document.createElement("div");
       div.className = "col-item";
       div.dataset.internalName = field.internalName;
-      div.draggable = isInView;
+      div.draggable = true;
       div.innerHTML =
         "<span class=\"drag-handle\" aria-hidden=\"true\">⋮⋮</span>" +
         "<span class=\"col-check\"><input type=\"checkbox\" class=\"col-checkbox\" " + (isInView ? "checked" : "") + "></span>" +
@@ -387,13 +390,14 @@
         e.preventDefault();
         const name = e.dataTransfer.getData("text/plain");
         if (!name || name === field.internalName || name !== draggedName) return;
-        const idx = columnOrder.indexOf(name);
-        const targetIdx = columnOrder.indexOf(field.internalName);
-        if (idx < 0 || targetIdx < 0) return;
-        const arr = columnOrder.slice();
-        arr.splice(idx, 1);
-        const newTargetIdx = arr.indexOf(field.internalName);
-        arr.splice(newTargetIdx >= 0 ? newTargetIdx : arr.length, 0, name);
+        const targetInOrder = columnOrder.indexOf(field.internalName) >= 0;
+        let arr = columnOrder.filter(function (n) { return n !== name; });
+        if (targetInOrder) {
+          const insertIdx = arr.indexOf(field.internalName);
+          arr.splice(insertIdx >= 0 ? insertIdx : arr.length, 0, name);
+        } else {
+          arr.push(name);
+        }
         columnOrder = arr;
         renderColumnList();
       });
@@ -668,6 +672,7 @@
     document.getElementById("viewName").value = (document.getElementById("viewName").value || "").trim() + " (copy)";
     document.getElementById("btnDelete").classList.add("hide");
     document.getElementById("btnSetDefault").classList.add("hide");
+    document.getElementById("btnDuplicate").classList.add("hide");
   }
 
   async function setDefaultView() {
@@ -697,9 +702,6 @@
     }
   });
 
-  document.getElementById("btnRefreshContext").addEventListener("click", function () {
-    loadContext().then(function (ok) { if (ok) loadViewsAndFields(); });
-  });
   document.getElementById("btnCopyListId").addEventListener("click", copyListIdToClipboard);
 
   document.getElementById("btnSave").addEventListener("click", saveView);

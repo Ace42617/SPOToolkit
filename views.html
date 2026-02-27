@@ -102,9 +102,16 @@
     .context-bar strong { color: #323130; }
     .context-block { margin-bottom: 16px; }
     .context-block:last-child { margin-bottom: 0; }
-    .context-list-name { font-size: 14px; font-weight: 600; color: #323130; margin-bottom: 8px; }
-    .context-list-id-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .context-list-id-row code { font-size: 12px; word-break: break-all; background: #f3f2f1; padding: 6px 10px; border-radius: 4px; color: #323130; }
+    .context-card-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .context-card-row h2 { margin: 0; padding-bottom: 0; border: none; font-size: 15px; font-weight: 600; color: #323130; }
+    .context-id-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .context-id-wrap code { font-size: 12px; word-break: break-all; background: #f3f2f1; padding: 6px 10px; border-radius: 4px; color: #323130; }
     .status { padding: 12px; border-radius: 6px; margin: 8px 0; font-size: 13px; }
     .status.error { background: #fde7e9; color: #a4262c; }
     .status.loading { background: #e6f3ff; color: #0078d4; }
@@ -204,6 +211,7 @@
     .badge.default { background: #e6f3ff; color: #0078d4; }
     .badge.personal { background: #f3f2f1; color: #605e5c; }
     .empty-hint { color: #8a8886; font-size: 13px; margin: 8px 0; }
+    .section-add-wrap { text-align: left; margin-top: 4px; }
     #contextStatus.loading { display: block; }
     #contextLines { display: none; }
     #contextLines.visible { display: block; }
@@ -217,36 +225,29 @@
   </header>
   <div class="container">
     <div class="card" id="contextCard">
-      <h2>Current list</h2>
       <p class="status loading" id="contextStatus">Loading context…</p>
-      <div id="contextLines" class="context-bar">
-        <div class="context-block">
-          <div class="context-list-name" id="contextListName">—</div>
-          <div class="context-list-id-row">
-            <strong>List ID:</strong>
-            <code id="contextListIdDisplay">—</code>
-            <button type="button" class="secondary" id="btnCopyListId" title="Copy full List ID">Copy</button>
-          </div>
+      <div id="contextLines" class="context-card-row">
+        <h2 id="contextListName">—</h2>
+        <div class="context-id-wrap">
+          <strong>List ID:</strong>
+          <code id="contextListIdDisplay">—</code>
+          <button type="button" class="secondary" id="btnCopyListId" title="Copy full List ID">Copy</button>
         </div>
-      </div>
-      <div class="btn-row" style="margin-top: 16px;">
-        <button type="button" class="secondary" id="btnRefreshContext">Refresh context</button>
       </div>
     </div>
 
     <div class="card hide" id="editorCard">
-      <h2>Edit view</h2>
       <div class="view-select-row">
         <select id="viewSelect">
           <option value="">— Create new view —</option>
         </select>
-        <button type="button" class="link" id="btnDuplicate">Duplicate as new</button>
+        <button type="button" class="link hide" id="btnDuplicate">Duplicate as new</button>
       </div>
 
       <div class="editor-layout">
         <div class="editor-section editor-section-columns">
           <h3>Columns</h3>
-          <p class="empty-hint">Check columns to show; drag to reorder. Order here = order in the view.</p>
+          <p class="empty-hint">Check columns to show; drag to reorder.</p>
           <div class="col-search">
             <input type="text" id="colSearch" placeholder="Search columns…">
           </div>
@@ -287,12 +288,16 @@
           <h3>Sort</h3>
           <p class="empty-hint">Primary sort first. Add multiple levels for secondary sort.</p>
           <div id="sortContainer"></div>
-          <button type="button" class="link" id="btnAddSort">+ Add sort level</button>
+          <div class="section-add-wrap">
+            <button type="button" class="link" id="btnAddSort">+ Add sort level</button>
+          </div>
 
           <h3>Filter</h3>
           <p class="empty-hint">All conditions are combined with AND. Leave value blank to skip that condition.</p>
           <div id="filterContainer"></div>
-          <button type="button" class="link" id="btnAddFilter">+ Add filter condition</button>
+          <div class="section-add-wrap">
+            <button type="button" class="link" id="btnAddFilter">+ Add filter condition</button>
+          </div>
 
           <h3>Group by</h3>
           <div class="group-row">

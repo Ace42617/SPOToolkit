@@ -39,20 +39,24 @@ document.querySelectorAll(".tab").forEach((tab) => {
 });
 // Default tab is Quick links; populate it on open
 renderQuickLinks();
-// Show Columns tab only when current page is a list or library
+// Show Columns and View Manager tabs only when current page is a list or library
 (async function updateListTabsVisibility() {
   const tabColumns = document.getElementById("tabColumns");
+  const tabViewManager = document.getElementById("tabViewManager");
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id || !tab.url?.includes("sharepoint.com")) {
       if (tabColumns) tabColumns.style.display = "none";
+      if (tabViewManager) tabViewManager.style.display = "none";
       return;
     }
     const response = await chrome.tabs.sendMessage(tab.id, { action: "checkListPage" });
     const show = response?.isListPage ? "" : "none";
     if (tabColumns) tabColumns.style.display = show;
+    if (tabViewManager) tabViewManager.style.display = show;
   } catch (_) {
     if (tabColumns) tabColumns.style.display = "none";
+    if (tabViewManager) tabViewManager.style.display = "none";
   }
 })();
 
@@ -436,7 +440,7 @@ async function runExport(selectedColumns = null) {
       const includeVersions = getIncludeVersions();
       const pageLimit = await getPageSize();
       const reportType = reportSelect && reportSelect.value ? reportSelect.value : null;
-      const exportFormat = (formatSelect && formatSelect.value) ? formatSelect.value : "csv";
+      const exportFormat = (formatSelect && formatSelect.value) ? formatSelect.value : "xlsx";
       const chkMatrixWholeSite = document.getElementById("chkMatrixWholeSite");
       const msg = {
         action: "runExportCSV",
@@ -510,7 +514,7 @@ function closeColumnPicker() {
 function toggleReportOptions() {
   if (!reportSelect || !reportOptions) return;
   const value = reportSelect.value;
-  const showPanel = value === "exportCSV" || value === "folderCount" || value === "pathLengths" || value === "permissions" || value === "permissionsMatrix";
+  const showPanel = value === "exportCSV" || value === "folderCount" || value === "pathLengths" || value === "permissionsMatrix";
   reportOptions.style.display = showPanel ? "block" : "none";
   const matrixWholeSiteRow = document.getElementById("matrixWholeSiteRow");
   if (matrixWholeSiteRow) matrixWholeSiteRow.style.display = value === "permissionsMatrix" ? "" : "none";
@@ -520,7 +524,7 @@ function toggleReportOptions() {
 if (reportSelect) reportSelect.addEventListener("change", toggleReportOptions);
 
 btnExport.addEventListener("click", () => {
-  if (reportSelect && (reportSelect.value === "exportCSV" || reportSelect.value === "folderCount" || reportSelect.value === "pathLengths" || reportSelect.value === "permissions" || reportSelect.value === "permissionsMatrix")) runExport();
+  if (reportSelect && (reportSelect.value === "exportCSV" || reportSelect.value === "folderCount" || reportSelect.value === "pathLengths" || reportSelect.value === "permissionsMatrix")) runExport();
 });
 
 btnChooseColumns.addEventListener("click", openColumnPicker);

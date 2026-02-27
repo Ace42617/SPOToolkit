@@ -57,6 +57,12 @@
       background: #faf9f8;
     }
     .tab-content.active { display: block; }
+    #viewManagerPanel.active {
+      display: flex !important;
+      align-items: center;
+      justify-content: center;
+      min-height: 160px;
+    }
 
     /* Quick links - Fluent */
     .quicklinks-section { margin-bottom: 20px; }
@@ -297,7 +303,7 @@
     <button type="button" class="tab tab-two-lines" data-tab="context">Page<br>Properties</button>
     <button type="button" class="tab" id="tabColumns" data-tab="searchSchema" style="display:none;">Columns</button>
     <button type="button" class="tab" data-tab="download">Reports</button>
-    <button type="button" class="tab" data-tab="viewManager">View Manager</button>
+    <button type="button" class="tab" id="tabViewManager" data-tab="viewManager" style="display:none;">View Manager</button>
   </div>
 
   <div id="quicklinksPanel" class="tab-content active">
@@ -361,7 +367,6 @@
   </div>
 
   <div id="viewManagerPanel" class="tab-content">
-    <div class="context-header">View Manager</div>
     <div class="context-actions">
       <button type="button" id="btnOpenViewManager">Open View Manager</button>
     </div>
@@ -381,7 +386,6 @@
           <option value="exportCSV">Download list/library contents</option>
           <option value="folderCount">Folder count (nested)</option>
           <option value="pathLengths">Path lengths</option>
-          <option value="permissions">List/library permissions</option>
           <option value="permissionsMatrix">Permissions matrix</option>
         </select>
       </div>
@@ -403,7 +407,7 @@
           <label for="formatSelect">Format:</label>
           <select id="formatSelect" class="report-select">
             <option value="csv">CSV</option>
-            <option value="xlsx">Excel (XLSX)</option>
+            <option value="xlsx" selected>Excel (XLSX)</option>
             <option value="xls">Excel (XLS)</option>
           </select>
         </div>

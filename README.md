@@ -20,10 +20,9 @@ Chrome/Edge extension for SharePoint: export list or library data, run reports, 
 
 ## Reports
 
-- **Download list/library contents** – CSV or Excel (XLSX/XLS), optional column selection and versions
+- **Download list/library contents** – CSV or Excel (XLSX/XLS), default XLSX; optional column selection and versions
 - **Folder count** – Nested folder counts (document libraries only)
 - **Path lengths** – Path length report (document libraries only)
-- **List/library permissions** – Who has access and at what level
 - **Permissions matrix** – Item-level matrix with inheritance and "Given through" (explicit vs inherited)
 
 ## Settings
