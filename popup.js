@@ -322,7 +322,7 @@ document.getElementById("searchSchemaFilter").addEventListener("input", () => re
 async function getPageSize() {
   const st = await chrome.storage.local.get("pageSize");
   const v = parseInt(st.pageSize, 10);
-  return (v === 500 || v === 1000 || v === 5000 || v === 10000 || v === 20000) ? v : DEFAULT_PAGE_SIZE;
+  return (v === 500 || v === 1000 || v === 5000) ? v : DEFAULT_PAGE_SIZE;
 }
 
 async function loadSettings() {

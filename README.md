@@ -28,7 +28,7 @@ Chrome/Edge extension for SharePoint: export list or library data, run reports, 
 
 ## Settings
 
-- **Page size** – Items per request (500–20,000)
+- **Page size** – Items per request (500–5,000)
 - **Include versions** – Toggle for version history in main export
 
 ## Files

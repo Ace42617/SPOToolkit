@@ -14,6 +14,7 @@
 - **Popup** – Views tab removed; View Manager tab is a single “View Manager” label and “Open View Manager” button.
 - **Filters** – View Manager filter conditions no longer ask for data type; type is inferred from the selected column (like standard SharePoint).
 - **Refactor** – Removed unused `saveView.js`; content script uses shared `injectAndWait` for getPageContext; simplified REST handler; View Manager CAML uses `escapeAttr` helper.
+- **Page size** – Removed 10,000 and 20,000 options; page size is now 500, 1000, or 5000.
 
 ## What's included
 
