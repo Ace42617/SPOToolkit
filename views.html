@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>View Manager – SPO Toolkit</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+      font-size: 14px;
+      color: #323130;
+      background: #f3f2f1;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    .header {
+      flex-shrink: 0;
+      padding: 12px 24px;
+      background: #201f1e;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+    .header a { color: #8bd3ff; text-decoration: none; }
+    .header a:hover { text-decoration: underline; }
+    .container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      max-width: none;
+      width: 100%;
+      padding: 20px 24px;
+    }
+    .editor-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      align-items: stretch;
+      flex: 1;
+      min-height: 0;
+    }
+    /* Columns panel on left gets max height; right panel stacks and scrolls */
+    .editor-section-columns { flex: 1; min-height: 0; overflow: hidden; }
+    .editor-section-right { overflow-y: auto; }
+    .editor-section {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow-y: auto;
+    }
+    .editor-section .col-list {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #edebe9;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    #editorCard:not(.hide) {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      margin-bottom: 16px;
+    }
+    #editorCard:not(.hide) .editor-layout {
+      flex: 1;
+      min-height: 0;
+    }
+    .card h2 {
+      margin: 0 0 16px 0;
+      font-size: 15px;
+      font-weight: 600;
+      color: #323130;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #edebe9;
+    }
+    .card h3 { margin: 12px 0 8px 0; font-size: 13px; font-weight: 600; color: #605e5c; }
+    .context-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      color: #605e5c;
+    }
+    .context-bar strong { color: #323130; }
+    .context-block { margin-bottom: 16px; }
+    .context-block:last-child { margin-bottom: 0; }
+    .context-list-name { font-size: 14px; font-weight: 600; color: #323130; margin-bottom: 8px; }
+    .context-list-id-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .context-list-id-row code { font-size: 12px; word-break: break-all; background: #f3f2f1; padding: 6px 10px; border-radius: 4px; color: #323130; }
+    .status { padding: 12px; border-radius: 6px; margin: 8px 0; font-size: 13px; }
+    .status.error { background: #fde7e9; color: #a4262c; }
+    .status.loading { background: #e6f3ff; color: #0078d4; }
+    .status.success { background: #e8f5e9; color: #2e7d32; }
+    .status.warn { background: #fff4ce; color: #8a6116; }
+    select, input[type="text"], input[type="number"] {
+      padding: 8px 10px;
+      border: 1px solid #8a8886;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: inherit;
+      background: #fff;
+    }
+    .form-row input[type="text"] { width: 100%; }
+    select:focus, input:focus {
+      outline: none;
+      border-color: #0078d4;
+      box-shadow: 0 0 0 1px #0078d4;
+    }
+    input[type="checkbox"] { margin-right: 8px; vertical-align: middle; }
+    label { cursor: pointer; }
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    button.primary { background: #0078d4; color: #fff; }
+    button.primary:hover { background: #106ebe; }
+    button.primary:disabled { background: #c8c6c4; cursor: not-allowed; }
+    button.secondary { background: #fff; color: #323130; border: 1px solid #8a8886; }
+    button.secondary:hover { background: #f3f2f1; }
+    button.danger { background: #a4262c; color: #fff; }
+    button.danger:hover { background: #8b1a1f; }
+    button.link { background: transparent; color: #0078d4; font-weight: 500; }
+    button.link:hover { text-decoration: underline; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+    .form-row { margin-bottom: 12px; }
+    .form-row label { display: block; margin-bottom: 4px; font-weight: 500; color: #323130; }
+    .inline-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .inline-row label { margin: 0; font-weight: normal; }
+    /* View selector */
+    .view-select-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .view-select-row select { min-width: 260px; }
+    /* Columns */
+    .col-search { margin-bottom: 12px; }
+    .col-search input { width: 100%; }
+    .col-toolbar { margin-bottom: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .col-list {
+      border: 1px solid #edebe9;
+      border-radius: 6px;
+      background: #faf9f8;
+    }
+    .col-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid #edebe9;
+      cursor: grab;
+      user-select: none;
+    }
+    .col-item:last-child { border-bottom: none; }
+    .col-item:hover { background: #f3f2f1; }
+    .col-item.dragging { opacity: 0.6; cursor: grabbing; }
+    .col-item .drag-handle { color: #8a8886; cursor: grab; font-size: 16px; }
+    .col-item .col-check { flex-shrink: 0; }
+    .col-item .col-label { flex: 1; font-size: 14px; }
+    .col-item .col-internal { font-size: 12px; color: #8a8886; }
+    /* Sort / Filter rows */
+    .sort-row, .filter-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      padding: 8px 0;
+      border-bottom: 1px solid #edebe9;
+    }
+    .sort-row:last-child, .filter-row:last-child { border-bottom: none; }
+    .sort-row select, .filter-row select { min-width: 140px; }
+    .filter-row input[type="text"] { min-width: 160px; }
+    .filter-op { min-width: 120px; }
+    .group-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .group-row select { min-width: 200px; }
+    .actions-bar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding-top: 16px;
+      border-top: 1px solid #edebe9;
+      margin-top: 16px;
+    }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-left: 6px; }
+    .badge.default { background: #e6f3ff; color: #0078d4; }
+    .badge.personal { background: #f3f2f1; color: #605e5c; }
+    .empty-hint { color: #8a8886; font-size: 13px; margin: 8px 0; }
+    #contextStatus.loading { display: block; }
+    #contextLines { display: none; }
+    #contextLines.visible { display: block; }
+    .hide { display: none !important; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <h1>View Manager</h1>
+    <a href="#" id="backToTab">← Back to SharePoint tab</a>
+  </header>
+  <div class="container">
+    <div class="card" id="contextCard">
+      <h2>Current list</h2>
+      <p class="status loading" id="contextStatus">Loading context…</p>
+      <div id="contextLines" class="context-bar">
+        <div class="context-block">
+          <div class="context-list-name" id="contextListName">—</div>
+          <div class="context-list-id-row">
+            <strong>List ID:</strong>
+            <code id="contextListIdDisplay">—</code>
+            <button type="button" class="secondary" id="btnCopyListId" title="Copy full List ID">Copy</button>
+          </div>
+        </div>
+      </div>
+      <div class="btn-row" style="margin-top: 16px;">
+        <button type="button" class="secondary" id="btnRefreshContext">Refresh context</button>
+      </div>
+    </div>
+
+    <div class="card hide" id="editorCard">
+      <h2>Edit view</h2>
+      <div class="view-select-row">
+        <select id="viewSelect">
+          <option value="">— Create new view —</option>
+        </select>
+        <button type="button" class="link" id="btnDuplicate">Duplicate as new</button>
+      </div>
+
+      <div class="editor-layout">
+        <div class="editor-section editor-section-columns">
+          <h3>Columns</h3>
+          <p class="empty-hint">Check columns to show; drag to reorder. Order here = order in the view.</p>
+          <div class="col-search">
+            <input type="text" id="colSearch" placeholder="Search columns…">
+          </div>
+          <div class="col-toolbar">
+            <button type="button" class="link" id="btnColAddAll">Add all</button>
+            <button type="button" class="link" id="btnColRemoveAll">Remove all</button>
+          </div>
+          <div class="col-list" id="colList"></div>
+        </div>
+
+        <div class="editor-section editor-section-right">
+          <h3>View settings</h3>
+          <div class="form-row">
+            <label for="viewName">View name</label>
+            <input type="text" id="viewName" placeholder="e.g. My View">
+          </div>
+          <div class="inline-row" style="margin-bottom:12px;">
+            <label><input type="checkbox" id="viewPersonal"> Personal view (only visible to you)</label>
+          </div>
+          <div class="form-row">
+            <label for="viewRowLimit">Item limit</label>
+            <select id="viewRowLimit">
+              <option value="30">30</option>
+              <option value="100" selected>100</option>
+              <option value="500">500</option>
+              <option value="1000">1,000</option>
+              <option value="5000">5,000</option>
+              <option value="10000">10,000</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label for="viewScope">Scope</label>
+            <select id="viewScope">
+              <option value="1">Show items in folder only</option>
+              <option value="2" selected>Show all items (no folder filter)</option>
+            </select>
+          </div>
+
+          <h3>Sort</h3>
+          <p class="empty-hint">Primary sort first. Add multiple levels for secondary sort.</p>
+          <div id="sortContainer"></div>
+          <button type="button" class="link" id="btnAddSort">+ Add sort level</button>
+
+          <h3>Filter</h3>
+          <p class="empty-hint">All conditions are combined with AND. Leave value blank to skip that condition.</p>
+          <div id="filterContainer"></div>
+          <button type="button" class="link" id="btnAddFilter">+ Add filter condition</button>
+
+          <h3>Group by</h3>
+          <div class="group-row">
+            <select id="groupByColumn">
+              <option value="">— None —</option>
+            </select>
+            <label><input type="checkbox" id="groupExpand"> Expand by default</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions-bar">
+        <button type="button" class="primary" id="btnSave">Save view</button>
+        <button type="button" class="secondary hide" id="btnSetDefault" title="Make this the list default view">Set as Default View</button>
+        <button type="button" class="danger secondary hide" id="btnDelete">Delete view</button>
+      </div>
+      <p class="status hide" id="saveStatus"></p>
+    </div>
+
+    <div class="card hide" id="noListCard">
+      <p class="status warn">Open a SharePoint list or library page, then open View Manager from the popup.</p>
+    </div>
+  </div>
+  <script src="views.js"></script>
+</body>
+</html>

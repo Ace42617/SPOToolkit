@@ -2,7 +2,6 @@
 
 const PROGRESS_BOX_ID = "sp-csv-export-progress";
 const SCRIPT_TIMEOUT = 15000;
-const SAVE_VIEW_TIMEOUT = 30000;
 
 function showProgress(message) {
   let el = document.getElementById(PROGRESS_BOX_ID);
@@ -88,6 +87,63 @@ function injectAndWait(scriptName, messageType, parseData, sendResponse, options
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.action === "getPageContext") {
+    injectAndWait(
+      "getPageContext.js",
+      "SPCSVPageContext",
+      (data) => {
+        const url = data.webAbsoluteUrl || data.siteAbsoluteUrl || "";
+        return url ? { ok: true, webAbsoluteUrl: url, pageListId: data.pageListId || "", listUrl: data.listUrl || "" } : { ok: false, error: "No context from page" };
+      },
+      sendResponse,
+      { timeoutMs: 5000, errorPayload: { ok: false, error: "No context from page" } }
+    );
+    return true;
+  }
+
+  if (message.action === "rest") {
+    const method = (message.method || "GET").toUpperCase();
+    const path = message.path || "";
+    const body = message.body;
+    (async () => {
+      try {
+        let digest = null;
+        if (method === "POST" || method === "PATCH" || method === "DELETE") {
+          const apiIdx = path.indexOf("/_api/");
+          const sitePath = apiIdx >= 0 ? path.substring(0, apiIdx) || "/" : "/";
+          const contextUrl = location.origin + sitePath + "/_api/contextinfo";
+          const cr = await fetch(contextUrl, {
+            method: "POST",
+            credentials: "include",
+            headers: { Accept: "application/json;odata=nometadata" }
+          });
+          if (cr.ok) {
+            const cj = await cr.json();
+            digest = cj.FormDigestValue || null;
+          }
+        }
+        const opts = {
+          method,
+          credentials: "include",
+          headers: { Accept: "application/json;odata=nometadata" }
+        };
+        if (digest) opts.headers["X-RequestDigest"] = digest;
+        if (body != null && method !== "GET") {
+          opts.headers["Content-Type"] = "application/json;odata=nometadata";
+          opts.body = typeof body === "string" ? body : JSON.stringify(body);
+        }
+        const r = await fetch(location.origin + path, opts);
+        const text = await r.text();
+        let data = text;
+        try { data = JSON.parse(text); } catch (_) {}
+        sendResponse(r.ok ? { ok: true, data } : { ok: false, status: r.status, error: data });
+      } catch (e) {
+        sendResponse({ ok: false, error: e && e.message ? e.message : String(e) });
+      }
+    })();
+    return true;
+  }
+
   if (message.action === "checkListPage") {
     injectAndWait(
       "checkListPage.js",
@@ -138,29 +194,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           (document.head || document.documentElement).appendChild(el);
         },
         errorPayload: { ok: false, error: "Timeout loading views data" }
-      }
-    );
-    return true;
-  }
-
-  if (message.action === "saveView") {
-    injectAndWait(
-      "saveView.js",
-      "SPCSVSaveViewResult",
-      (data) => ({ ok: !!data.success, message: data.message || "", detail: data.detail || {} }),
-      sendResponse,
-      {
-        timeoutMs: SAVE_VIEW_TIMEOUT,
-        beforeInject() {
-          let el = document.getElementById("sp-save-view-payload");
-          if (el) el.remove();
-          el = document.createElement("script");
-          el.id = "sp-save-view-payload";
-          el.type = "application/json";
-          el.textContent = JSON.stringify(message.payload || {});
-          (document.head || document.documentElement).appendChild(el);
-        },
-        errorPayload: { ok: false, message: "Timeout saving view" }
       }
     );
     return true;

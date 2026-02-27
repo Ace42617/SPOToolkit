@@ -37,7 +37,7 @@
           var views = (j.value || j.d?.results || []).map(function (v) {
             return { id: (v.Id || "").replace(/[{}]/g, ""), title: v.Title || "", defaultView: !!v.DefaultView };
           });
-          return fetch(lb + "/fields?$select=InternalName,Title,Hidden&$orderby=Title&$filter=Hidden eq false", { credentials: "include", headers: { Accept: accept } })
+          return fetch(lb + "/fields?$select=InternalName,Title,Hidden,TypeAsString&$orderby=Title&$filter=Hidden eq false", { credentials: "include", headers: { Accept: accept } })
             .then(function (r) { return r.json(); })
             .then(function (j2) {
               var raw = j2.value || j2.d?.results || [];
@@ -45,7 +45,7 @@
               for (var i = 0; i < raw.length; i++) {
                 var f = raw[i];
                 var iname = f.InternalName || f.Title || "";
-                if (iname && !/^_|^vti_|^ows_|^tp_/.test(iname)) fields.push({ internalName: iname, title: f.Title || iname });
+                if (iname && !/^_|^vti_|^ows_|^tp_/.test(iname)) fields.push({ internalName: iname, title: f.Title || iname, typeAsString: f.TypeAsString || "Text" });
               }
               return { ctx: ctx, views: views, fields: fields };
             });

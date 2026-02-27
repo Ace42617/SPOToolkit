@@ -289,43 +289,6 @@
     #pickerStatus.info { background: #e1f5fe; color: #0d47a1; }
     #pickerStatus.error { background: #ffebee; color: #b71c1c; }
 
-    /* Views tab - fits in 600px; only Columns list and Filters scroll */
-    body.views-tab-active { max-height: 700px; overflow: hidden; }
-    #viewsPanel { padding: 6px 12px 10px; }
-    #viewsPanel .context-header { margin: 0 0 2px 0; font-size: 12px; font-weight: 600; }
-    #viewsPanel > .hint { margin: 0 0 6px 0; font-size: 11px; line-height: 1.3; }
-    #viewsPanel .views-section { margin-bottom: 6px; }
-    #viewsPanel .views-section h3 { margin: 0 0 2px 0; font-size: 10px; font-weight: 600; color: #605e5c; text-transform: uppercase; letter-spacing: 0.02em; }
-    #viewsPanel .views-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
-    #viewsPanel .views-row:last-child { margin-bottom: 0; }
-    #viewsPanel .views-row label { min-width: 56px; font-size: 12px; color: #323130; }
-    #viewsPanel .views-row select,
-    #viewsPanel .views-row input[type="text"] {
-      flex: 1; min-width: 0; padding: 4px 8px; font-size: 12px; border: 1px solid #8a8886; border-radius: 4px; background: #fff;
-    }
-    #viewsPanel #viewColumnsList { max-height: 92px; overflow-y: auto; overflow-x: hidden; border: 1px solid #edebe9; border-radius: 4px; padding: 4px; background: #fff; }
-    #viewsPanel .view-column-item { display: flex; align-items: center; gap: 4px; padding: 2px 0; font-size: 11px; }
-    #viewsPanel .view-column-item input[type="checkbox"] { accent-color: #0078d4; flex-shrink: 0; }
-    #viewsPanel .view-column-item label { cursor: pointer; flex: 1; margin: 0; min-width: 0; }
-    #viewsPanel .view-column-item .col-move { display: flex; gap: 1px; flex-shrink: 0; }
-    #viewsPanel .view-column-item .col-move button { padding: 1px 4px; font-size: 10px; line-height: 1; background: #f3f2f1; border: 1px solid #8a8886; border-radius: 3px; cursor: pointer; color: #323130; }
-    #viewsPanel .view-column-item .col-move button:hover { background: #edebe9; }
-    #viewsPanel .view-filters-scroll { max-height: 200px; overflow-y: auto; overflow-x: hidden; border: 1px solid #edebe9; border-radius: 4px; padding: 4px; background: #faf9f8; margin-bottom: 2px; }
-    #viewsPanel .view-filter-block { margin-bottom: 6px; padding: 4px 6px; background: #f3f2f1; border-radius: 4px; border: 1px solid #edebe9; }
-    #viewsPanel .view-filter-block:last-child { margin-bottom: 0; }
-    #viewsPanel .view-filter-block .filter-row { margin-bottom: 2px; display: flex; align-items: center; gap: 4px; }
-    #viewsPanel .view-filter-block .filter-row:last-child { margin-bottom: 0; }
-    #viewsPanel .view-filter-block .filter-row label { min-width: 48px; font-size: 11px; color: #323130; }
-    #viewsPanel .view-filter-block .filter-row select, #viewsPanel .view-filter-block .filter-row input[type="text"] { flex: 1; min-width: 0; padding: 3px 6px; font-size: 11px; border: 1px solid #8a8886; border-radius: 4px; }
-    #viewsPanel .view-filter-remove { font-size: 11px; color: #0078d4; cursor: pointer; text-decoration: none; margin-top: 1px; display: inline-block; }
-    #viewsPanel .view-filter-remove:hover { text-decoration: underline; }
-    #viewsPanel .add-filter-link { font-size: 11px; color: #0078d4; cursor: pointer; text-decoration: none; display: inline-block; margin-bottom: 4px; }
-    #viewsPanel .add-filter-link:hover { text-decoration: underline; }
-    #viewsPanel #btnSaveView { margin-top: 4px; padding: 5px 12px; font-size: 12px; }
-    #viewsPanel #viewsStatus { margin-top: 4px; padding: 6px 8px; border-radius: 4px; font-size: 11px; display: none; }
-    #viewsPanel #viewsStatus.info { background: #e1f5fe; color: #0d47a1; display: block; }
-    #viewsPanel #viewsStatus.error { background: #ffebee; color: #b71c1c; display: block; }
-    #viewsPanel #viewsStatus.success { background: #e8f5e9; color: #2e7d32; display: block; }
   </style>
 </head>
 <body>
@@ -333,8 +296,8 @@
     <button type="button" class="tab active" data-tab="quicklinks">Quick links</button>
     <button type="button" class="tab tab-two-lines" data-tab="context">Page<br>Properties</button>
     <button type="button" class="tab" id="tabColumns" data-tab="searchSchema" style="display:none;">Columns</button>
-    <button type="button" class="tab" id="tabViews" data-tab="views" style="display:none;">Views</button>
     <button type="button" class="tab" data-tab="download">Reports</button>
+    <button type="button" class="tab" data-tab="viewManager">View Manager</button>
   </div>
 
   <div id="quicklinksPanel" class="tab-content active">
@@ -397,58 +360,11 @@
     <p id="searchSchemaError" class="hint" style="color:#a4262c;display:none;"></p>
   </div>
 
-  <div id="viewsPanel" class="tab-content">
-    <div class="context-header">List views</div>
-    <p class="hint">Select an existing view to edit or create a new one. Configure columns, sort, filter, and grouping.</p>
-    <div class="views-section">
-      <h3>View</h3>
-      <div class="views-row">
-        <label for="viewSelect">View:</label>
-        <select id="viewSelect" class="report-select">
-          <option value="">Loading…</option>
-        </select>
-      </div>
-      <div class="views-row" id="viewNameRow">
-        <label for="viewNameInput">Name:</label>
-        <input type="text" id="viewNameInput" placeholder="View name (for new view)">
-      </div>
+  <div id="viewManagerPanel" class="tab-content">
+    <div class="context-header">View Manager</div>
+    <div class="context-actions">
+      <button type="button" id="btnOpenViewManager">Open View Manager</button>
     </div>
-    <div class="views-section">
-      <h3>Columns</h3>
-      <p class="hint" style="margin:0 0 3px 0;font-size:11px;">Check to include; use ↑↓ to reorder.</p>
-      <div id="viewColumnsList"></div>
-    </div>
-    <div class="views-section">
-      <h3>Sort</h3>
-      <div class="views-row">
-        <label for="viewSortColumn">Column:</label>
-        <select id="viewSortColumn">
-          <option value="">— None —</option>
-        </select>
-        <select id="viewSortDirection">
-          <option value="asc">Ascending</option>
-          <option value="desc">Descending</option>
-        </select>
-      </div>
-    </div>
-    <div class="views-section">
-      <h3>Filter</h3>
-      <div class="view-filters-scroll">
-        <div id="viewFiltersContainer"></div>
-      </div>
-      <a href="#" class="add-filter-link" id="viewAddFilterLink">Add Filter</a>
-    </div>
-    <div class="views-section">
-      <h3>Group by</h3>
-      <div class="views-row">
-        <label for="viewGroupBy">Column:</label>
-        <select id="viewGroupBy">
-          <option value="">— None —</option>
-        </select>
-      </div>
-    </div>
-    <button type="button" id="btnSaveView" class="btn-block">Save view</button>
-    <div id="viewsStatus"></div>
   </div>
 
   <div id="downloadPanel" class="tab-content">

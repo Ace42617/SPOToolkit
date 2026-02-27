@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SPO Toolkit",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Export list/library data, run reports, manage views, and quick links on SharePoint.",
   "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": ["*://*.sharepoint.com/*"],
@@ -14,7 +14,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["exportCSV.js","getFields.js","getSearchSchema.js","checkListPage.js","getViewsData.js","saveView.js","jszip.min.js","jszip-preload.js","jszip-restore.js"],
+      "resources": ["exportCSV.js","getFields.js","getSearchSchema.js","checkListPage.js","getViewsData.js","getPageContext.js","jszip.min.js","jszip-preload.js","jszip-restore.js"],
       "matches": ["*://*.sharepoint.com/*"]
     }
   ],
