@@ -66,9 +66,10 @@ function escapeHtml(s) {
   return div.innerHTML;
 }
 
-function addQuickLink(ul, label, href) {
+function addQuickLink(ul, label, href, icon) {
   const li = document.createElement("li");
-  li.innerHTML = `<a href="${escapeHtml(href)}" target="_blank" rel="noopener">${escapeHtml(label)}</a>`;
+  const iconAttr = icon ? ` data-ql-icon="${escapeHtml(icon)}"` : "";
+  li.innerHTML = `<a href="${escapeHtml(href)}" target="_blank" rel="noopener"${iconAttr}>${escapeHtml(label)}</a>`;
   ul.appendChild(li);
 }
 
@@ -105,31 +106,31 @@ async function renderQuickLinks() {
   const host = new URL(tab.url).host;
   const adminHost = host.replace(".sharepoint.com", "-admin.sharepoint.com");
 
-  addQuickLink(currentSite, "Site settings", siteBase + "/_layouts/15/settings.aspx");
-  addQuickLink(currentSite, "Tenant site settings", siteBase + "/_layouts/15/tenantsettings.aspx");
-  addQuickLink(currentSite, "Site contents", siteBase + "/_layouts/15/viewlsts.aspx");
-  addQuickLink(currentSite, "Recycle bin", siteBase + "/_layouts/15/RecycleBin.aspx");
-  addQuickLink(currentSite, "All People", siteBase + "/_layouts/15/people.aspx?MembershipGroupId=0");
-  addQuickLink(currentSite, "Storage metrics", siteBase + "/_layouts/15/storman.aspx");
-  addQuickLink(currentSite, "ACS Grant App", siteBase + "/_layouts/15/appinv.aspx");
+  addQuickLink(currentSite, "Site settings", siteBase + "/_layouts/15/settings.aspx", "settings");
+  addQuickLink(currentSite, "Site contents", siteBase + "/_layouts/15/viewlsts.aspx", "folder");
+  addQuickLink(currentSite, "Recycle bin", siteBase + "/_layouts/15/RecycleBin.aspx", "trash");
+  addQuickLink(currentSite, "All People", siteBase + "/_layouts/15/people.aspx?MembershipGroupId=0", "users");
+  addQuickLink(currentSite, "Storage metrics", siteBase + "/_layouts/15/storman.aspx", "chart");
+  addQuickLink(currentSite, "ACS Grant App", siteBase + "/_layouts/15/appinv.aspx", "key");
 
-  addQuickLink(currentUser, "Edit user profile", siteBase + "/_layouts/15/me.aspx");
-  addQuickLink(currentUser, "Login as another user", siteBase + "/_layouts/15/closeConnection.aspx?loginasanotheruser=1");
+  addQuickLink(currentUser, "Edit user profile", siteBase + "/_layouts/15/me.aspx", "user");
+  addQuickLink(currentUser, "Login as another user", siteBase + "/_layouts/15/closeConnection.aspx?loginasanotheruser=1", "logout");
 
   const pageUrl = tab.url.split("?")[0];
   const q = (param) => pageUrl + (pageUrl.indexOf("?") >= 0 ? "&" : "?") + param;
-  addQuickLink(modes, "?MaintenanceMode=true", q("MaintenanceMode=true"));
-  addQuickLink(modes, "?env=WebView", q("env=WebView"));
-  addQuickLink(modes, "?env=WebViewList", q("env=WebViewList"));
+  addQuickLink(modes, "MaintenanceMode", q("MaintenanceMode=true"), "wrench");
+  addQuickLink(modes, "WebView", q("env=WebView"), "monitor");
+  addQuickLink(modes, "WebViewList", q("env=WebViewList"), "list");
 
-  addQuickLink(tenant, "Admin center", `https://${adminHost}`);
-  addQuickLink(tenant, "User profiles", `https://${adminHost}/_layouts/15/tenantprofileadmin/home.aspx`);
-  addQuickLink(tenant, "Term store", `https://${host}/_layouts/15/termstoremanager.aspx`);
-  addQuickLink(tenant, "Search administration", `https://${adminHost}/_layouts/15/searchadmin/default.aspx`);
-  addQuickLink(tenant, "API access", `https://${adminHost}/_layouts/15/apiaccess.aspx`);
-  addQuickLink(tenant, "Teams admin", "https://admin.teams.microsoft.com");
-  addQuickLink(tenant, "App catalog", `https://${host}/sites/AppCatalog`);
-  addQuickLink(tenant, "Classic app catalog", `https://${host}/sites/AppCatalog`);
+  addQuickLink(tenant, "Admin center", `https://${adminHost}`, "shield");
+  addQuickLink(tenant, "Tenant site settings", `https://${adminHost}/_layouts/15/online/tenantsettings.aspx`, "settings");
+  addQuickLink(tenant, "User profiles", `https://${adminHost}/_layouts/15/TenantProfileAdmin/ManageUserProfileServiceApplication.aspx`, "users");
+  addQuickLink(tenant, "Term store", `https://${host}/_layouts/15/termstoremanager.aspx`, "tag");
+  addQuickLink(tenant, "Search administration", `https://${adminHost}/_layouts/15/searchadmin/TA_SearchAdministration.aspx`, "search");
+  addQuickLink(tenant, "API access", `https://${adminHost}/_layouts/15/online/AdminHome.aspx#/webApiPermissionManagement`, "key");
+  addQuickLink(tenant, "Teams admin", "https://admin.teams.microsoft.com/dashboard", "teams");
+  addQuickLink(tenant, "App catalog", `https://${host}/sites/AppCatalog/_layouts/15/appStore.aspx`, "package");
+  addQuickLink(tenant, "Classic app catalog", `https://${host}/sites/AppCatalog`, "archive");
 }
 
 let contextData = null;

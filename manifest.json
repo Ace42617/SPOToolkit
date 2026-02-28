@@ -1,8 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "SPO Toolkit",
+  "name": "SPO Dev Toolkit",
   "version": "1.0.5",
   "description": "Export list/library data, run reports, manage views, and quick links on SharePoint.",
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
   "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": ["*://*.sharepoint.com/*"],
   "content_scripts": [
@@ -19,6 +24,11 @@
     }
   ],
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon.png",
+      "32": "icon.png",
+      "48": "icon.png"
+    }
   }
 }
