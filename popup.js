@@ -44,16 +44,81 @@ const REFINABLE_TYPES = [
 // --- Dark mode ---
 async function loadDarkMode() {
   const st = await chrome.storage.local.get("darkMode");
-  document.documentElement.classList.toggle("dark-mode", !!st.darkMode);
+  const isDark = !!st.darkMode;
+  document.documentElement.classList.toggle("dark-mode", isDark);
+  updateDarkToggleLabel(isDark);
+}
+function updateDarkToggleLabel(isDark) {
+  const btn = document.getElementById("darkModeToggle");
+  if (!btn) return;
+  if (isDark) {
+    btn.title = "Night Owl";
+    btn.setAttribute("aria-label", "Theme: Night Owl. Click to switch to Early Riser.");
+  } else {
+    btn.title = "Early Riser";
+    btn.setAttribute("aria-label", "Theme: Early Riser. Click to switch to Night Owl.");
+  }
 }
 document.getElementById("darkModeToggle")?.addEventListener("click", () => {
   const isDark = document.documentElement.classList.toggle("dark-mode");
   chrome.storage.local.set({ darkMode: isDark });
+  updateDarkToggleLabel(isDark);
+});
+const headerIconBtn = document.getElementById("headerIconBtn");
+if (headerIconBtn) {
+  let holdStart = 0;
+  function release() {
+    const held = holdStart ? Date.now() - holdStart : 0;
+    holdStart = 0;
+    headerIconBtn.classList.remove("holding");
+    let springClass = "springing-light";
+    let durationMs = 550;
+    if (held >= 450) {
+      springClass = "springing-heavy";
+      durationMs = 950;
+    } else if (held >= 200) {
+      springClass = "springing-medium";
+      durationMs = 750;
+    }
+    headerIconBtn.classList.add(springClass);
+    setTimeout(() => {
+      headerIconBtn.classList.remove("springing-light", "springing-medium", "springing-heavy");
+    }, durationMs);
+  }
+  headerIconBtn.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    headerIconBtn.setPointerCapture(e.pointerId);
+    holdStart = Date.now();
+    headerIconBtn.classList.add("holding");
+  });
+  headerIconBtn.addEventListener("pointerup", (e) => {
+    headerIconBtn.releasePointerCapture(e.pointerId);
+    release();
+  });
+  headerIconBtn.addEventListener("pointercancel", (e) => {
+    headerIconBtn.releasePointerCapture(e.pointerId);
+    release();
+  });
+  headerIconBtn.addEventListener("pointerleave", () => {
+    if (headerIconBtn.classList.contains("holding")) release();
+  });
+  headerIconBtn.addEventListener("contextmenu", (e) => e.preventDefault());
+}
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message && message.type === "SPCSVExportDone") {
+    if (message.success) {
+      setStatus("Export complete", "success");
+    } else {
+      setStatus(message.message || "Export failed.", "error");
+    }
+    sendResponse({});
+    return true;
+  }
 });
 loadDarkMode();
 
 // --- Tabs: Quick links, Page Properties, Reports ---
-const TAB_IDS = ["quicklinks", "context", "searchSchema", "reports", "refinableProps", "searchQuery", "viewManager"];
+const TAB_IDS = ["quicklinks", "context", "searchSchema", "reports", "refinableProps", "viewManager"];
 function switchToTab(id) {
   const tabEl = document.querySelector(".tab[data-tab=\"" + id + "\"]");
   if (!tabEl || tabEl.offsetParent === null) return;
@@ -63,12 +128,15 @@ function switchToTab(id) {
   const panel = document.getElementById(id + "Panel");
   if (panel) panel.classList.add("active");
   document.body.classList.toggle("columns-tab-active", id === "searchSchema");
+  document.body.classList.remove("reports-expanded", "reports-settings-visible");
   if (id === "quicklinks") renderQuickLinks();
   else if (id === "context") loadContextInfo();
   else if (id === "searchSchema") loadSearchSchema();
-  else if (id === "reports") updateExportReportLabel();
+  else if (id === "reports") {
+    updateExportReportLabel();
+    toggleReportOptions();
+  }
   else if (id === "refinableProps") initRefinableProps();
-  else if (id === "searchQuery") updateSearchQuerySiteHint();
 }
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
@@ -448,9 +516,14 @@ function saveDefaultExportFormat() {
 }
 
 function setStatus(message, type) {
-  statusEl.textContent = message;
+  const textEl = statusEl.querySelector(".status-text");
+  const spinnerEl = statusEl.querySelector(".status-spinner");
+  const successIconEl = statusEl.querySelector(".status-success-icon");
+  if (textEl) textEl.textContent = message;
   statusEl.className = type || "info";
   statusEl.style.display = "block";
+  if (spinnerEl) spinnerEl.style.display = type === "info" ? "block" : "none";
+  if (successIconEl) successIconEl.style.display = type === "success" ? "inline-flex" : "none";
 }
 
 function setPickerStatus(message, type) {
@@ -594,150 +667,6 @@ async function loadRefinableMappings() {
   }
 }
 
-// --- Search Query tab ---
-const searchQueryInput = document.getElementById("searchQueryInput");
-const searchQueryRowLimit = document.getElementById("searchQueryRowLimit");
-const btnRunSearchQuery = document.getElementById("btnRunSearchQuery");
-const searchQueryStatus = document.getElementById("searchQueryStatus");
-const searchQueryResults = document.getElementById("searchQueryResults");
-const searchQuerySiteHint = document.getElementById("searchQuerySiteHint");
-const searchQueryDebug = document.getElementById("searchQueryDebug");
-
-function setSearchQueryDebug(debug) {
-  if (!searchQueryDebug || !debug) return;
-  var lines = [];
-  if (debug.method) lines.push("Method: " + debug.method);
-  if (debug.url) lines.push("URL: " + debug.url);
-  if (debug.status != null) lines.push("Status: " + debug.status);
-  if (debug.dKeys) lines.push("d keys: " + debug.dKeys);
-  if (debug.error) lines.push("Error: " + debug.error);
-  if (debug.preview) lines.push("Preview:\n" + debug.preview);
-  searchQueryDebug.textContent = lines.join("\n");
-}
-
-async function updateSearchQuerySiteHint() {
-  if (!searchQuerySiteHint) return;
-  searchQuerySiteHint.textContent = "Current site: —";
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !tab.url?.includes("sharepoint.com")) {
-      searchQuerySiteHint.textContent = "Current site: Open a SharePoint tab first.";
-      return;
-    }
-    let siteUrl = "";
-    try {
-      const ctxRes = await chrome.tabs.sendMessage(tab.id, { action: "getPageContext" });
-      if (ctxRes?.ok && ctxRes.webAbsoluteUrl) siteUrl = (ctxRes.webAbsoluteUrl || "").replace(/\/$/, "");
-    } catch (_) {}
-    if (!siteUrl) {
-      const ctx = parseContextFromUrl(tab.url);
-      siteUrl = (ctx.webAbsoluteUrl || "").replace(/\/$/, "") || new URL(tab.url).origin;
-    }
-    searchQuerySiteHint.textContent = "Current site: " + (siteUrl || "—");
-  } catch (_) {
-    searchQuerySiteHint.textContent = "Current site: —";
-  }
-}
-
-async function runSearchQuery() {
-  if (!searchQueryStatus || !searchQueryResults) return;
-  let queryText = (searchQueryInput?.value || "*").trim() || "*";
-  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(queryText)) queryText = "UniqueId:" + queryText;
-  else if (/^\d+$/.test(queryText)) queryText = "ListItemID:" + queryText;
-  const rowLimit = parseInt(searchQueryRowLimit?.value || "25", 10) || 25;
-  searchQueryStatus.textContent = "Running search…";
-  searchQueryResults.innerHTML = "";
-  searchQueryResults.classList.remove("empty");
-  if (searchQueryDebug) searchQueryDebug.textContent = "";
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !tab.url?.includes("sharepoint.com")) {
-      searchQueryStatus.textContent = "Open a SharePoint site in the current tab, then run search.";
-      searchQueryResults.classList.add("empty");
-      return;
-    }
-    let siteUrl = "";
-    try {
-      const ctxRes = await chrome.tabs.sendMessage(tab.id, { action: "getPageContext" });
-      if (ctxRes?.ok && ctxRes.webAbsoluteUrl) siteUrl = (ctxRes.webAbsoluteUrl || "").replace(/\/$/, "");
-    } catch (_) {}
-    if (!siteUrl) {
-      const ctx = parseContextFromUrl(tab.url);
-      siteUrl = (ctx.webAbsoluteUrl || "").replace(/\/$/, "");
-    }
-    if (!siteUrl) siteUrl = new URL(tab.url).origin;
-    if (!siteUrl) {
-      searchQueryStatus.textContent = "Could not determine site URL. Open a SharePoint site page first.";
-      searchQueryResults.classList.add("empty");
-      return;
-    }
-    searchQueryStatus.textContent = "Searching at " + siteUrl + "…";
-    const res = await chrome.tabs.sendMessage(tab.id, {
-      action: "searchQuery",
-      siteUrl,
-      queryText,
-      rowLimit
-    });
-    if (!res) {
-      searchQueryStatus.textContent = "No response. Refresh the SharePoint tab and try again.";
-      searchQueryResults.classList.add("empty");
-      return;
-    }
-    if (!res.ok) {
-      searchQueryStatus.textContent = (res.error || "Search failed.") + " (Searched at: " + siteUrl + ")";
-      searchQueryResults.classList.add("empty");
-      if (searchQueryDebug && res.debug) setSearchQueryDebug(res.debug);
-      return;
-    }
-    const rows = res.rows || [];
-    const total = res.totalRows != null ? res.totalRows : rows.length;
-    searchQueryStatus.textContent = "Results: " + rows.length + (total > rows.length ? " of " + total : "") + ". Searched at: " + siteUrl;
-    if (searchQueryDebug && res.debug) setSearchQueryDebug(res.debug);
-    if (rows.length === 0) {
-      searchQueryResults.classList.add("empty");
-      return;
-    }
-    const skipKeys = new Set(["Title", "Path"]);
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const card = document.createElement("div");
-      card.className = "search-result-card";
-      const title = row.Title != null ? String(row.Title) : "(no title)";
-      const path = row.Path != null ? String(row.Path) : "";
-      const keys = Object.keys(row).filter((k) => !skipKeys.has(k)).sort();
-      let propsHtml = "";
-      for (let j = 0; j < keys.length; j++) {
-        const k = keys[j];
-        const v = row[k];
-        if (v == null || String(v).trim() === "") continue;
-        propsHtml += "<dt>" + escapeHtml(k) + "</dt><dd>" + escapeHtml(String(v)) + "</dd>";
-      }
-      const propCount = keys.filter((k) => row[k] != null && String(row[k]).trim() !== "").length;
-      const toggleLabel = propCount > 0 ? "Show all managed metadata (" + propCount + ")" : "No additional properties";
-      card.innerHTML =
-        "<div class=\"result-title\">" + escapeHtml(title) + "</div>" +
-        (path ? "<div class=\"result-path\">" + escapeHtml(path) + "</div>" : "") +
-        "<button type=\"button\" class=\"result-toggle\" aria-expanded=\"false\">" + escapeHtml(toggleLabel) + "</button>" +
-        (propsHtml ? "<div class=\"search-result-props-wrap collapsed\"><p class=\"result-props-heading\">Managed metadata &amp; property values for this result:</p><dl class=\"search-result-props\">" + propsHtml + "</dl></div>" : "<div class=\"search-result-props-wrap collapsed\"><dl class=\"search-result-props\"></dl></div>");
-      if (propCount > 0) {
-        const btn = card.querySelector(".result-toggle");
-        const wrap = card.querySelector(".search-result-props-wrap");
-        btn.addEventListener("click", function () {
-          const expanded = wrap.classList.toggle("collapsed");
-          btn.setAttribute("aria-expanded", String(!expanded));
-          btn.textContent = expanded ? "Show all managed metadata (" + propCount + ")" : "Hide managed metadata";
-        });
-      }
-      searchQueryResults.appendChild(card);
-    }
-  } catch (e) {
-    searchQueryStatus.textContent = "Error: " + (e.message || String(e)) + ". Try refreshing the SharePoint tab.";
-    searchQueryResults.classList.add("empty");
-  }
-}
-
-btnRunSearchQuery?.addEventListener("click", runSearchQuery);
-
 // Run once so number dropdown is populated if user opens Refinable Props first
 initRefinableProps();
 
@@ -799,8 +728,7 @@ function getSelectedColumns() {
 }
 
 function getIncludeVersions() {
-  const inPicker = pickerPanel.classList.contains("visible");
-  const el = document.getElementById(inPicker ? "chkIncludeVersionsPicker" : "chkIncludeVersions");
+  const el = document.getElementById("chkIncludeVersionsPicker");
   return el ? el.checked : false;
 }
 
@@ -866,6 +794,7 @@ async function openColumnPicker() {
   clearStatus();
   mainPanel.classList.add("hidden");
   pickerPanel.classList.add("visible");
+  document.body.classList.add("reports-expanded");
   setPickerStatus("Loading columns…", "info");
   columnList.innerHTML = "";
 
@@ -893,6 +822,7 @@ async function openColumnPicker() {
 function closeColumnPicker() {
   pickerPanel.classList.remove("visible");
   mainPanel.classList.remove("hidden");
+  document.body.classList.remove("reports-expanded");
   setPickerStatus("");
 }
 
@@ -905,6 +835,7 @@ function toggleReportOptions() {
   if (matrixWholeSiteRow) matrixWholeSiteRow.style.display = value === "permissionsMatrix" ? "" : "none";
   const exportOptionsRow = document.getElementById("exportOptionsRow");
   if (exportOptionsRow) exportOptionsRow.style.display = value === "exportCSV" ? "" : "none";
+  if (btnChooseColumns) btnChooseColumns.style.display = value === "exportCSV" ? "" : "none";
 }
 if (reportSelect) reportSelect.addEventListener("change", toggleReportOptions);
 
@@ -922,6 +853,22 @@ async function updateExportReportLabel() {
       optionEl.textContent = "Export " + listOrLibrary + " to " + formatLabel;
       return;
     }
+
+    // Prefer content script + getListType.js (same as export flow) – works in iframes and modern pages.
+    try {
+      const csResult = await new Promise((resolve) => {
+        chrome.tabs.sendMessage(tab.id, { action: "getListType" }, (response) => {
+          if (chrome.runtime.lastError) resolve(null);
+          else resolve(response);
+        });
+      });
+      if (csResult && csResult.isListPage === true) {
+        listOrLibrary = csResult.isLibrary ? "Library" : "List";
+        optionEl.textContent = "Export " + listOrLibrary + " to " + formatLabel;
+        return;
+      }
+    } catch (_) {}
+
     const ctx = parseContextFromUrl(tab.url);
     const siteUrl = (ctx.webAbsoluteUrl || "").replace(/\/$/, "");
     const listIdFromUrl = (ctx.pageListId || "").replace(/[{}]/g, "").trim();
@@ -992,11 +939,17 @@ async function updateExportReportLabel() {
     });
     var res = null;
     if (results && results.length) {
-      for (var i = 0; i < results.length; i++) {
-        var r = results[i] && results[i].result;
-        if (r && r.isListPage === true) {
-          res = r;
-          break;
+      // Prefer main frame (index 0) so library vs list reflects the primary page, not an iframe.
+      var main = results[0] && results[0].result;
+      if (main && main.isListPage === true) {
+        res = main;
+      } else {
+        for (var i = 0; i < results.length; i++) {
+          var r = results[i] && results[i].result;
+          if (r && r.isListPage === true) {
+            res = r;
+            break;
+          }
         }
       }
     }
@@ -1017,12 +970,14 @@ btnSettings.addEventListener("click", () => {
   mainPanel.classList.add("hidden");
   pickerPanel.classList.remove("visible");
   settingsPanel.classList.add("visible");
+  document.body.classList.add("reports-settings-visible");
   loadSettings();
 });
 
 btnSettingsBack.addEventListener("click", () => {
   settingsPanel.classList.remove("visible");
   mainPanel.classList.remove("hidden");
+  document.body.classList.remove("reports-settings-visible");
   savePageSize();
   saveDefaultExportFormat();
   updateExportReportLabel();

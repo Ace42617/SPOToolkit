@@ -9,15 +9,32 @@ function showProgress(message) {
     el = document.createElement("div");
     el.id = PROGRESS_BOX_ID;
     el.style.cssText =
-      "position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:2147483647;font-family:'Segoe UI',sans-serif;min-width:400px;max-width:90vw;";
-    el.innerHTML =
-      '<div style="display:flex;align-items:center;gap:12px;padding:16px 24px;background:#323130;color:#fff;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.5);font-size:14px;border:3px solid #0078d4;">' +
-      '<div style="width:20px;height:20px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spcsvspin 0.8s linear infinite;flex-shrink:0;"></div>' +
-      '<span class="sp-csv-msg" style="flex:1;">' + (message || "Starting…") + "</span></div>";
+      "position:fixed;bottom:20px;right:20px;z-index:2147483647;font-family:'Segoe UI',sans-serif;min-width:280px;max-width:90vw;";
+    const wrap = document.createElement("div");
+    wrap.className = "sp-csv-progress-wrap";
+    wrap.innerHTML =
+      '<div class="sp-csv-progress-rotate"></div>' +
+      '<div class="sp-csv-progress-mask"></div>' +
+      '<div class="sp-csv-progress-content">' +
+      '<div class="sp-csv-progress-spinner"></div>' +
+      '<span class="sp-csv-msg">' + (message || "Starting…") + "</span>" +
+      "</div>";
+    el.appendChild(wrap);
     const style = document.createElement("style");
-    style.textContent = "@keyframes spcsvspin { to { transform: rotate(360deg); } }";
+    style.textContent =
+      ".sp-csv-progress-wrap{position:relative;border-radius:11px;overflow:hidden;}" +
+      ".sp-csv-progress-rotate{position:absolute;left:-50%;top:-50%;width:200%;height:200%;background:conic-gradient(transparent,#37ae1c 12%,#3D4FD6 28%,transparent 42%);animation:spcsvrotate 4s linear infinite;z-index:0;}" +
+      ".sp-csv-progress-wrap.dark-mode .sp-csv-progress-rotate{background:conic-gradient(transparent,#86efac 12%,#7B89F5 28%,transparent 42%);}" +
+      ".sp-csv-progress-mask{position:absolute;left:6px;top:6px;width:calc(100% - 12px);height:calc(100% - 12px);background:#323130;border-radius:5px;z-index:1;}" +
+      ".sp-csv-progress-content{position:relative;z-index:2;display:flex;align-items:center;gap:12px;padding:14px 20px;color:#fff;font-size:14px;}" +
+      ".sp-csv-progress-spinner{width:20px;height:20px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spcsvspin 0.8s linear infinite;flex-shrink:0;}" +
+      "@keyframes spcsvrotate{to{transform:rotate(1turn);}}" +
+      "@keyframes spcsvspin{to{transform:rotate(360deg);}}";
     document.head.appendChild(style);
     document.body.appendChild(el);
+    chrome.storage.local.get("darkMode", (r) => {
+      if (r.darkMode && wrap) wrap.classList.add("dark-mode");
+    });
   }
   const msgEl = el.querySelector(".sp-csv-msg");
   if (msgEl) msgEl.textContent = message || "…";
@@ -26,10 +43,15 @@ function showProgress(message) {
 function finishProgress(success, message, stopReason) {
   const el = document.getElementById(PROGRESS_BOX_ID);
   if (!el) return;
-  const box = el.querySelector("div");
+  const rotate = el.querySelector(".sp-csv-progress-rotate");
+  const mask = el.querySelector(".sp-csv-progress-mask");
   const msgEl = el.querySelector(".sp-csv-msg");
-  const spinner = box && box.querySelector("div");
-  if (box) box.style.background = success ? "#107c10" : "#a4262c";
+  const spinner = el.querySelector(".sp-csv-progress-spinner");
+  if (rotate) {
+    rotate.style.animation = "none";
+    rotate.style.background = success ? "#107c10" : "#a4262c";
+  }
+  if (mask) mask.style.background = success ? "#107c10" : "#a4262c";
   if (spinner) spinner.style.animation = "none";
   if (msgEl) msgEl.textContent = message || (success ? "Done!" : "Error.");
   const hasEarlyStop = stopReason && /no View ID|returned 0 rows/.test(stopReason);
@@ -56,7 +78,12 @@ function onPageMessage(e) {
     }
     showProgress(msg);
   } else if (e.data.type === "SPCSVExportDone") {
-    finishProgress(!!(d && d.success), (d && d.message) || (d && d.success ? "Done!" : "Export failed."), d && d.stopReason || "");
+    const success = !!(d && d.success);
+    const message = (d && d.message) || (success ? "Done!" : "Export failed.");
+    finishProgress(success, message, d && d.stopReason || "");
+    try {
+      chrome.runtime.sendMessage({ type: "SPCSVExportDone", success, message });
+    } catch (err) {}
   }
 }
 
@@ -206,39 +233,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         },
         timeoutMs: 15000,
         errorPayload: { ok: false, error: "Timeout or load failed", mappings: [], alias: null }
-      }
-    );
-    return true;
-  }
-
-  if (message.action === "searchQuery") {
-    injectAndWait(
-      "searchQuery.js",
-      "SPCSVSearchQueryResult",
-      (data) => ({
-        ok: !!data.ok,
-        error: data.error || null,
-        rows: Array.isArray(data.rows) ? data.rows : [],
-        totalRows: data.totalRows != null ? data.totalRows : 0,
-        debug: data.debug || null
-      }),
-      sendResponse,
-      {
-        beforeInject() {
-          let el = document.getElementById("sp-search-query-params");
-          if (el) el.remove();
-          el = document.createElement("script");
-          el.id = "sp-search-query-params";
-          el.type = "application/json";
-          el.textContent = JSON.stringify({
-            siteUrl: message.siteUrl || "",
-            queryText: message.queryText || "*",
-            rowLimit: message.rowLimit || 25
-          });
-          (document.head || document.documentElement).appendChild(el);
-        },
-        timeoutMs: 20000,
-        errorPayload: { ok: false, error: "Timeout or load failed", rows: [], totalRows: 0 }
       }
     );
     return true;
