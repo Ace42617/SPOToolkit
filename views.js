@@ -2,6 +2,17 @@
   const params = new URLSearchParams(window.location.search);
   const tabId = params.get("tabId") ? parseInt(params.get("tabId"), 10) : null;
 
+  // Sync dark/light mode from extension storage (same as popup)
+  if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get("darkMode", function (st) {
+      document.documentElement.classList.toggle("dark-mode", !!st.darkMode);
+    });
+    document.getElementById("darkModeToggle")?.addEventListener("click", function () {
+      const isDark = document.documentElement.classList.toggle("dark-mode");
+      chrome.storage.local.set({ darkMode: isDark });
+    });
+  }
+
   let sitePath = "";
   let listId = "";
   let listTitle = "";

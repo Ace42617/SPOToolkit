@@ -166,6 +166,84 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === "getListType") {
+    injectAndWait(
+      "getListType.js",
+      "SPCSVListTypeResult",
+      (data) => ({
+        isListPage: !!data.isListPage,
+        isLibrary: !!data.isLibrary
+      }),
+      sendResponse,
+      { timeoutMs: 6000, errorPayload: { isListPage: false, isLibrary: false } }
+    );
+    return true;
+  }
+
+  if (message.action === "getRefinableMappings") {
+    injectAndWait(
+      "getRefinableMappings.js",
+      "SPCSVRefinableMappingsResult",
+      (data) => ({
+        ok: !!data.ok,
+        error: data.error || null,
+        mappings: Array.isArray(data.mappings) ? data.mappings : [],
+        alias: data.alias != null ? data.alias : null
+      }),
+      sendResponse,
+      {
+        beforeInject() {
+          let el = document.getElementById("sp-refinable-params");
+          if (el) el.remove();
+          el = document.createElement("script");
+          el.id = "sp-refinable-params";
+          el.type = "application/json";
+          el.textContent = JSON.stringify({
+            siteUrl: message.siteUrl || "",
+            propertyName: message.propertyName || ""
+          });
+          (document.head || document.documentElement).appendChild(el);
+        },
+        timeoutMs: 15000,
+        errorPayload: { ok: false, error: "Timeout or load failed", mappings: [], alias: null }
+      }
+    );
+    return true;
+  }
+
+  if (message.action === "searchQuery") {
+    injectAndWait(
+      "searchQuery.js",
+      "SPCSVSearchQueryResult",
+      (data) => ({
+        ok: !!data.ok,
+        error: data.error || null,
+        rows: Array.isArray(data.rows) ? data.rows : [],
+        totalRows: data.totalRows != null ? data.totalRows : 0,
+        debug: data.debug || null
+      }),
+      sendResponse,
+      {
+        beforeInject() {
+          let el = document.getElementById("sp-search-query-params");
+          if (el) el.remove();
+          el = document.createElement("script");
+          el.id = "sp-search-query-params";
+          el.type = "application/json";
+          el.textContent = JSON.stringify({
+            siteUrl: message.siteUrl || "",
+            queryText: message.queryText || "*",
+            rowLimit: message.rowLimit || 25
+          });
+          (document.head || document.documentElement).appendChild(el);
+        },
+        timeoutMs: 20000,
+        errorPayload: { ok: false, error: "Timeout or load failed", rows: [], totalRows: 0 }
+      }
+    );
+    return true;
+  }
+
   if (message.action === "getSearchSchema") {
     injectAndWait(
       "getSearchSchema.js",
