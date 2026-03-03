@@ -70,7 +70,7 @@ body {
 }
 .popup-header-icon {
   width: 30px; height: 30px;
-  background: rgba(255,255,255,.18);
+  background: rgba(255,255,255,.28);
   border-radius: var(--r-md);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
@@ -81,91 +81,19 @@ body {
 }
 .popup-header-icon:focus { outline: none; }
 .popup-header-icon:focus-visible { box-shadow: 0 0 0 2px rgba(255,255,255,.5); }
-.popup-header-icon svg { width: 16px; height: 16px; fill: none; stroke: white; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
-.popup-header-icon .icon-layer { transform: translateY(0); }
-/* Compress down while holding */
-.popup-header-icon.holding .icon-layer-top { transition: transform 0.28s ease-out; transform: translateY(10px); }
-.popup-header-icon.holding .icon-layer-mid { transition: transform 0.28s ease-out; transform: translateY(0); }
-.popup-header-icon.holding .icon-layer-bottom { transition: transform 0.28s ease-out; transform: translateY(5px); }
-/* Spring back = keyframe bounce; intensity by hold duration (light / medium / heavy) */
-.popup-header-icon.springing-light .icon-layer-top { transition: none; animation: spring-top-light 0.55s ease-out both; }
-.popup-header-icon.springing-light .icon-layer-mid { transition: none; animation: spring-mid-light 0.55s ease-out both; }
-.popup-header-icon.springing-light .icon-layer-bottom { transition: none; animation: spring-bottom-light 0.55s ease-out both; }
-.popup-header-icon.springing-medium .icon-layer-top { transition: none; animation: spring-top-medium 0.75s ease-out both; }
-.popup-header-icon.springing-medium .icon-layer-mid { transition: none; animation: spring-mid-medium 0.75s ease-out both; }
-.popup-header-icon.springing-medium .icon-layer-bottom { transition: none; animation: spring-bottom-medium 0.75s ease-out both; }
-.popup-header-icon.springing-heavy .icon-layer-top { transition: none; animation: spring-top-heavy 0.95s ease-out both; }
-.popup-header-icon.springing-heavy .icon-layer-mid { transition: none; animation: spring-mid-heavy 0.95s ease-out both; }
-.popup-header-icon.springing-heavy .icon-layer-bottom { transition: none; animation: spring-bottom-heavy 0.95s ease-out both; }
-@keyframes spring-top-light {
-  0% { transform: translateY(10px); }
-  40% { transform: translateY(-1.5px); }
-  65% { transform: translateY(0.3px); }
-  100% { transform: translateY(0); }
+.header-compass-img {
+  display: block;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+  transition: filter 0.25s ease-out;
 }
-@keyframes spring-mid-light {
-  0% { transform: translateY(0); }
-  40% { transform: translateY(0.4px); }
-  65% { transform: translateY(-0.1px); }
-  100% { transform: translateY(0); }
+.popup-header-icon.spin .header-compass-img {
+  filter: none;
+  animation: compass-spin 0.6s ease-in-out;
+  transition: filter 0.25s ease-out;
 }
-@keyframes spring-bottom-light {
-  0% { transform: translateY(5px); }
-  40% { transform: translateY(-0.8px); }
-  65% { transform: translateY(0.2px); }
-  100% { transform: translateY(0); }
-}
-@keyframes spring-top-medium {
-  0% { transform: translateY(10px); }
-  28% { transform: translateY(-3px); }
-  52% { transform: translateY(1px); }
-  72% { transform: translateY(-0.6px); }
-  88% { transform: translateY(0.2px); }
-  100% { transform: translateY(0); }
-}
-@keyframes spring-mid-medium {
-  0% { transform: translateY(0); }
-  28% { transform: translateY(0.6px); }
-  52% { transform: translateY(-0.2px); }
-  72% { transform: translateY(0.1px); }
-  88% { transform: translateY(-0.05px); }
-  100% { transform: translateY(0); }
-}
-@keyframes spring-bottom-medium {
-  0% { transform: translateY(5px); }
-  28% { transform: translateY(-1.5px); }
-  52% { transform: translateY(0.5px); }
-  72% { transform: translateY(-0.3px); }
-  88% { transform: translateY(0.1px); }
-  100% { transform: translateY(0); }
-}
-@keyframes spring-top-heavy {
-  0% { transform: translateY(10px); }
-  22% { transform: translateY(-4.5px); }
-  45% { transform: translateY(1.5px); }
-  62% { transform: translateY(-1.2px); }
-  78% { transform: translateY(0.4px); }
-  90% { transform: translateY(-0.2px); }
-  100% { transform: translateY(0); }
-}
-@keyframes spring-mid-heavy {
-  0% { transform: translateY(0); }
-  22% { transform: translateY(0.8px); }
-  45% { transform: translateY(-0.3px); }
-  62% { transform: translateY(0.15px); }
-  78% { transform: translateY(-0.08px); }
-  90% { transform: translateY(0.04px); }
-  100% { transform: translateY(0); }
-}
-@keyframes spring-bottom-heavy {
-  0% { transform: translateY(5px); }
-  22% { transform: translateY(-2.2px); }
-  45% { transform: translateY(0.8px); }
-  62% { transform: translateY(-0.4px); }
-  78% { transform: translateY(0.15px); }
-  90% { transform: translateY(-0.05px); }
-  100% { transform: translateY(0); }
-}
+@keyframes compass-spin { to { transform: rotate(360deg); } }
+
 .popup-header-text { flex: 1; }
 .popup-header-title { font-size: .9375rem; font-weight: 700; color: white; letter-spacing: -.01em; }
 .popup-header-sub { font-size: .6875rem; color: rgba(255,255,255,.65); }
@@ -1121,7 +1049,7 @@ html.dark-mode .popup-header {
   background: linear-gradient(135deg, #166534 0%, #1e3a5f 50%, #312e81 100%);
   box-shadow: 0 2px 16px rgba(0,0,0,.4);
 }
-html.dark-mode .popup-header-icon { background: rgba(255,255,255,.12); }
+html.dark-mode .popup-header-icon { background: rgba(255,255,255,.22); }
 html.dark-mode .popup-header-sub { color: rgba(255,255,255,.6); }
 html.dark-mode .popup-header-badge {
   background: rgba(255,255,255,.12);
@@ -1259,11 +1187,7 @@ html.dark-mode .dark-toggle-btn .dark-toggle-knob {
 <!-- HEADER -->
 <div class="popup-header">
   <button type="button" class="popup-header-icon" id="headerIconBtn" aria-label="Toolkit icon">
-    <svg viewBox="0 0 24 24">
-      <g class="icon-layer icon-layer-top"><path d="M12 2L2 7l10 5 10-5-10-5z"/></g>
-      <g class="icon-layer icon-layer-mid"><path d="M2 17l10 5 10-5"/></g>
-      <g class="icon-layer icon-layer-bottom"><path d="M2 12l10 5 10-5"/></g>
-    </svg>
+    <img id="headerCompassIcon" class="header-compass-img" src="" alt="" width="20" height="20" />
   </button>
   <div class="popup-header-text">
     <div class="popup-header-title">SP Developer Toolkit</div>
@@ -1461,6 +1385,7 @@ html.dark-mode .dark-toggle-btn .dark-toggle-knob {
   </div>
 </div>
 
+<script src="sharepoint-facts.js"></script>
 <script src="popup.js"></script>
 </body>
 </html>

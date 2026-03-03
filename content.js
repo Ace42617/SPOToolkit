@@ -63,6 +63,57 @@ function finishProgress(success, message, stopReason) {
   }, displayMs);
 }
 
+const FACT_TOAST_ID = "sp-fact-toast";
+const FACT_TOAST_STYLE_ID = "sp-fact-toast-styles";
+const FACT_TOAST_DURATION_MS = 45000;
+let factToastTimeoutId = null;
+
+const FACT_TOAST_CSS =
+  ".sp-fact-wrap{position:relative;background:#323130;color:#fff;border-radius:11px;padding:14px 36px 14px 16px;box-shadow:0 4px 24px rgba(0,0,0,.5);font-size:13px;line-height:1.5;}" +
+  ".sp-fact-text{margin:0 0 8px;}" +
+  ".sp-fact-source{display:inline-block;padding:6px 12px;background:rgba(255,255,255,.2);color:#fff;font-size:12px;font-weight:600;text-decoration:none;border-radius:6px;}" +
+  ".sp-fact-source:hover{background:rgba(255,255,255,.3);}" +
+  ".sp-fact-close{position:absolute;top:8px;right:8px;width:24px;height:24px;border:none;background:rgba(255,255,255,.15);color:#fff;border-radius:4px;font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;}" +
+  ".sp-fact-close:hover{background:rgba(255,255,255,.25);}";
+
+function showFactToast(factText, sourceUrl) {
+  if (factToastTimeoutId) {
+    clearTimeout(factToastTimeoutId);
+    factToastTimeoutId = null;
+  }
+  let el = document.getElementById(FACT_TOAST_ID);
+  if (el) el.remove();
+  if (!document.getElementById(FACT_TOAST_STYLE_ID)) {
+    const style = document.createElement("style");
+    style.id = FACT_TOAST_STYLE_ID;
+    style.textContent = FACT_TOAST_CSS;
+    document.head.appendChild(style);
+  }
+  el = document.createElement("div");
+  el.id = FACT_TOAST_ID;
+  el.style.cssText = "position:fixed;bottom:20px;right:20px;z-index:2147483647;font-family:'Segoe UI',sans-serif;max-width:320px;min-width:200px;";
+  el.innerHTML =
+    '<div class="sp-fact-wrap">' +
+    '<button type="button" class="sp-fact-close" aria-label="Close">×</button>' +
+    '<p class="sp-fact-text"></p>' +
+    (sourceUrl ? '<a class="sp-fact-source" href="#" target="_blank" rel="noopener">Learn More</a>' : '') +
+    '</div>';
+  el.querySelector(".sp-fact-text").textContent = factText || "";
+  if (sourceUrl) {
+    const link = el.querySelector(".sp-fact-source");
+    link.href = sourceUrl;
+    link.addEventListener("click", (e) => { e.preventDefault(); window.open(sourceUrl, "_blank", "noopener"); });
+  }
+  document.body.appendChild(el);
+  const close = () => {
+    factToastTimeoutId = null;
+    const node = document.getElementById(FACT_TOAST_ID);
+    if (node && node.parentNode) node.parentNode.removeChild(node);
+  };
+  el.querySelector(".sp-fact-close").addEventListener("click", close);
+  factToastTimeoutId = setTimeout(close, FACT_TOAST_DURATION_MS);
+}
+
 function setupListeners() {
   window.removeEventListener("message", onPageMessage);
   window.addEventListener("message", onPageMessage);
@@ -114,6 +165,11 @@ function injectAndWait(scriptName, messageType, parseData, sendResponse, options
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.action === "showFact") {
+    showFactToast(message.fact || "", message.sourceUrl || "");
+    sendResponse({});
+    return true;
+  }
   if (message.action === "getPageContext") {
     injectAndWait(
       "getPageContext.js",

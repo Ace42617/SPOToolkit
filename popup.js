@@ -21,6 +21,8 @@ const pickerStatus = document.getElementById("pickerStatus");
 
 let pickerData = null; // { defaultColumns, pickerFields }
 
+const SHAREPOINT_FACTS = window.SHAREPOINT_FACTS || [];
+
 const DEFAULT_PAGE_SIZE = 5000;
 const DEFAULT_EXPORT_FORMAT = "xlsx";
 
@@ -65,44 +67,24 @@ document.getElementById("darkModeToggle")?.addEventListener("click", () => {
   updateDarkToggleLabel(isDark);
 });
 const headerIconBtn = document.getElementById("headerIconBtn");
+const headerCompassImg = document.getElementById("headerCompassIcon");
+if (headerCompassImg) headerCompassImg.src = chrome.runtime.getURL("icon.png");
 if (headerIconBtn) {
-  let holdStart = 0;
-  function release() {
-    const held = holdStart ? Date.now() - holdStart : 0;
-    holdStart = 0;
-    headerIconBtn.classList.remove("holding");
-    let springClass = "springing-light";
-    let durationMs = 550;
-    if (held >= 450) {
-      springClass = "springing-heavy";
-      durationMs = 950;
-    } else if (held >= 200) {
-      springClass = "springing-medium";
-      durationMs = 750;
-    }
-    headerIconBtn.classList.add(springClass);
-    setTimeout(() => {
-      headerIconBtn.classList.remove("springing-light", "springing-medium", "springing-heavy");
-    }, durationMs);
-  }
-  headerIconBtn.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
-    headerIconBtn.setPointerCapture(e.pointerId);
-    holdStart = Date.now();
-    headerIconBtn.classList.add("holding");
+  headerIconBtn.addEventListener("click", async () => {
+    headerIconBtn.classList.remove("spin");
+    headerIconBtn.offsetHeight;
+    headerIconBtn.classList.add("spin");
+    setTimeout(() => headerIconBtn.classList.remove("spin"), 600);
+    if (!SHAREPOINT_FACTS.length) return;
+    const fact = SHAREPOINT_FACTS[Math.floor(Math.random() * SHAREPOINT_FACTS.length)];
+    const factText = typeof fact === "string" ? fact : (fact.text || "");
+    const sourceUrl = typeof fact === "object" && fact.sourceUrl && String(fact.sourceUrl).trim() ? fact.sourceUrl : "";
+    if (typeof fact === "object" && typeof fact.openUrl === "string") chrome.tabs.create({ url: fact.openUrl });
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id) chrome.tabs.sendMessage(tab.id, { action: "showFact", fact: factText, sourceUrl });
+    } catch (_) {}
   });
-  headerIconBtn.addEventListener("pointerup", (e) => {
-    headerIconBtn.releasePointerCapture(e.pointerId);
-    release();
-  });
-  headerIconBtn.addEventListener("pointercancel", (e) => {
-    headerIconBtn.releasePointerCapture(e.pointerId);
-    release();
-  });
-  headerIconBtn.addEventListener("pointerleave", () => {
-    if (headerIconBtn.classList.contains("holding")) release();
-  });
-  headerIconBtn.addEventListener("contextmenu", (e) => e.preventDefault());
 }
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message && message.type === "SPCSVExportDone") {
