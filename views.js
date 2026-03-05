@@ -2,14 +2,76 @@
   const params = new URLSearchParams(window.location.search);
   const tabId = params.get("tabId") ? parseInt(params.get("tabId"), 10) : null;
 
-  // Sync dark/light mode from extension storage (same as popup)
+  // Sync dark/light mode and optional branding from extension storage (same as popup)
   if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get("darkMode", function (st) {
+    chrome.storage.local.get(["darkMode", "toolkitTitle", "toolkitSubtitle"], function (st) {
       document.documentElement.classList.toggle("dark-mode", !!st.darkMode);
+      const titleEl = document.getElementById("headerTitle");
+      const subEl = document.getElementById("headerSub");
+      if (titleEl && st.toolkitTitle) titleEl.textContent = st.toolkitTitle;
+      if (subEl && st.toolkitSubtitle) subEl.textContent = st.toolkitSubtitle;
     });
     document.getElementById("darkModeToggle")?.addEventListener("click", function () {
       const isDark = document.documentElement.classList.toggle("dark-mode");
       chrome.storage.local.set({ darkMode: isDark });
+    });
+  }
+
+  const headerIconBtn = document.getElementById("headerIconBtn");
+  const headerCompassImg = document.getElementById("headerCompassIcon");
+  if (headerCompassImg && typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.getURL) {
+    headerCompassImg.src = chrome.runtime.getURL("icon.png");
+  }
+  function showFactToastInPage(factText, sourceUrl) {
+    const TOAST_ID = "vm-fact-toast";
+    const DURATION_MS = 45000;
+    let existing = document.getElementById(TOAST_ID);
+    if (existing) existing.remove();
+    const wrap = document.createElement("div");
+    wrap.id = TOAST_ID;
+    wrap.innerHTML =
+      "<div class=\"vm-fact-wrap\">" +
+      "<button type=\"button\" class=\"vm-fact-close\" aria-label=\"Close\">×</button>" +
+      "<p class=\"vm-fact-text\"></p>" +
+      (sourceUrl ? "<a class=\"vm-fact-source\" href=\"#\" target=\"_blank\" rel=\"noopener\">Learn More</a>" : "") +
+      "</div>";
+    wrap.querySelector(".vm-fact-text").textContent = factText || "";
+    let closeTimeout;
+    const close = function () {
+      if (closeTimeout) clearTimeout(closeTimeout);
+      const el = document.getElementById(TOAST_ID);
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+    };
+    wrap.querySelector(".vm-fact-close").addEventListener("click", close);
+    if (sourceUrl) {
+      const link = wrap.querySelector(".vm-fact-source");
+      link.href = sourceUrl;
+      link.addEventListener("click", function (e) { e.preventDefault(); window.open(sourceUrl, "_blank", "noopener"); });
+    }
+    document.body.appendChild(wrap);
+    closeTimeout = setTimeout(close, DURATION_MS);
+  }
+
+  if (headerIconBtn) {
+    headerIconBtn.addEventListener("click", function () {
+      headerIconBtn.classList.remove("spin");
+      headerIconBtn.offsetHeight;
+      headerIconBtn.classList.add("spin");
+      setTimeout(function () { headerIconBtn.classList.remove("spin"); }, 600);
+      const facts = typeof window.SHAREPOINT_FACTS !== "undefined" ? window.SHAREPOINT_FACTS : [];
+      if (!facts.length) return;
+      const fact = facts[Math.floor(Math.random() * facts.length)];
+      const factText = typeof fact === "string" ? fact : (fact && fact.text ? fact.text : "");
+      const sourceUrl = typeof fact === "object" && fact && fact.sourceUrl && String(fact.sourceUrl).trim() ? fact.sourceUrl : "";
+      if (typeof fact === "object" && fact && typeof fact.openUrl === "string") {
+        if (chrome && chrome.tabs) chrome.tabs.create({ url: fact.openUrl });
+      }
+      showFactToastInPage(factText, sourceUrl);
+      if (tabId && typeof chrome !== "undefined" && chrome.tabs) {
+        chrome.tabs.sendMessage(tabId, { action: "showFact", fact: factText, sourceUrl: sourceUrl }, function () {
+          if (chrome.runtime.lastError) { /* tab may be closed or content script not ready */ }
+        });
+      }
     });
   }
 
@@ -99,6 +161,24 @@
     if (linesEl) linesEl.classList.add("visible");
     showContextStatus(null);
     updateUrlWithList(listTitle);
+    updateViewIdDisplay();
+  }
+
+  function updateViewIdDisplay() {
+    const wrap = document.getElementById("contextViewIdWrap");
+    const idEl = document.getElementById("contextViewIdDisplay");
+    const btn = document.getElementById("btnCopyViewId");
+    if (wrap) wrap.classList.toggle("hide", !selectedViewId);
+    if (idEl) idEl.textContent = selectedViewId || "—";
+    if (btn) btn.textContent = "Copy";
+  }
+
+  function updatePersonalViewVisibility() {
+    const wrap = document.getElementById("viewPersonalWrap");
+    if (!wrap) return;
+    const show = !selectedViewId;
+    wrap.classList.toggle("hide", !show);
+    wrap.style.display = show ? "" : "none";
   }
 
   function updateUrlWithList(listTitleVal) {
@@ -139,6 +219,33 @@
     try {
       document.execCommand("copy");
       const btn = document.getElementById("btnCopyListId");
+      if (btn) { btn.textContent = "Copied!"; setTimeout(function () { btn.textContent = "Copy"; }, 1500); }
+    } catch (_) {}
+    if (sel) sel.removeAllRanges();
+  }
+
+  function copyViewIdToClipboard() {
+    if (!selectedViewId) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(selectedViewId).then(function () {
+        const btn = document.getElementById("btnCopyViewId");
+        if (btn) { btn.textContent = "Copied!"; setTimeout(function () { btn.textContent = "Copy"; }, 1500); }
+      }).catch(function () { fallbackCopyViewId(); });
+    } else {
+      fallbackCopyViewId();
+    }
+  }
+
+  function fallbackCopyViewId() {
+    const el = document.getElementById("contextViewIdDisplay");
+    if (!el || !selectedViewId) return;
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+    try {
+      document.execCommand("copy");
+      const btn = document.getElementById("btnCopyViewId");
       if (btn) { btn.textContent = "Copied!"; setTimeout(function () { btn.textContent = "Copy"; }, 1500); }
     } catch (_) {}
     if (sel) sel.removeAllRanges();
@@ -308,30 +415,49 @@
     if (defaultView) {
       selectedViewId = defaultView.id;
       document.getElementById("viewSelect").value = defaultView.id;
-      document.getElementById("btnDelete").classList.remove("hide");
       document.getElementById("btnDuplicate").classList.remove("hide");
+      updateViewIdDisplay();
+      updateDeleteButtonVisibility();
       loadViewDetails(defaultView.id);
     } else {
       setNewViewDefaults();
+      updateViewIdDisplay();
     }
   }
 
   function onViewSelectChange() {
     const val = document.getElementById("viewSelect").value;
     selectedViewId = val || null;
+    updateViewIdDisplay();
+    updatePersonalViewVisibility();
     if (!val) {
       setNewViewDefaults();
       updateSetDefaultVisibility();
       return;
     }
-    document.getElementById("btnDelete").classList.remove("hide");
     document.getElementById("btnDuplicate").classList.remove("hide");
+    updateDeleteButtonVisibility();
     updateSetDefaultVisibility();
     loadViewDetails(val);
   }
 
   function updateSetDefaultVisibility() {
     const btn = document.getElementById("btnSetDefault");
+    if (!btn) return;
+    if (!selectedViewId) {
+      btn.classList.add("hide");
+      return;
+    }
+    const v = views.find(function (x) { return x.id === selectedViewId; });
+    if (v && v.defaultView) {
+      btn.classList.add("hide");
+    } else {
+      btn.classList.remove("hide");
+    }
+  }
+
+  function updateDeleteButtonVisibility() {
+    const btn = document.getElementById("btnDelete");
     if (!btn) return;
     if (!selectedViewId) {
       btn.classList.add("hide");
@@ -651,7 +777,9 @@
       document.getElementById("btnSave").disabled = false;
       selectedViewId = viewId;
       document.getElementById("viewSelect").value = viewId;
-      document.getElementById("btnDelete").classList.remove("hide");
+      updateViewIdDisplay();
+      updatePersonalViewVisibility();
+      updateDeleteButtonVisibility();
       loadContext().then(function () { loadViewsAndFields(); });
     } catch (e) {
       showSaveStatus(e && e.message ? e.message : "Save failed.", true);
@@ -684,6 +812,8 @@
     document.getElementById("btnDelete").classList.add("hide");
     document.getElementById("btnSetDefault").classList.add("hide");
     document.getElementById("btnDuplicate").classList.add("hide");
+    updateViewIdDisplay();
+    updatePersonalViewVisibility();
   }
 
   async function setDefaultView() {
@@ -714,6 +844,7 @@
   });
 
   document.getElementById("btnCopyListId").addEventListener("click", copyListIdToClipboard);
+  document.getElementById("btnCopyViewId").addEventListener("click", copyViewIdToClipboard);
 
   document.getElementById("btnSave").addEventListener("click", saveView);
   document.getElementById("btnSetDefault").addEventListener("click", setDefaultView);

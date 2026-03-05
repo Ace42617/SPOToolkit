@@ -71,6 +71,9 @@
 
     /* ── HEADER (match popup) ─────────────────────────── */
     .header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
       flex-shrink: 0;
       padding: 12px 20px;
       background: linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%);
@@ -87,13 +90,32 @@
       box-shadow: 0 2px 16px rgba(0,0,0,.4);
     }
     .header-icon {
-      width: 36px; height: 36px;
-      background: rgba(255,255,255,.18);
+      width: 30px; height: 30px;
+      background: rgba(255,255,255,.28);
       border-radius: var(--r-md);
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
+      border: none;
+      padding: 0;
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
     }
-    .header-icon svg { width: 20px; height: 20px; fill: none; stroke: white; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .header-icon:focus { outline: none; }
+    .header-icon:focus-visible { box-shadow: 0 0 0 2px rgba(255,255,255,.5); }
+    .header-compass-img {
+      display: block;
+      width: 20px; height: 20px;
+      object-fit: contain;
+      filter: brightness(0) invert(1);
+      transition: filter 0.25s ease-out;
+    }
+    .header-icon.spin .header-compass-img {
+      filter: none;
+      animation: compass-spin 0.6s ease-in-out;
+      transition: filter 0.25s ease-out;
+    }
+    @keyframes compass-spin { to { transform: rotate(360deg); } }
     .header-text { flex: 1; min-width: 0; }
     .header h1 { margin: 0; font-size: 1.125rem; font-weight: 700; letter-spacing: -.01em; }
     .header-sub { font-size: .75rem; color: rgba(255,255,255,.65); margin-top: 1px; }
@@ -144,6 +166,7 @@
       flex-direction: column;
       min-height: 0;
       padding: 20px 24px;
+      padding-top: 28px;
       max-width: 1400px;
       width: 100%;
       margin: 0 auto;
@@ -189,8 +212,14 @@
     .context-block:last-child { margin-bottom: 0; }
     .context-card-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
     .context-card-row h2 { margin: 0; padding-bottom: 0; border: none; font-size: 1rem; }
-    .context-id-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .context-ids { display: block; }
+    .context-ids .context-id-wrap { margin-bottom: 6px; }
+    .context-ids .context-id-wrap:last-child { margin-bottom: 0; }
+    .context-id-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+    .context-id-wrap strong { flex-shrink: 0; min-width: 5.5em; }
     .context-id-wrap code {
+      flex: 1;
+      min-width: 0;
       font-size: .75rem; word-break: break-all;
       background: var(--bg);
       padding: 6px 10px;
@@ -199,6 +228,7 @@
       border: 1px solid var(--border);
       font-family: ui-monospace, monospace;
     }
+    .context-id-wrap button.secondary { flex-shrink: 0; }
 
     /* ── STATUS MESSAGES ─────────────────────────── */
     .status {
@@ -233,6 +263,18 @@
     select:focus, input:focus {
       border-color: var(--brand-mid);
       box-shadow: 0 0 0 2px rgba(123, 137, 245, .2);
+    }
+    select {
+      padding-right: 28px;
+      appearance: none;
+      -webkit-appearance: none;
+      background-color: var(--surface);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235A5F8A' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+    }
+    html.dark-mode select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239EA3C8' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
     }
     .form-row input[type="text"] { width: 100%; }
     input[type="checkbox"] { accent-color: var(--brand); margin-right: 8px; vertical-align: middle; }
@@ -292,7 +334,7 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 24px;
-      align-items: stretch;
+      align-items: start;
       flex: 1;
       min-height: 0;
     }
@@ -300,6 +342,9 @@
     .editor-section-right { overflow-y: auto; }
     .editor-section { min-width: 0; display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
     .editor-section .col-list { flex: 1; min-height: 0; overflow-y: auto; }
+    .editor-section > h3 { margin: 0 0 8px 0; }
+    .editor-section-columns > .empty-hint { margin: 0 0 12px 0; }
+    .editor-section-right .form-row:first-of-type { margin-top: 10px; }
 
     /* ── COLUMNS LIST ─────────────────────────── */
     .col-search { margin-bottom: 12px; }
@@ -328,7 +373,7 @@
     .col-item .drag-handle { color: var(--txt-soft); cursor: grab; font-size: 14px; line-height: 1; }
     .col-item .col-check { flex-shrink: 0; }
     .col-item .col-label { flex: 1; font-size: .8125rem; color: var(--txt); }
-    .col-item .col-internal { font-size: .7rem; color: var(--txt-soft); font-family: ui-monospace, monospace; }
+    .col-item .col-internal { margin-left: 20px; font-size: .7rem; color: var(--txt-soft); font-family: ui-monospace, monospace; }
 
     /* ── SORT / FILTER ROWS ─────────────────────────── */
     .sort-row, .filter-row {
@@ -371,17 +416,62 @@
     #contextStatus.loading { display: block; }
     #contextLines { display: none; }
     #contextLines.visible { display: block; }
+    #contextListName { margin-top: 16px; margin-bottom: 24px; }
     .hide { display: none !important; }
+
+    /* Fact toast (compass tips) ─────────────────────────── */
+    #vm-fact-toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 99999;
+      max-width: 320px; min-width: 220px;
+      font-family: var(--font);
+    }
+    .vm-fact-wrap {
+      position: relative;
+      background: var(--txt);
+      color: var(--surface);
+      border-radius: var(--r-lg);
+      padding: 14px 36px 14px 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.25);
+      font-size: .8125rem;
+      line-height: 1.5;
+      border: 1.5px solid var(--border);
+    }
+    html.dark-mode .vm-fact-wrap { background: var(--txt-mid); color: var(--surface); }
+    .vm-fact-text { margin: 0 0 8px; }
+    .vm-fact-source {
+      display: inline-block;
+      padding: 6px 12px;
+      background: rgba(255,255,255,.25);
+      color: inherit;
+      font-size: .75rem;
+      font-weight: 600;
+      text-decoration: none;
+      border-radius: var(--r-md);
+    }
+    .vm-fact-source:hover { background: rgba(255,255,255,.35); }
+    .vm-fact-close {
+      position: absolute; top: 8px; right: 8px;
+      width: 24px; height: 24px;
+      border: none;
+      background: rgba(255,255,255,.2);
+      color: inherit;
+      border-radius: var(--r-sm);
+      font-size: 18px; line-height: 1;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      padding: 0;
+    }
+    .vm-fact-close:hover { background: rgba(255,255,255,.3); }
   </style>
 </head>
 <body>
   <header class="header">
-    <div class="header-icon" aria-hidden="true">
-      <svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
-    </div>
+    <button type="button" class="header-icon" id="headerIconBtn" title="Click for a SharePoint tip" aria-label="Toolkit icon">
+      <img id="headerCompassIcon" class="header-compass-img" src="" alt="" width="20" height="20">
+    </button>
     <div class="header-text">
-      <h1>View Manager</h1>
-      <div class="header-sub">Create and edit list views</div>
+      <h1 id="headerTitle">SP Developer Toolkit</h1>
+      <div class="header-sub" id="headerSub">View Manager</div>
     </div>
     <div class="header-actions">
       <a href="#" id="backToTab">
@@ -396,10 +486,17 @@
       <p class="status loading" id="contextStatus">Loading context…</p>
       <div id="contextLines" class="context-card-row">
         <h2 id="contextListName">—</h2>
-        <div class="context-id-wrap">
-          <strong>List ID:</strong>
-          <code id="contextListIdDisplay">—</code>
-          <button type="button" class="secondary" id="btnCopyListId" title="Copy full List ID">Copy</button>
+        <div class="context-ids">
+          <div class="context-id-wrap">
+            <strong>List ID:</strong>
+            <code id="contextListIdDisplay">—</code>
+            <button type="button" class="secondary" id="btnCopyListId" title="Copy full List ID">Copy</button>
+          </div>
+          <div class="context-id-wrap hide" id="contextViewIdWrap">
+            <strong>View ID:</strong>
+            <code id="contextViewIdDisplay">—</code>
+            <button type="button" class="secondary" id="btnCopyViewId" title="Copy View ID">Copy</button>
+          </div>
         </div>
       </div>
     </div>
@@ -432,7 +529,7 @@
             <label for="viewName">View name</label>
             <input type="text" id="viewName" placeholder="e.g. My View">
           </div>
-          <div class="inline-row" style="margin-bottom:12px;">
+          <div class="inline-row hide" id="viewPersonalWrap" style="margin-bottom:12px;">
             <label><input type="checkbox" id="viewPersonal"> Personal view (only visible to you)</label>
           </div>
           <div class="form-row">
@@ -489,6 +586,7 @@
       <p class="status warn">Open a SharePoint list or library page, then open View Manager from the popup.</p>
     </div>
   </div>
+  <script src="sharepoint-facts.js"></script>
   <script src="views.js"></script>
 </body>
 </html>
