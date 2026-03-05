@@ -83,6 +83,7 @@
   let selectedViewId = null;
   let viewDetails = null;
   let columnOrder = [];
+  let inViewSet = new Set();
   let sortLevels = [];
   let filters = [];
   let groupByColumn = "";
@@ -340,7 +341,12 @@
         return;
       }
       viewDetails = res.viewDetails;
-      columnOrder = (viewDetails.viewFields || []).slice();
+      const viewFields = viewDetails.viewFields || [];
+      inViewSet = new Set(viewFields);
+      const otherFields = (fields || []).filter(function (f) { return viewFields.indexOf(f.internalName) < 0; });
+      otherFields.sort(function (a, b) { return (a.title || "").localeCompare(b.title || ""); });
+      columnOrder = viewFields.slice();
+      otherFields.forEach(function (f) { columnOrder.push(f.internalName); });
       sortLevels = viewDetails.orderBy ? [{ field: viewDetails.orderBy.field, ascending: viewDetails.orderBy.ascending }] : [];
       filters = (viewDetails.filters || []).map(function (f) {
         return { field: f.field, op: f.op, value: f.value || "" };
@@ -379,7 +385,9 @@
 
   function setNewViewDefaults() {
     viewDetails = null;
-    columnOrder = [];
+    inViewSet = new Set();
+    const sorted = (fields || []).slice().sort(function (a, b) { return (a.title || "").localeCompare(b.title || ""); });
+    columnOrder = sorted.map(function (f) { return f.internalName; });
     sortLevels = [];
     filters = [];
     groupByColumn = "";
@@ -475,22 +483,17 @@
     const list = document.getElementById("colList");
     const search = (document.getElementById("colSearch").value || "").toLowerCase().trim();
     const ordered = columnOrder.slice();
-    const rest = fields.filter(function (f) {
-      return ordered.indexOf(f.internalName) < 0 &&
-        (!search || (f.title || "").toLowerCase().indexOf(search) >= 0 || (f.internalName || "").toLowerCase().indexOf(search) >= 0);
-    });
-    rest.sort(function (a, b) { return (a.title || "").localeCompare(b.title || ""); });
     const toShow = ordered.filter(function (name) {
       const f = fields.find(function (x) { return x.internalName === name; });
       return f && (!search || (f.title || "").toLowerCase().indexOf(search) >= 0 || (f.internalName || "").toLowerCase().indexOf(search) >= 0);
     }).map(function (name) {
       return fields.find(function (f) { return f.internalName === name; });
     }).filter(Boolean);
-    const restFiltered = search ? rest : rest;
 
     list.innerHTML = "";
     let draggedName = null;
-    function addRow(field, isInView) {
+    function addRow(field) {
+      const isInView = inViewSet.has(field.internalName);
       const div = document.createElement("div");
       div.className = "col-item";
       div.dataset.internalName = field.internalName;
@@ -503,11 +506,10 @@
       const cb = div.querySelector(".col-checkbox");
       cb.addEventListener("change", function () {
         if (cb.checked) {
-          if (columnOrder.indexOf(field.internalName) < 0) columnOrder.push(field.internalName);
+          inViewSet.add(field.internalName);
         } else {
-          columnOrder = columnOrder.filter(function (n) { return n !== field.internalName; });
+          inViewSet.delete(field.internalName);
         }
-        renderColumnList();
       });
       div.addEventListener("dragstart", function (e) {
         draggedName = field.internalName;
@@ -527,30 +529,24 @@
         e.preventDefault();
         const name = e.dataTransfer.getData("text/plain");
         if (!name || name === field.internalName || name !== draggedName) return;
-        const targetInOrder = columnOrder.indexOf(field.internalName) >= 0;
-        let arr = columnOrder.filter(function (n) { return n !== name; });
-        if (targetInOrder) {
-          const insertIdx = arr.indexOf(field.internalName);
-          arr.splice(insertIdx >= 0 ? insertIdx : arr.length, 0, name);
-        } else {
-          arr.push(name);
-        }
+        const arr = columnOrder.filter(function (n) { return n !== name; });
+        const insertIdx = arr.indexOf(field.internalName);
+        arr.splice(insertIdx >= 0 ? insertIdx : arr.length, 0, name);
         columnOrder = arr;
         renderColumnList();
       });
       list.appendChild(div);
     }
-    toShow.forEach(function (f) { addRow(f, true); });
-    restFiltered.forEach(function (f) { addRow(f, false); });
+    toShow.forEach(function (f) { addRow(f); });
   }
 
   document.getElementById("colSearch").addEventListener("input", function () { renderColumnList(); });
   document.getElementById("btnColAddAll").addEventListener("click", function () {
-    columnOrder = fields.map(function (f) { return f.internalName; });
+    columnOrder.forEach(function (name) { inViewSet.add(name); });
     renderColumnList();
   });
   document.getElementById("btnColRemoveAll").addEventListener("click", function () {
-    columnOrder = [];
+    inViewSet.clear();
     renderColumnList();
   });
 
@@ -712,12 +708,17 @@
     el.style.display = msg ? "block" : "none";
   }
 
+  function getOrderedViewColumns() {
+    return columnOrder.filter(function (n) { return inViewSet.has(n); });
+  }
+
   async function applyViewFields(viewId) {
+    const ordered = getOrderedViewColumns();
     const vfBase = sitePath + "/_api/web/lists(guid'" + listId.replace(/'/g, "''") + "')/views(guid'" + viewId.replace(/'/g, "''") + "')/ViewFields";
     const rm = await rest("POST", vfBase + "/RemoveAllViewFields");
     if (!rm.ok && rm.status !== 404 && rm.status !== 501) throw new Error(rm.error || "RemoveAllViewFields failed");
-    for (let i = 0; i < columnOrder.length; i++) {
-      const name = String(columnOrder[i]).replace(/'/g, "''");
+    for (let i = 0; i < ordered.length; i++) {
+      const name = String(ordered[i]).replace(/'/g, "''");
       const r = await rest("POST", vfBase + "/addviewfield('" + name + "')");
       if (!r.ok) throw new Error(r.error || "Add field failed");
     }
@@ -729,7 +730,7 @@
       showSaveStatus("Enter a view name.", true);
       return;
     }
-    if (columnOrder.length === 0) {
+    if (getOrderedViewColumns().length === 0) {
       showSaveStatus("Select at least one column.", true);
       return;
     }

@@ -51,12 +51,14 @@
     }
 
     /* ── BASE ─────────────────────────── */
-    html { font-size: 14px; }
+    html { font-size: 14px; height: 100%; }
     body {
       font-family: var(--font);
       background: var(--bg);
       color: var(--txt);
-      min-height: 100vh;
+      height: 100vh;
+      max-height: 100vh;
+      overflow: hidden;
       display: flex;
       flex-direction: column;
       -webkit-font-smoothing: antialiased;
@@ -165,6 +167,7 @@
       display: flex;
       flex-direction: column;
       min-height: 0;
+      overflow: hidden;
       padding: 20px 24px;
       padding-top: 28px;
       max-width: 1400px;
@@ -187,9 +190,12 @@
       display: flex;
       flex-direction: column;
       min-height: 0;
+      overflow: hidden;
       margin-bottom: 16px;
     }
-    #editorCard:not(.hide) .editor-layout { flex: 1; min-height: 0; }
+    #editorCard:not(.hide) .view-select-row { flex-shrink: 0; }
+    #editorCard:not(.hide) .editor-layout { flex: 1; min-height: 0; overflow: hidden; }
+    #editorCard:not(.hide) .actions-bar { flex-shrink: 0; }
     .card h2 {
       margin: 0 0 16px 0;
       font-size: 1rem;
@@ -334,13 +340,14 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 24px;
-      align-items: start;
+      align-items: stretch;
       flex: 1;
       min-height: 0;
+      overflow: hidden;
     }
-    .editor-section-columns { flex: 1; min-height: 0; overflow: hidden; }
-    .editor-section-right { overflow-y: auto; }
-    .editor-section { min-width: 0; display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+    .editor-section-columns { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+    .editor-section-right { overflow-y: auto; min-height: 0; }
+    .editor-section { min-width: 0; display: flex; flex-direction: column; min-height: 0; }
     .editor-section .col-list { flex: 1; min-height: 0; overflow-y: auto; }
     .editor-section > h3 { margin: 0 0 8px 0; }
     .editor-section-columns > .empty-hint { margin: 0 0 12px 0; }
