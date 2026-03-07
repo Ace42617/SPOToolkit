@@ -136,30 +136,89 @@
     .header a:hover { background: rgba(255,255,255,.22); border-color: rgba(255,255,255,.35); }
     .header a svg { width: 14px; height: 14px; flex-shrink: 0; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
-    /* Dark mode toggle (match popup) ─────────────────────────── */
+    /* Dark mode toggle (match popup — Early Riser / Night Owl) ─────────────────────────── */
+    .dark-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin-left: 4px;
+    }
     .dark-toggle-btn {
-      width: 36px; height: 22px;
-      border: none; border-radius: 11px;
-      background: rgba(255,255,255,.2);
+      width: 52px;
+      height: 24px;
+      border: none;
+      border-radius: 12px;
       cursor: pointer;
       position: relative;
-      transition: background .2s ease;
       flex-shrink: 0;
+      overflow: hidden;
+      background: linear-gradient(90deg, #f5e6c8 0%, #e8d4a8 35%, #3d2a5c 65%, #1a0a2e 100%);
+      box-shadow: inset 0 1px 2px rgba(0,0,0,.2), 0 0 0 1px rgba(255,255,255,.15);
+      transition: box-shadow .2s ease;
     }
-    .dark-toggle-btn:hover { background: rgba(255,255,255,.3); }
+    .dark-toggle-btn:hover {
+      box-shadow: inset 0 1px 2px rgba(0,0,0,.25), 0 0 0 1px rgba(255,255,255,.25);
+    }
+    .dark-toggle-btn::before {
+      content: '';
+      position: absolute;
+      left: 5px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px;
+      height: 14px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b8860b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='10' r='4'/%3E%3Cpath d='M12 2v2M12 18v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M18 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41'/%3E%3Cpath d='M5 14h14'/%3E%3C/svg%3E") no-repeat center / contain;
+      opacity: .95;
+      pointer-events: none;
+    }
     .dark-toggle-btn::after {
       content: '';
       position: absolute;
-      top: 2px; left: 2px;
-      width: 18px; height: 18px;
-      border-radius: 50%;
-      background: white;
-      box-shadow: 0 1px 3px rgba(0,0,0,.25);
-      transition: transform .2s cubic-bezier(0.4, 0, 0.2, 1);
+      right: 5px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px;
+      height: 14px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23c9b8e8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'/%3E%3C/svg%3E") no-repeat center / contain;
+      opacity: .9;
+      pointer-events: none;
     }
-    html.dark-mode .dark-toggle-btn { background: rgba(74, 222, 128, .4); }
-    html.dark-mode .dark-toggle-btn:hover { background: rgba(74, 222, 128, .55); }
-    html.dark-mode .dark-toggle-btn::after { transform: translateX(14px); }
+    .dark-toggle-btn .dark-toggle-knob {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #fff 0%, #f0ebe0 50%, #e0d8c8 100%);
+      box-shadow: 0 1px 3px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.5);
+      transition: transform .25s cubic-bezier(0.4, 0, 0.2, 1);
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .dark-toggle-btn .dark-toggle-knob::before {
+      content: '';
+      width: 11px;
+      height: 11px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23c4952a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='9' r='3'/%3E%3Cpath d='M12 1v1.5M12 19.5V21M4.22 4.22l1.06 1.06M18.72 18.72l1.06 1.06M1 12h1.5M19.5 12H21M4.22 19.78l1.06-1.06M18.72 5.28l1.06-1.06'/%3E%3Cpath d='M4 14h16'/%3E%3C/svg%3E") no-repeat center / contain;
+    }
+    html.dark-mode .dark-toggle-btn .dark-toggle-knob::before {
+      content: '';
+      width: 10px;
+      height: 10px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e8e0f0' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'/%3E%3C/svg%3E") no-repeat center / contain;
+    }
+    html.dark-mode .dark-toggle-btn .dark-toggle-knob {
+      transform: translateX(28px);
+      background: radial-gradient(circle at 30% 30%, #c9b8e8 0%, #5c4d7a 50%, #2d2345 100%);
+      box-shadow: 0 1px 3px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.15);
+    }
+    .dark-toggle-btn:focus-visible {
+      outline: 2px solid white;
+      outline-offset: 2px;
+    }
 
     /* ── CONTAINER & CARDS ─────────────────────────── */
     .container {
@@ -264,11 +323,16 @@
       background: var(--surface);
       color: var(--txt);
       outline: none;
-      transition: border-color .15s, background .15s;
     }
+    select, input[type="text"], input[type="number"] { transition: color .2s ease, border-color .2s ease, background .2s ease, background-color .2s ease; }
+    select:hover, input[type="text"]:hover, input[type="number"]:hover {
+      border-color: var(--brand-mid);
+      color: var(--brand);
+    }
+    select:hover { background-color: var(--brand-faint); }
+    input[type="text"]:hover, input[type="number"]:hover { background: var(--brand-faint); }
     select:focus, input:focus {
       border-color: var(--brand-mid);
-      box-shadow: 0 0 0 2px rgba(123, 137, 245, .2);
     }
     select {
       padding-right: 28px;
@@ -281,6 +345,10 @@
     }
     html.dark-mode select {
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239EA3C8' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
+    }
+    select option {
+      color: var(--txt);
+      background: var(--surface);
     }
     .form-row input[type="text"] { width: 100%; }
     input[type="checkbox"] { accent-color: var(--brand); margin-right: 8px; vertical-align: middle; }
@@ -392,7 +460,6 @@
       border-bottom: 1px solid var(--border);
       transition: background .1s;
     }
-    .sort-row:hover, .filter-row:hover { background: var(--bg); }
     .sort-row:last-child, .filter-row:last-child { border-bottom: none; }
     .sort-row select, .filter-row select { min-width: 140px; }
     .filter-row input[type="text"] { min-width: 160px; }
@@ -419,6 +486,8 @@
     .badge.personal { background: var(--bg); color: var(--txt-mid); border: 1px solid var(--border); }
     .empty-hint { color: var(--txt-soft); font-size: .8rem; margin: 8px 0; font-style: italic; }
     .section-add-wrap { text-align: left; margin-top: 6px; }
+    .editor-section-right .empty-hint { margin: 2px 0 4px 0; }
+    .editor-section-right .section-add-wrap { margin-top: 2px; }
 
     #contextStatus.loading { display: block; }
     #contextLines { display: none; }
@@ -483,9 +552,11 @@
     <div class="header-actions">
       <a href="#" id="backToTab">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-        Back to SharePoint tab
+        Back to SharePoint
       </a>
-      <button type="button" class="dark-toggle-btn" id="darkModeToggle" title="Toggle dark mode" aria-label="Toggle dark mode"></button>
+      <div class="dark-toggle">
+        <button type="button" class="dark-toggle-btn" id="darkModeToggle" title="Early Riser" aria-label="Theme: Early Riser. Click to switch to Night Owl."><span class="dark-toggle-knob"></span></button>
+      </div>
     </div>
   </header>
   <div class="container">
@@ -584,6 +655,7 @@
       <div class="actions-bar">
         <button type="button" class="primary" id="btnSave">Save view</button>
         <button type="button" class="secondary hide" id="btnSetDefault" title="Make this the list default view">Set as Default View</button>
+        <button type="button" class="secondary" id="btnExportViewColumns" title="Export internal column names as CSV headers">Export column names to CSV</button>
         <button type="button" class="danger secondary hide" id="btnDelete">Delete view</button>
       </div>
       <p class="status hide" id="saveStatus"></p>

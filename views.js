@@ -109,6 +109,38 @@
     return escapeHtml(s == null ? "" : s).replace(/"/g, "&quot;");
   }
 
+  function escapeCsvValue(val) {
+    const s = String(val == null ? "" : val);
+    if (/[",\r\n]/.test(s)) return "\"" + s.replace(/"/g, "\"\"") + "\"";
+    return s;
+  }
+
+  function exportViewColumnsToCsv() {
+    let headers = [];
+    if (viewDetails && viewDetails.viewFields && viewDetails.viewFields.length) {
+      headers = viewDetails.viewFields;
+    } else {
+      headers = columnOrder.filter(function (c) { return inViewSet.has(c); });
+    }
+    if (!headers.length) {
+      showSaveStatus("No columns in view. Add columns to the view first.", true);
+      return;
+    }
+    const csvLine = headers.map(escapeCsvValue).join(",");
+    const csv = csvLine + "\r\n";
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const siteName = (sitePath.split("/").filter(Boolean).pop() || "site").replace(/[/\\:*?"<>|]/g, "-").trim() || "site";
+    const libName = (listTitle || "list").replace(/[/\\:*?"<>|]/g, "-").replace(/\s+/g, " ").trim() || "list";
+    a.download = siteName + "-" + libName + "-columns.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+    showSaveStatus("Column names exported to view-columns.csv", false);
+    setTimeout(function () { showSaveStatus("", false); }, 2500);
+  }
+
   function sendToTab(message) {
     return new Promise((resolve, reject) => {
       if (!tabId || !chrome || !chrome.tabs) {
@@ -851,6 +883,7 @@
   document.getElementById("btnSetDefault").addEventListener("click", setDefaultView);
   document.getElementById("btnDelete").addEventListener("click", deleteView);
   document.getElementById("btnDuplicate").addEventListener("click", duplicateView);
+  document.getElementById("btnExportViewColumns").addEventListener("click", exportViewColumnsToCsv);
   document.getElementById("viewSelect").addEventListener("change", onViewSelectChange);
 
   (async function init() {

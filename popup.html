@@ -107,8 +107,75 @@ body {
   border: 1px solid rgba(255,255,255,.2);
 }
 
+/* ── NOT ON SHAREPOINT PANEL ─────────────────────────── */
+.not-on-sp-panel {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  padding: 20px 18px;
+  overflow-y: auto;
+  min-height: 0;
+}
+body.not-on-sharepoint .not-on-sp-panel { display: flex; }
+body.not-on-sharepoint .tab-bar,
+body.not-on-sharepoint .tab-content { display: none !important; }
+
+.not-on-sp-message {
+  padding: 16px 18px;
+  border: 1.5px solid var(--brand);
+  border-radius: var(--r-lg);
+  background: var(--brand-faint);
+  color: var(--brand);
+  font-size: .9rem;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+.not-on-sp-message strong { color: var(--brand); }
+html.dark-mode .not-on-sp-message {
+  background: rgba(34, 197, 94, .12);
+  border-color: rgba(74, 222, 128, .5);
+  color: #86efac;
+}
+
+.not-on-sp-label {
+  display: block;
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--txt-mid);
+  margin-bottom: 8px;
+}
+html.dark-mode .not-on-sp-label { color: var(--txt-soft); }
+.not-on-sp-select {
+  width: 100%;
+  padding: 8px 32px 8px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-family: var(--font);
+  font-size: .8125rem;
+  color: var(--txt);
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  transition: color .2s ease, border-color .2s ease, background-color .2s ease;
+}
+.not-on-sp-select:hover { border-color: var(--brand-mid); }
+.not-on-sp-select option {
+  background: var(--surface);
+  color: var(--txt);
+}
+html.dark-mode .not-on-sp-select {
+  color-scheme: dark;
+}
+html.dark-mode .not-on-sp-select option {
+  background: var(--surface);
+  color: var(--txt);
+}
+
 /* ── TAB BAR ─────────────────────────── */
 .tab-bar {
+  position: relative;
   background: var(--surface);
   border-bottom: 1.5px solid var(--border);
   display: flex;
@@ -116,6 +183,16 @@ body {
   flex-shrink: 0;
 }
 .tab-bar::-webkit-scrollbar { display: none; }
+.tab-indicator {
+  position: absolute;
+  bottom: -1.5px;
+  left: 0;
+  height: 2.5px;
+  background: var(--brand);
+  border-radius: 2px 2px 0 0;
+  pointer-events: none;
+  transition: left 0.16s cubic-bezier(0.4, 0, 0.2, 1), width 0.16s cubic-bezier(0.4, 0, 0.2, 1);
+}
 
 /* .tab — selected/toggled by popup.js; flex to fill width */
 .tab {
@@ -133,12 +210,12 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: color .15s, border-color .15s;
+  transition: color .2s ease;
   font-family: var(--font);
   text-align: center;
 }
 .tab:hover { color: var(--txt-mid); }
-.tab.active { color: var(--brand); border-bottom-color: var(--brand); }
+.tab.active { color: var(--brand); border-bottom-color: transparent; }
 
 /* .tab-content — shown/hidden by popup.js using .active */
 .tab-content {
@@ -179,8 +256,9 @@ body.columns-tab-active { max-height: 600px; }
   font-size: .8rem;
   color: var(--txt);
   outline: none;
-  transition: border-color .15s;
+  transition: color .2s ease, border-color .2s ease, background .2s ease, background-color .2s ease;
 }
+.toolbar input[type="text"]:hover { border-color: var(--brand-mid); color: var(--brand); background: var(--brand-faint); }
 .toolbar input[type="text"]:focus { border-color: var(--brand-mid); background: white; }
 .toolbar input[type="text"]::placeholder { color: var(--txt-soft); }
 
@@ -233,8 +311,9 @@ select {
   appearance: none;
   -webkit-appearance: none;
   cursor: pointer;
-  transition: border-color .14s;
+  transition: color .2s ease, border-color .2s ease, background .2s ease, background-color .2s ease;
 }
+select:hover { border-color: var(--brand-mid); color: var(--brand); background-color: var(--brand-faint); }
 select:focus { border-color: var(--brand-mid); }
 
 /* ── HINT — used as p.hint inside panels by JS ─────────────────────────── */
@@ -1205,19 +1284,33 @@ html.dark-mode .dark-toggle-btn .dark-toggle-knob {
   <div class="popup-header-badge">v1</div>
 </div>
 
+<!-- Shown only when current tab is not a SharePoint page -->
+<div id="notOnSharePointPanel" class="not-on-sp-panel" aria-live="polite">
+  <div class="not-on-sp-message">
+    Navigate to a SharePoint Online site or select a recently visited site below.
+  </div>
+  <div class="not-on-sp-recent">
+    <label for="recentSharePointSelect" class="not-on-sp-label">Recently visited SharePoint sites</label>
+    <select id="recentSharePointSelect" class="not-on-sp-select">
+      <option value="">Choose a site…</option>
+    </select>
+  </div>
+</div>
+
 <!-- TABS — .tab and data-tab attributes used by popup.js -->
 <div class="tab-bar">
+  <span class="tab-indicator" aria-hidden="true"></span>
   <button class="tab active" data-tab="quicklinks">Quick Links</button>
   <button class="tab" data-tab="context">Page Props</button>
   <button class="tab" id="tabColumns" data-tab="searchSchema">Columns</button>
   <button class="tab" data-tab="reports">Reports</button>
-  <button class="tab" data-tab="refinableProps">Refinable Props</button>
+  <button class="tab" data-tab="refinableProps">Refinables</button>
   <button class="tab" id="tabViewManager" data-tab="viewManager">Views</button>
 </div>
 
 <!-- ═══ QUICK LINKS ═══ -->
 <div class="tab-content active" id="quicklinksPanel">
-  <div id="quicklinksHint">Navigate to a SharePoint page to see quick links and admin shortcuts.</div>
+  <div id="quicklinksHint">Navigate to a SharePoint Online site or select a recently visited site below.</div>
   <div id="quicklinksContent">
     <div class="ql-section-label">Current Site</div>
     <ul id="quicklinksCurrentSite"></ul>
