@@ -99,6 +99,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 loadDarkMode();
 
+// --- Settings (gear: open settings screen; back button: return to main) ---
+const chkListsLauncherEnabled = document.getElementById("chkListsLauncherEnabled");
+document.getElementById("btnSettingsGear")?.addEventListener("click", () => {
+  document.body.classList.add("popup-settings-visible");
+});
+document.getElementById("btnSettingsBackToMain")?.addEventListener("click", () => {
+  document.body.classList.remove("popup-settings-visible");
+});
+chrome.storage.local.get("listsLauncherEnabled", (r) => {
+  if (chkListsLauncherEnabled) chkListsLauncherEnabled.checked = !!r.listsLauncherEnabled;
+});
+chkListsLauncherEnabled?.addEventListener("change", () => {
+  chrome.storage.local.set({ listsLauncherEnabled: chkListsLauncherEnabled.checked });
+});
+
 // --- Tabs: Quick links, Page Properties, Reports ---
 const TAB_IDS = ["quicklinks", "context", "searchSchema", "reports", "refinableProps", "viewManager"];
 function updateTabIndicator() {
@@ -1114,4 +1129,24 @@ btnExportSelected.addEventListener("click", () => {
     return;
   }
   runExport(cols);
+});
+
+// Show version at bottom of extension settings
+const settingsVersionEl = document.getElementById("settingsVersionPopup");
+if (settingsVersionEl) settingsVersionEl.textContent = "v" + (chrome.runtime.getManifest().version || "");
+
+// Notify content script when extension popup opens so Site Contents launcher can roll down
+chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+  if (tabs[0]?.id) chrome.tabs.sendMessage(tabs[0].id, { type: "SPOToolkitPopupOpened" }).catch(() => {});
+});
+window.addEventListener("blur", () => {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (tabs[0]?.id) chrome.tabs.sendMessage(tabs[0].id, { type: "SPOToolkitPopupClosed" }).catch(() => {});
+  });
+});
+// When Site Contents panel is opened on the page, fade out then close the popup so both aren't open at once
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type !== "SPOToolkitPanelOpened") return;
+  document.body.classList.add("popup-fade-out");
+  setTimeout(() => window.close(), 220);
 });

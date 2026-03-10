@@ -50,6 +50,18 @@ body {
   flex-direction: column;
   -webkit-font-smoothing: antialiased;
   border-radius: 0 0 14px 14px;
+  animation: popup-fade-in 0.25s ease-out forwards;
+}
+body.popup-fade-out {
+  animation: popup-fade-out 0.2s ease-in forwards;
+}
+@keyframes popup-fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes popup-fade-out {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* ── SCROLLBAR ─────────────────────────── */
@@ -106,6 +118,71 @@ body {
   border-radius: var(--r-pill);
   border: 1px solid rgba(255,255,255,.2);
 }
+.popup-header-settings-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-sm);
+  background: rgba(255,255,255,.1);
+  color: rgba(255,255,255,.85);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background .15s, color .15s;
+}
+.popup-header-settings-btn:hover {
+  background: rgba(255,255,255,.18);
+  color: white;
+}
+.popup-header-settings-btn svg { width: 14px; height: 14px; }
+#popupMainContent { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+body.popup-settings-visible #popupMainContent { display: none; }
+.popup-settings-screen {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--surface);
+}
+body.popup-settings-visible .popup-settings-screen { display: flex; }
+.popup-settings-screen .settings-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg);
+}
+.popup-settings-screen .settings-back-btn {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--txt-mid);
+  border-radius: var(--r-md);
+  font-family: var(--font);
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.popup-settings-screen .settings-back-btn:hover {
+  border-color: var(--brand-mid);
+  color: var(--brand);
+  background: var(--brand-faint);
+}
+.popup-settings-screen .settings-title { font-size: .875rem; font-weight: 700; color: var(--txt); }
+.popup-settings-screen .settings-body { padding: 14px 16px; overflow-y: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.popup-settings-screen .settings-version { font-size: .7rem; color: var(--txt-soft); margin-top: auto; padding-top: 12px; margin-bottom: 0; }
+.popup-settings-screen .form-label { font-size: .75rem; font-weight: 600; color: var(--txt-mid); margin-bottom: 8px; display: block; }
+.popup-settings-screen .checkbox-row { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: .8125rem; color: var(--txt); margin-bottom: 4px; }
+.popup-settings-screen .checkbox-row input { accent-color: var(--brand); }
 
 /* ── NOT ON SHAREPOINT PANEL ─────────────────────────── */
 .not-on-sp-panel {
@@ -1281,9 +1358,29 @@ html.dark-mode .dark-toggle-btn .dark-toggle-knob {
   <div class="dark-toggle">
     <button type="button" class="dark-toggle-btn" id="darkModeToggle" title="Early Riser" aria-label="Theme: Early Riser. Click to switch to Night Owl."><span class="dark-toggle-knob"></span></button>
   </div>
-  <div class="popup-header-badge">v1</div>
+  <button type="button" class="popup-header-settings-btn" id="btnSettingsGear" title="Settings" aria-label="Settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+  </button>
 </div>
 
+<!-- Settings screen (own area, toggled by gear; back button returns to main) -->
+<div class="popup-settings-screen" id="settingsPanelPopup">
+  <div class="settings-header">
+    <button type="button" class="settings-back-btn" id="btnSettingsBackToMain" aria-label="Back">← Back</button>
+    <span class="settings-title">Settings</span>
+  </div>
+  <div class="settings-body">
+    <div class="form-label">Extension</div>
+    <label class="checkbox-row">
+      <input type="checkbox" id="chkListsLauncherEnabled" />
+      <span>Show lists &amp; libraries icon on SharePoint pages</span>
+    </label>
+    <p class="settings-version" id="settingsVersionPopup"></p>
+  </div>
+</div>
+
+<!-- Main content (tabs + panels) -->
+<div id="popupMainContent">
 <!-- Shown only when current tab is not a SharePoint page -->
 <div id="notOnSharePointPanel" class="not-on-sp-panel" aria-live="polite">
   <div class="not-on-sp-message">
@@ -1483,6 +1580,7 @@ html.dark-mode .dark-toggle-btn .dark-toggle-knob {
     </button>
   </div>
 </div>
+</div><!-- /#popupMainContent -->
 
 <script src="sharepoint-facts.js"></script>
 <script src="popup.js"></script>
