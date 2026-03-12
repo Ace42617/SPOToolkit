@@ -2,6 +2,79 @@
   const params = new URLSearchParams(window.location.search);
   const tabId = params.get("tabId") ? parseInt(params.get("tabId"), 10) : null;
 
+  // Sync dark/light mode and optional branding from extension storage (same as popup)
+  if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get(["darkMode", "toolkitTitle", "toolkitSubtitle"], function (st) {
+      document.documentElement.classList.toggle("dark-mode", !!st.darkMode);
+      const titleEl = document.getElementById("headerTitle");
+      const subEl = document.getElementById("headerSub");
+      if (titleEl && st.toolkitTitle) titleEl.textContent = st.toolkitTitle;
+      if (subEl && st.toolkitSubtitle) subEl.textContent = st.toolkitSubtitle;
+    });
+    document.getElementById("darkModeToggle")?.addEventListener("click", function () {
+      const isDark = document.documentElement.classList.toggle("dark-mode");
+      chrome.storage.local.set({ darkMode: isDark });
+    });
+  }
+
+  const headerIconBtn = document.getElementById("headerIconBtn");
+  const headerCompassImg = document.getElementById("headerCompassIcon");
+  if (headerCompassImg && typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.getURL) {
+    headerCompassImg.src = chrome.runtime.getURL("icon.png");
+  }
+  function showFactToastInPage(factText, sourceUrl) {
+    const TOAST_ID = "vm-fact-toast";
+    const DURATION_MS = 45000;
+    let existing = document.getElementById(TOAST_ID);
+    if (existing) existing.remove();
+    const wrap = document.createElement("div");
+    wrap.id = TOAST_ID;
+    wrap.innerHTML =
+      "<div class=\"vm-fact-wrap\">" +
+      "<button type=\"button\" class=\"vm-fact-close\" aria-label=\"Close\">×</button>" +
+      "<p class=\"vm-fact-text\"></p>" +
+      (sourceUrl ? "<a class=\"vm-fact-source\" href=\"#\" target=\"_blank\" rel=\"noopener\">Learn More</a>" : "") +
+      "</div>";
+    wrap.querySelector(".vm-fact-text").textContent = factText || "";
+    let closeTimeout;
+    const close = function () {
+      if (closeTimeout) clearTimeout(closeTimeout);
+      const el = document.getElementById(TOAST_ID);
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+    };
+    wrap.querySelector(".vm-fact-close").addEventListener("click", close);
+    if (sourceUrl) {
+      const link = wrap.querySelector(".vm-fact-source");
+      link.href = sourceUrl;
+      link.addEventListener("click", function (e) { e.preventDefault(); window.open(sourceUrl, "_blank", "noopener"); });
+    }
+    document.body.appendChild(wrap);
+    closeTimeout = setTimeout(close, DURATION_MS);
+  }
+
+  if (headerIconBtn) {
+    headerIconBtn.addEventListener("click", function () {
+      headerIconBtn.classList.remove("spin");
+      headerIconBtn.offsetHeight;
+      headerIconBtn.classList.add("spin");
+      setTimeout(function () { headerIconBtn.classList.remove("spin"); }, 600);
+      const facts = typeof window.SHAREPOINT_FACTS !== "undefined" ? window.SHAREPOINT_FACTS : [];
+      if (!facts.length) return;
+      const fact = facts[Math.floor(Math.random() * facts.length)];
+      const factText = typeof fact === "string" ? fact : (fact && fact.text ? fact.text : "");
+      const sourceUrl = typeof fact === "object" && fact && fact.sourceUrl && String(fact.sourceUrl).trim() ? fact.sourceUrl : "";
+      if (typeof fact === "object" && fact && typeof fact.openUrl === "string") {
+        if (chrome && chrome.tabs) chrome.tabs.create({ url: fact.openUrl });
+      }
+      showFactToastInPage(factText, sourceUrl);
+      if (tabId && typeof chrome !== "undefined" && chrome.tabs) {
+        chrome.tabs.sendMessage(tabId, { action: "showFact", fact: factText, sourceUrl: sourceUrl }, function () {
+          if (chrome.runtime.lastError) { /* tab may be closed or content script not ready */ }
+        });
+      }
+    });
+  }
+
   let sitePath = "";
   let listId = "";
   let listTitle = "";
@@ -10,6 +83,7 @@
   let selectedViewId = null;
   let viewDetails = null;
   let columnOrder = [];
+  let inViewSet = new Set();
   let sortLevels = [];
   let filters = [];
   let groupByColumn = "";
@@ -33,6 +107,38 @@
   }
   function escapeAttr(s) {
     return escapeHtml(s == null ? "" : s).replace(/"/g, "&quot;");
+  }
+
+  function escapeCsvValue(val) {
+    const s = String(val == null ? "" : val);
+    if (/[",\r\n]/.test(s)) return "\"" + s.replace(/"/g, "\"\"") + "\"";
+    return s;
+  }
+
+  function exportViewColumnsToCsv() {
+    let headers = [];
+    if (viewDetails && viewDetails.viewFields && viewDetails.viewFields.length) {
+      headers = viewDetails.viewFields;
+    } else {
+      headers = columnOrder.filter(function (c) { return inViewSet.has(c); });
+    }
+    if (!headers.length) {
+      showSaveStatus("No columns in view. Add columns to the view first.", true);
+      return;
+    }
+    const csvLine = headers.map(escapeCsvValue).join(",");
+    const csv = csvLine + "\r\n";
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const siteName = (sitePath.split("/").filter(Boolean).pop() || "site").replace(/[/\\:*?"<>|]/g, "-").trim() || "site";
+    const libName = (listTitle || "list").replace(/[/\\:*?"<>|]/g, "-").replace(/\s+/g, " ").trim() || "list";
+    a.download = siteName + "-" + libName + "-columns.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+    showSaveStatus("Column names exported to view-columns.csv", false);
+    setTimeout(function () { showSaveStatus("", false); }, 2500);
   }
 
   function sendToTab(message) {
@@ -88,6 +194,24 @@
     if (linesEl) linesEl.classList.add("visible");
     showContextStatus(null);
     updateUrlWithList(listTitle);
+    updateViewIdDisplay();
+  }
+
+  function updateViewIdDisplay() {
+    const wrap = document.getElementById("contextViewIdWrap");
+    const idEl = document.getElementById("contextViewIdDisplay");
+    const btn = document.getElementById("btnCopyViewId");
+    if (wrap) wrap.classList.toggle("hide", !selectedViewId);
+    if (idEl) idEl.textContent = selectedViewId || "—";
+    if (btn) btn.textContent = "Copy";
+  }
+
+  function updatePersonalViewVisibility() {
+    const wrap = document.getElementById("viewPersonalWrap");
+    if (!wrap) return;
+    const show = !selectedViewId;
+    wrap.classList.toggle("hide", !show);
+    wrap.style.display = show ? "" : "none";
   }
 
   function updateUrlWithList(listTitleVal) {
@@ -128,6 +252,33 @@
     try {
       document.execCommand("copy");
       const btn = document.getElementById("btnCopyListId");
+      if (btn) { btn.textContent = "Copied!"; setTimeout(function () { btn.textContent = "Copy"; }, 1500); }
+    } catch (_) {}
+    if (sel) sel.removeAllRanges();
+  }
+
+  function copyViewIdToClipboard() {
+    if (!selectedViewId) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(selectedViewId).then(function () {
+        const btn = document.getElementById("btnCopyViewId");
+        if (btn) { btn.textContent = "Copied!"; setTimeout(function () { btn.textContent = "Copy"; }, 1500); }
+      }).catch(function () { fallbackCopyViewId(); });
+    } else {
+      fallbackCopyViewId();
+    }
+  }
+
+  function fallbackCopyViewId() {
+    const el = document.getElementById("contextViewIdDisplay");
+    if (!el || !selectedViewId) return;
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+    try {
+      document.execCommand("copy");
+      const btn = document.getElementById("btnCopyViewId");
       if (btn) { btn.textContent = "Copied!"; setTimeout(function () { btn.textContent = "Copy"; }, 1500); }
     } catch (_) {}
     if (sel) sel.removeAllRanges();
@@ -222,7 +373,12 @@
         return;
       }
       viewDetails = res.viewDetails;
-      columnOrder = (viewDetails.viewFields || []).slice();
+      const viewFields = viewDetails.viewFields || [];
+      inViewSet = new Set(viewFields);
+      const otherFields = (fields || []).filter(function (f) { return viewFields.indexOf(f.internalName) < 0; });
+      otherFields.sort(function (a, b) { return (a.title || "").localeCompare(b.title || ""); });
+      columnOrder = viewFields.slice();
+      otherFields.forEach(function (f) { columnOrder.push(f.internalName); });
       sortLevels = viewDetails.orderBy ? [{ field: viewDetails.orderBy.field, ascending: viewDetails.orderBy.ascending }] : [];
       filters = (viewDetails.filters || []).map(function (f) {
         return { field: f.field, op: f.op, value: f.value || "" };
@@ -261,7 +417,9 @@
 
   function setNewViewDefaults() {
     viewDetails = null;
-    columnOrder = [];
+    inViewSet = new Set();
+    const sorted = (fields || []).slice().sort(function (a, b) { return (a.title || "").localeCompare(b.title || ""); });
+    columnOrder = sorted.map(function (f) { return f.internalName; });
     sortLevels = [];
     filters = [];
     groupByColumn = "";
@@ -297,24 +455,28 @@
     if (defaultView) {
       selectedViewId = defaultView.id;
       document.getElementById("viewSelect").value = defaultView.id;
-      document.getElementById("btnDelete").classList.remove("hide");
       document.getElementById("btnDuplicate").classList.remove("hide");
+      updateViewIdDisplay();
+      updateDeleteButtonVisibility();
       loadViewDetails(defaultView.id);
     } else {
       setNewViewDefaults();
+      updateViewIdDisplay();
     }
   }
 
   function onViewSelectChange() {
     const val = document.getElementById("viewSelect").value;
     selectedViewId = val || null;
+    updateViewIdDisplay();
+    updatePersonalViewVisibility();
     if (!val) {
       setNewViewDefaults();
       updateSetDefaultVisibility();
       return;
     }
-    document.getElementById("btnDelete").classList.remove("hide");
     document.getElementById("btnDuplicate").classList.remove("hide");
+    updateDeleteButtonVisibility();
     updateSetDefaultVisibility();
     loadViewDetails(val);
   }
@@ -334,26 +496,36 @@
     }
   }
 
+  function updateDeleteButtonVisibility() {
+    const btn = document.getElementById("btnDelete");
+    if (!btn) return;
+    if (!selectedViewId) {
+      btn.classList.add("hide");
+      return;
+    }
+    const v = views.find(function (x) { return x.id === selectedViewId; });
+    if (v && v.defaultView) {
+      btn.classList.add("hide");
+    } else {
+      btn.classList.remove("hide");
+    }
+  }
+
   function renderColumnList() {
     const list = document.getElementById("colList");
     const search = (document.getElementById("colSearch").value || "").toLowerCase().trim();
     const ordered = columnOrder.slice();
-    const rest = fields.filter(function (f) {
-      return ordered.indexOf(f.internalName) < 0 &&
-        (!search || (f.title || "").toLowerCase().indexOf(search) >= 0 || (f.internalName || "").toLowerCase().indexOf(search) >= 0);
-    });
-    rest.sort(function (a, b) { return (a.title || "").localeCompare(b.title || ""); });
     const toShow = ordered.filter(function (name) {
       const f = fields.find(function (x) { return x.internalName === name; });
       return f && (!search || (f.title || "").toLowerCase().indexOf(search) >= 0 || (f.internalName || "").toLowerCase().indexOf(search) >= 0);
     }).map(function (name) {
       return fields.find(function (f) { return f.internalName === name; });
     }).filter(Boolean);
-    const restFiltered = search ? rest : rest;
 
     list.innerHTML = "";
     let draggedName = null;
-    function addRow(field, isInView) {
+    function addRow(field) {
+      const isInView = inViewSet.has(field.internalName);
       const div = document.createElement("div");
       div.className = "col-item";
       div.dataset.internalName = field.internalName;
@@ -366,11 +538,10 @@
       const cb = div.querySelector(".col-checkbox");
       cb.addEventListener("change", function () {
         if (cb.checked) {
-          if (columnOrder.indexOf(field.internalName) < 0) columnOrder.push(field.internalName);
+          inViewSet.add(field.internalName);
         } else {
-          columnOrder = columnOrder.filter(function (n) { return n !== field.internalName; });
+          inViewSet.delete(field.internalName);
         }
-        renderColumnList();
       });
       div.addEventListener("dragstart", function (e) {
         draggedName = field.internalName;
@@ -390,30 +561,24 @@
         e.preventDefault();
         const name = e.dataTransfer.getData("text/plain");
         if (!name || name === field.internalName || name !== draggedName) return;
-        const targetInOrder = columnOrder.indexOf(field.internalName) >= 0;
-        let arr = columnOrder.filter(function (n) { return n !== name; });
-        if (targetInOrder) {
-          const insertIdx = arr.indexOf(field.internalName);
-          arr.splice(insertIdx >= 0 ? insertIdx : arr.length, 0, name);
-        } else {
-          arr.push(name);
-        }
+        const arr = columnOrder.filter(function (n) { return n !== name; });
+        const insertIdx = arr.indexOf(field.internalName);
+        arr.splice(insertIdx >= 0 ? insertIdx : arr.length, 0, name);
         columnOrder = arr;
         renderColumnList();
       });
       list.appendChild(div);
     }
-    toShow.forEach(function (f) { addRow(f, true); });
-    restFiltered.forEach(function (f) { addRow(f, false); });
+    toShow.forEach(function (f) { addRow(f); });
   }
 
   document.getElementById("colSearch").addEventListener("input", function () { renderColumnList(); });
   document.getElementById("btnColAddAll").addEventListener("click", function () {
-    columnOrder = fields.map(function (f) { return f.internalName; });
+    columnOrder.forEach(function (name) { inViewSet.add(name); });
     renderColumnList();
   });
   document.getElementById("btnColRemoveAll").addEventListener("click", function () {
-    columnOrder = [];
+    inViewSet.clear();
     renderColumnList();
   });
 
@@ -575,12 +740,17 @@
     el.style.display = msg ? "block" : "none";
   }
 
+  function getOrderedViewColumns() {
+    return columnOrder.filter(function (n) { return inViewSet.has(n); });
+  }
+
   async function applyViewFields(viewId) {
+    const ordered = getOrderedViewColumns();
     const vfBase = sitePath + "/_api/web/lists(guid'" + listId.replace(/'/g, "''") + "')/views(guid'" + viewId.replace(/'/g, "''") + "')/ViewFields";
     const rm = await rest("POST", vfBase + "/RemoveAllViewFields");
     if (!rm.ok && rm.status !== 404 && rm.status !== 501) throw new Error(rm.error || "RemoveAllViewFields failed");
-    for (let i = 0; i < columnOrder.length; i++) {
-      const name = String(columnOrder[i]).replace(/'/g, "''");
+    for (let i = 0; i < ordered.length; i++) {
+      const name = String(ordered[i]).replace(/'/g, "''");
       const r = await rest("POST", vfBase + "/addviewfield('" + name + "')");
       if (!r.ok) throw new Error(r.error || "Add field failed");
     }
@@ -592,7 +762,7 @@
       showSaveStatus("Enter a view name.", true);
       return;
     }
-    if (columnOrder.length === 0) {
+    if (getOrderedViewColumns().length === 0) {
       showSaveStatus("Select at least one column.", true);
       return;
     }
@@ -640,7 +810,9 @@
       document.getElementById("btnSave").disabled = false;
       selectedViewId = viewId;
       document.getElementById("viewSelect").value = viewId;
-      document.getElementById("btnDelete").classList.remove("hide");
+      updateViewIdDisplay();
+      updatePersonalViewVisibility();
+      updateDeleteButtonVisibility();
       loadContext().then(function () { loadViewsAndFields(); });
     } catch (e) {
       showSaveStatus(e && e.message ? e.message : "Save failed.", true);
@@ -673,6 +845,8 @@
     document.getElementById("btnDelete").classList.add("hide");
     document.getElementById("btnSetDefault").classList.add("hide");
     document.getElementById("btnDuplicate").classList.add("hide");
+    updateViewIdDisplay();
+    updatePersonalViewVisibility();
   }
 
   async function setDefaultView() {
@@ -703,11 +877,13 @@
   });
 
   document.getElementById("btnCopyListId").addEventListener("click", copyListIdToClipboard);
+  document.getElementById("btnCopyViewId").addEventListener("click", copyViewIdToClipboard);
 
   document.getElementById("btnSave").addEventListener("click", saveView);
   document.getElementById("btnSetDefault").addEventListener("click", setDefaultView);
   document.getElementById("btnDelete").addEventListener("click", deleteView);
   document.getElementById("btnDuplicate").addEventListener("click", duplicateView);
+  document.getElementById("btnExportViewColumns").addEventListener("click", exportViewColumnsToCsv);
   document.getElementById("viewSelect").addEventListener("change", onViewSelectChange);
 
   (async function init() {

@@ -3,6 +3,7 @@ const btnChooseColumns = document.getElementById("btnChooseColumns");
 const btnSettings = document.getElementById("btnSettings");
 const btnSettingsBack = document.getElementById("btnSettingsBack");
 const pageSizeSelect = document.getElementById("pageSizeSelect");
+const defaultExportFormatSelect = document.getElementById("defaultExportFormatSelect");
 const statusEl = document.getElementById("status");
 const mainPanel = document.getElementById("downloadMain");
 const reportSelect = document.getElementById("reportSelect");
@@ -20,36 +21,259 @@ const pickerStatus = document.getElementById("pickerStatus");
 
 let pickerData = null; // { defaultColumns, pickerFields }
 
+const SHAREPOINT_FACTS = window.SHAREPOINT_FACTS || [];
+
 const DEFAULT_PAGE_SIZE = 5000;
+const DEFAULT_EXPORT_FORMAT = "xlsx";
+
+// Refinable managed property types and their index range (00 to count-1). Default: RefinableString.
+const REFINABLE_TYPES = [
+  { id: "RefinableString", label: "RefinableString", count: 200 },
+  { id: "RefinableStringFirst", label: "RefinableStringFirst", count: 40 },
+  { id: "RefinableStringLn", label: "RefinableStringLn", count: 10 },
+  { id: "RefinableStringWbOff", label: "RefinableStringWbOff", count: 50 },
+  { id: "RefinableStringWbOffFirst", label: "RefinableStringWbOffFirst", count: 50 },
+  { id: "RefinableDate", label: "RefinableDate", count: 20 },
+  { id: "RefinableDateFirst", label: "RefinableDateFirst", count: 20 },
+  { id: "RefinableDateSingle", label: "RefinableDateSingle", count: 5 },
+  { id: "RefinableDateInvariant", label: "RefinableDateInvariant", count: 2 },
+  { id: "RefinableInt", label: "RefinableInt", count: 50 },
+  { id: "RefinableDecimal", label: "RefinableDecimal", count: 10 },
+  { id: "RefinableDouble", label: "RefinableDouble", count: 10 },
+  { id: "RefinableYesNo", label: "RefinableYesNo", count: 5 }
+];
+
+// --- Dark mode ---
+async function loadDarkMode() {
+  const st = await chrome.storage.local.get("darkMode");
+  const isDark = !!st.darkMode;
+  document.documentElement.classList.toggle("dark-mode", isDark);
+  updateDarkToggleLabel(isDark);
+}
+function updateDarkToggleLabel(isDark) {
+  const btn = document.getElementById("darkModeToggle");
+  if (!btn) return;
+  if (isDark) {
+    btn.title = "Night Owl";
+    btn.setAttribute("aria-label", "Theme: Night Owl. Click to switch to Early Riser.");
+  } else {
+    btn.title = "Early Riser";
+    btn.setAttribute("aria-label", "Theme: Early Riser. Click to switch to Night Owl.");
+  }
+}
+document.getElementById("darkModeToggle")?.addEventListener("click", () => {
+  const isDark = document.documentElement.classList.toggle("dark-mode");
+  chrome.storage.local.set({ darkMode: isDark });
+  updateDarkToggleLabel(isDark);
+});
+const headerIconBtn = document.getElementById("headerIconBtn");
+const headerCompassImg = document.getElementById("headerCompassIcon");
+if (headerCompassImg) headerCompassImg.src = chrome.runtime.getURL("icon.png");
+if (headerIconBtn) {
+  headerIconBtn.addEventListener("click", async () => {
+    headerIconBtn.classList.remove("spin");
+    headerIconBtn.offsetHeight;
+    headerIconBtn.classList.add("spin");
+    setTimeout(() => headerIconBtn.classList.remove("spin"), 600);
+    if (!SHAREPOINT_FACTS.length) return;
+    const fact = SHAREPOINT_FACTS[Math.floor(Math.random() * SHAREPOINT_FACTS.length)];
+    const factText = typeof fact === "string" ? fact : (fact.text || "");
+    const sourceUrl = typeof fact === "object" && fact.sourceUrl && String(fact.sourceUrl).trim() ? fact.sourceUrl : "";
+    if (typeof fact === "object" && typeof fact.openUrl === "string") chrome.tabs.create({ url: fact.openUrl });
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id) chrome.tabs.sendMessage(tab.id, { action: "showFact", fact: factText, sourceUrl });
+    } catch (_) {}
+  });
+}
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message && message.type === "SPCSVExportDone") {
+    if (message.success) {
+      setStatus("Export complete", "success");
+    } else {
+      setStatus(message.message || "Export failed.", "error");
+    }
+    sendResponse({});
+    return true;
+  }
+});
+loadDarkMode();
+
+// --- Settings (gear: open settings screen; back button: return to main) ---
+const chkListsLauncherEnabled = document.getElementById("chkListsLauncherEnabled");
+document.getElementById("btnSettingsGear")?.addEventListener("click", () => {
+  document.body.classList.add("popup-settings-visible");
+});
+document.getElementById("btnSettingsBackToMain")?.addEventListener("click", () => {
+  document.body.classList.remove("popup-settings-visible");
+});
+chrome.storage.local.get("listsLauncherEnabled", (r) => {
+  if (chkListsLauncherEnabled) chkListsLauncherEnabled.checked = !!r.listsLauncherEnabled;
+});
+chkListsLauncherEnabled?.addEventListener("change", () => {
+  chrome.storage.local.set({ listsLauncherEnabled: chkListsLauncherEnabled.checked });
+});
 
 // --- Tabs: Quick links, Page Properties, Reports ---
+const TAB_IDS = ["quicklinks", "context", "searchSchema", "reports", "refinableProps", "viewManager"];
+function updateTabIndicator() {
+  const bar = document.querySelector(".tab-bar");
+  const indicator = bar && bar.querySelector(".tab-indicator");
+  const active = bar && bar.querySelector(".tab.active");
+  if (!bar || !indicator || !active || active.offsetParent === null) return;
+  indicator.style.left = active.offsetLeft + "px";
+  indicator.style.width = active.offsetWidth + "px";
+}
+function switchToTab(id) {
+  const tabEl = document.querySelector(".tab[data-tab=\"" + id + "\"]");
+  if (!tabEl || tabEl.offsetParent === null) return;
+  document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+  document.querySelectorAll(".tab-content").forEach((c) => c.classList.remove("active"));
+  tabEl.classList.add("active");
+  const panel = document.getElementById(id + "Panel");
+  if (panel) panel.classList.add("active");
+  document.body.classList.toggle("columns-tab-active", id === "searchSchema");
+  document.body.classList.remove("reports-expanded", "reports-settings-visible");
+  requestAnimationFrame(function () { updateTabIndicator(); });
+  if (id === "quicklinks") renderQuickLinks();
+  else if (id === "context") loadContextInfo();
+  else if (id === "searchSchema") loadSearchSchema();
+  else if (id === "reports") {
+    updateExportReportLabel();
+    toggleReportOptions();
+  }
+  else if (id === "refinableProps") initRefinableProps();
+}
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
     const id = tab.dataset.tab;
-    document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
-    document.querySelectorAll(".tab-content").forEach((c) => c.classList.remove("active"));
-    tab.classList.add("active");
-    const panel = document.getElementById(id + "Panel");
-    if (panel) panel.classList.add("active");
-    document.body.classList.toggle("columns-tab-active", id === "searchSchema");
-    if (id === "quicklinks") renderQuickLinks();
-    if (id === "context") loadContextInfo();
-    if (id === "searchSchema") loadSearchSchema();
+    if (id) {
+      chrome.storage.local.set({ popupActiveTab: id });
+      switchToTab(id);
+    }
   });
 });
-// Default tab is Quick links; populate it on open
-renderQuickLinks();
-// Show Columns and View Manager tabs only when current page is a list or library
-(async function updateListTabsVisibility() {
+
+const RECENT_SP_KEY = "recentSharePointUrls";
+const RECENT_SP_MAX = 25;
+
+async function addCurrentUrlToRecentSharePoint(url) {
+  if (!url || !url.includes("sharepoint.com")) return;
+  const normalized = url.split("?")[0].replace(/\/$/, "") || url;
+  const key = recentSharePointSiteKey(normalized);
+  const { [RECENT_SP_KEY]: list = [] } = await chrome.storage.local.get(RECENT_SP_KEY);
+  const deduped = [normalized].concat(list.filter((u) => recentSharePointSiteKey(u) !== key));
+  const bySiteKey = new Map();
+  for (const u of deduped) {
+    const k = recentSharePointSiteKey(u);
+    if (!bySiteKey.has(k) || u.length < bySiteKey.get(k).length) bySiteKey.set(k, u);
+  }
+  const next = Array.from(bySiteKey.values()).slice(0, RECENT_SP_MAX);
+  await chrome.storage.local.set({ [RECENT_SP_KEY]: next });
+}
+
+/** Return a stable key for "same site" (origin + /sites/SiteName or /teams/TeamName). */
+function recentSharePointSiteKey(url) {
+  try {
+    const u = new URL(url);
+    const path = u.pathname.replace(/\/$/, "") || "";
+    const segments = path.split("/").filter(Boolean);
+    const sitesIdx = segments.findIndex((s) => s === "sites" || s === "teams");
+    if (sitesIdx >= 0 && segments[sitesIdx + 1]) {
+      const sitePath = "/" + segments.slice(0, sitesIdx + 2).join("/");
+      return (u.origin + sitePath).toLowerCase();
+    }
+    return (u.origin + (path || "/")).toLowerCase();
+  } catch (_) {
+    return (url.split("?")[0].replace(/\/$/, "") || url).toLowerCase();
+  }
+}
+
+function recentSharePointOptionLabel(url) {
+  try {
+    const u = new URL(url);
+    const segments = u.pathname.split("/").filter(Boolean);
+    const sitesIdx = segments.findIndex((s) => s === "sites" || s === "teams");
+    const siteName = sitesIdx >= 0 && segments[sitesIdx + 1]
+      ? segments[sitesIdx + 1]
+      : segments[0] || null;
+    if (siteName) {
+      return siteName + " — " + u.hostname;
+    }
+    return u.hostname + (segments[0] ? " / " + segments[0] : "");
+  } catch (_) {
+    return url;
+  }
+}
+
+async function populateRecentSharePointDropdown() {
+  const sel = document.getElementById("recentSharePointSelect");
+  if (!sel) return;
+  const { [RECENT_SP_KEY]: stored = [] } = await chrome.storage.local.get(RECENT_SP_KEY);
+  let urls = Array.from(stored);
+  try {
+    const historyItems = await chrome.history.search({ text: "sharepoint.com", maxResults: 40, startTime: 0 });
+    const fromHistory = historyItems
+      .map((h) => h.url)
+      .filter((u) => u && u.includes("sharepoint.com"));
+    const seenKeys = new Set(urls.map(recentSharePointSiteKey));
+    for (const u of fromHistory) {
+      const n = u.split("?")[0].replace(/\/$/, "") || u;
+      if (!seenKeys.has(recentSharePointSiteKey(n))) {
+        seenKeys.add(recentSharePointSiteKey(n));
+        urls.push(n);
+      }
+    }
+  } catch (_) {}
+  const bySiteKey = new Map();
+  for (const u of urls) {
+    const key = recentSharePointSiteKey(u);
+    if (bySiteKey.has(key)) {
+      const existing = bySiteKey.get(key);
+      if (u.length < existing.length) bySiteKey.set(key, u);
+    } else {
+      bySiteKey.set(key, u);
+    }
+  }
+  urls = Array.from(bySiteKey.values()).slice(0, RECENT_SP_MAX);
+  sel.innerHTML = '<option value="">Choose a site…</option>';
+  urls.forEach((url) => {
+    const opt = document.createElement("option");
+    opt.value = url;
+    opt.textContent = recentSharePointOptionLabel(url);
+    sel.appendChild(opt);
+  });
+}
+
+async function goToSelectedSharePointSite() {
+  const sel = document.getElementById("recentSharePointSelect");
+  const url = sel && sel.value ? sel.value.trim() : "";
+  if (!url) return;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id) {
+      chrome.tabs.update(tab.id, { url });
+      window.close();
+    }
+  } catch (_) {}
+}
+
+async function syncPopupToCurrentTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const onSharePoint = tab?.url?.includes("sharepoint.com");
+
+  if (!onSharePoint) {
+    document.body.classList.add("not-on-sharepoint");
+    await populateRecentSharePointDropdown();
+    return;
+  }
+
+  document.body.classList.remove("not-on-sharepoint");
+  await addCurrentUrlToRecentSharePoint(tab.url);
+
   const tabColumns = document.getElementById("tabColumns");
   const tabViewManager = document.getElementById("tabViewManager");
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !tab.url?.includes("sharepoint.com")) {
-      if (tabColumns) tabColumns.style.display = "none";
-      if (tabViewManager) tabViewManager.style.display = "none";
-      return;
-    }
     const response = await chrome.tabs.sendMessage(tab.id, { action: "checkListPage" });
     const show = response?.isListPage ? "" : "none";
     if (tabColumns) tabColumns.style.display = show;
@@ -58,7 +282,28 @@ renderQuickLinks();
     if (tabColumns) tabColumns.style.display = "none";
     if (tabViewManager) tabViewManager.style.display = "none";
   }
+
+  const { popupActiveTab } = await chrome.storage.local.get("popupActiveTab");
+  const id = popupActiveTab && TAB_IDS.includes(popupActiveTab) ? popupActiveTab : "quicklinks";
+  const tabEl = document.querySelector(".tab[data-tab=\"" + id + "\"]");
+  if (tabEl && tabEl.offsetParent !== null) switchToTab(id);
+  else switchToTab("quicklinks");
+}
+
+// Restore last active tab on open; when not on SharePoint, show message + recent sites only
+(async function restorePopupTab() {
+  await syncPopupToCurrentTab();
 })();
+
+document.getElementById("recentSharePointSelect")?.addEventListener("change", function () {
+  if (this.value) goToSelectedSharePointSite();
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") syncPopupToCurrentTab();
+});
+window.addEventListener("pageshow", () => syncPopupToCurrentTab());
+window.addEventListener("resize", () => { requestAnimationFrame(updateTabIndicator); });
 
 function escapeHtml(s) {
   const div = document.createElement("div");
@@ -73,14 +318,17 @@ function addQuickLink(ul, label, href, icon) {
   ul.appendChild(li);
 }
 
+let renderQuickLinksBusy = false;
 async function renderQuickLinks() {
+  if (renderQuickLinksBusy) return;
   const hint = document.getElementById("quicklinksHint");
   const content = document.getElementById("quicklinksContent");
   const currentSite = document.getElementById("quicklinksCurrentSite");
   const currentUser = document.getElementById("quicklinksCurrentUser");
   const modes = document.getElementById("quicklinksModes");
   const tenant = document.getElementById("quicklinksTenant");
-  if (!content || !currentSite) return;
+  if (!content || !currentSite || !currentUser || !modes || !tenant) return;
+  renderQuickLinksBusy = true;
   currentSite.innerHTML = "";
   currentUser.innerHTML = "";
   modes.innerHTML = "";
@@ -92,11 +340,13 @@ async function renderQuickLinks() {
     if (!tab?.url?.includes("sharepoint.com")) {
       hint.style.display = "block";
       content.style.display = "none";
+      renderQuickLinksBusy = false;
       return;
     }
   } catch (_) {
     hint.style.display = "block";
     content.style.display = "none";
+    renderQuickLinksBusy = false;
     return;
   }
   hint.style.display = "none";
@@ -131,6 +381,8 @@ async function renderQuickLinks() {
   addQuickLink(tenant, "Teams admin", "https://admin.teams.microsoft.com/dashboard", "teams");
   addQuickLink(tenant, "App catalog", `https://${host}/sites/AppCatalog/_layouts/15/appStore.aspx`, "package");
   addQuickLink(tenant, "Classic app catalog", `https://${host}/sites/AppCatalog`, "archive");
+
+  renderQuickLinksBusy = false;
 }
 
 let contextData = null;
@@ -365,9 +617,16 @@ async function getPageSize() {
   return (v === 500 || v === 1000 || v === 5000) ? v : DEFAULT_PAGE_SIZE;
 }
 
+async function getDefaultExportFormat() {
+  const st = await chrome.storage.local.get("defaultExportFormat");
+  return (st.defaultExportFormat === "csv" || st.defaultExportFormat === "xlsx") ? st.defaultExportFormat : DEFAULT_EXPORT_FORMAT;
+}
+
 async function loadSettings() {
   const size = await getPageSize();
   pageSizeSelect.value = String(size);
+  const format = await getDefaultExportFormat();
+  if (defaultExportFormatSelect) defaultExportFormatSelect.value = format;
 }
 
 function savePageSize() {
@@ -375,10 +634,22 @@ function savePageSize() {
   chrome.storage.local.set({ pageSize: v });
 }
 
+function saveDefaultExportFormat() {
+  const format = defaultExportFormatSelect && (defaultExportFormatSelect.value === "csv" || defaultExportFormatSelect.value === "xlsx")
+    ? defaultExportFormatSelect.value
+    : DEFAULT_EXPORT_FORMAT;
+  chrome.storage.local.set({ defaultExportFormat: format });
+}
+
 function setStatus(message, type) {
-  statusEl.textContent = message;
+  const textEl = statusEl.querySelector(".status-text");
+  const spinnerEl = statusEl.querySelector(".status-spinner");
+  const successIconEl = statusEl.querySelector(".status-success-icon");
+  if (textEl) textEl.textContent = message;
   statusEl.className = type || "info";
   statusEl.style.display = "block";
+  if (spinnerEl) spinnerEl.style.display = type === "info" ? "block" : "none";
+  if (successIconEl) successIconEl.style.display = type === "success" ? "inline-flex" : "none";
 }
 
 function setPickerStatus(message, type) {
@@ -391,6 +662,132 @@ function clearStatus() {
   statusEl.style.display = "none";
   statusEl.className = "";
 }
+
+// --- Refinable Props tab ---
+const refinableTypeSelect = document.getElementById("refinableTypeSelect");
+const refinableNumberSelect = document.getElementById("refinableNumberSelect");
+const btnRefinableConfigure = document.getElementById("btnRefinableConfigure");
+const refinableMappingsOut = document.getElementById("refinableMappingsOut");
+
+function initRefinableProps() {
+  if (!refinableTypeSelect || !refinableNumberSelect) return;
+  if (refinableTypeSelect.options.length === 0) {
+    REFINABLE_TYPES.forEach((t) => {
+      const opt = document.createElement("option");
+      opt.value = t.id;
+      opt.textContent = t.label;
+      refinableTypeSelect.appendChild(opt);
+    });
+    refinableTypeSelect.value = "RefinableString";
+  }
+  fillRefinableNumberOptions();
+  loadRefinableMappings();
+}
+
+function fillRefinableNumberOptions() {
+  if (!refinableTypeSelect || !refinableNumberSelect) return;
+  const typeId = refinableTypeSelect.value;
+  const type = REFINABLE_TYPES.find((t) => t.id === typeId) || REFINABLE_TYPES[0];
+  const count = type.count;
+  refinableNumberSelect.innerHTML = "";
+  for (let i = 0; i < count; i++) {
+    const opt = document.createElement("option");
+    const num = String(i).padStart(2, "0");
+    opt.value = num;
+    opt.textContent = num;
+    refinableNumberSelect.appendChild(opt);
+  }
+}
+
+refinableTypeSelect?.addEventListener("change", function () {
+  fillRefinableNumberOptions();
+  loadRefinableMappings();
+});
+refinableNumberSelect?.addEventListener("change", loadRefinableMappings);
+
+function clearRefinableMappingsDisplay() {
+  if (refinableMappingsOut) {
+    refinableMappingsOut.textContent = "";
+    refinableMappingsOut.className = "refinable-mappings-out empty";
+  }
+}
+
+btnRefinableConfigure?.addEventListener("click", async () => {
+  const typeId = refinableTypeSelect?.value || "RefinableString";
+  const num = refinableNumberSelect?.value || "00";
+  const propertyName = typeId + num;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.url?.includes("sharepoint.com")) {
+      alert("Open a SharePoint site in the current tab first, then click Configure to open the managed property page for that site.");
+      return;
+    }
+    const ctx = parseContextFromUrl(tab.url);
+    const siteUrl = (ctx.webAbsoluteUrl || "").replace(/\/$/, "");
+    if (!siteUrl) {
+      alert("Could not determine the site URL. Open a SharePoint site page and try again.");
+      return;
+    }
+    const url = siteUrl + "/_layouts/15/managedproperty.aspx?property=" + encodeURIComponent(propertyName) + "&level=sitecol";
+    chrome.tabs.create({ url });
+  } catch (e) {
+    alert("Error: " + (e.message || String(e)));
+  }
+});
+
+async function loadRefinableMappings() {
+  if (!refinableMappingsOut) return;
+  const typeId = refinableTypeSelect?.value || "RefinableString";
+  const num = refinableNumberSelect?.value || "00";
+  const propertyName = typeId + num;
+  refinableMappingsOut.textContent = "Loading…";
+  refinableMappingsOut.className = "refinable-mappings-out loading";
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id || !tab.url?.includes("sharepoint.com")) {
+      refinableMappingsOut.textContent = "Open a SharePoint site in the current tab to load mappings.";
+      refinableMappingsOut.className = "refinable-mappings-out error";
+      return;
+    }
+    const ctx = parseContextFromUrl(tab.url);
+    const siteUrl = (ctx.webAbsoluteUrl || "").replace(/\/$/, "");
+    if (!siteUrl) {
+      refinableMappingsOut.textContent = "Could not determine site URL. Open a SharePoint site page first.";
+      refinableMappingsOut.className = "refinable-mappings-out error";
+      return;
+    }
+    const res = await chrome.tabs.sendMessage(tab.id, {
+      action: "getRefinableMappings",
+      siteUrl,
+      propertyName
+    });
+    if (!res) {
+      refinableMappingsOut.textContent = "No response. Refresh the SharePoint tab and try again.";
+      refinableMappingsOut.className = "refinable-mappings-out error";
+      return;
+    }
+    if (!res.ok) {
+      refinableMappingsOut.textContent = res.error || "Failed to load mappings.";
+      refinableMappingsOut.className = "refinable-mappings-out error";
+      return;
+    }
+    if (!res.mappings || res.mappings.length === 0) {
+      refinableMappingsOut.innerHTML = `<span class="refinable-mappings-header">Crawled properties</span>${res.alias ? `<p class="refinable-alias">Alias: ${escapeHtml(res.alias)}</p>` : ""}<p>No crawled properties mapped for ${escapeHtml(propertyName)}.</p>`;
+      refinableMappingsOut.className = "refinable-mappings-out";
+      return;
+    }
+    const aliasPart = res.alias ? `<p class="refinable-alias">Alias: ${escapeHtml(res.alias)}</p>` : "";
+    const listItems = res.mappings.map((m) => `<li>${escapeHtml(m.name)}${m.type ? `<span class="refinable-mapping-type">${escapeHtml(m.type)}</span>` : ""}</li>`).join("");
+    refinableMappingsOut.innerHTML = `${aliasPart}<span class="refinable-mappings-header">Crawled properties (${res.mappings.length})</span><ul class="refinable-mappings-list">${listItems}</ul>`;
+    refinableMappingsOut.className = "refinable-mappings-out";
+  } catch (e) {
+    refinableMappingsOut.textContent = "Error: " + (e.message || String(e)) + ". Try refreshing the SharePoint tab.";
+    refinableMappingsOut.className = "refinable-mappings-out error";
+  }
+}
+
+// Run once so number dropdown is populated if user opens Refinable Props first
+initRefinableProps();
 
 function parseContextFromUrl(pageUrl) {
   if (!pageUrl || !pageUrl.includes("sharepoint.com")) return { webAbsoluteUrl: "", pageListId: "", viewId: "" };
@@ -450,8 +847,7 @@ function getSelectedColumns() {
 }
 
 function getIncludeVersions() {
-  const inPicker = pickerPanel.classList.contains("visible");
-  const el = document.getElementById(inPicker ? "chkIncludeVersionsPicker" : "chkIncludeVersions");
+  const el = document.getElementById("chkIncludeVersionsPicker");
   return el ? el.checked : false;
 }
 
@@ -517,6 +913,7 @@ async function openColumnPicker() {
   clearStatus();
   mainPanel.classList.add("hidden");
   pickerPanel.classList.add("visible");
+  document.body.classList.add("reports-expanded");
   setPickerStatus("Loading columns…", "info");
   columnList.innerHTML = "";
 
@@ -544,6 +941,7 @@ async function openColumnPicker() {
 function closeColumnPicker() {
   pickerPanel.classList.remove("visible");
   mainPanel.classList.remove("hidden");
+  document.body.classList.remove("reports-expanded");
   setPickerStatus("");
 }
 
@@ -556,8 +954,129 @@ function toggleReportOptions() {
   if (matrixWholeSiteRow) matrixWholeSiteRow.style.display = value === "permissionsMatrix" ? "" : "none";
   const exportOptionsRow = document.getElementById("exportOptionsRow");
   if (exportOptionsRow) exportOptionsRow.style.display = value === "exportCSV" ? "" : "none";
+  if (btnChooseColumns) btnChooseColumns.style.display = value === "exportCSV" ? "" : "none";
 }
 if (reportSelect) reportSelect.addEventListener("change", toggleReportOptions);
+
+/** Updates the "Export List/Library to Excel/CSV" option text and syncs format select to default. */
+async function updateExportReportLabel() {
+  const optionEl = document.getElementById("reportOptionExportCSV");
+  if (!optionEl || !formatSelect) return;
+  const format = await getDefaultExportFormat();
+  formatSelect.value = format;
+  const formatLabel = format === "csv" ? "CSV" : "Excel";
+  let listOrLibrary = "List";
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id || !tab.url?.includes("sharepoint.com")) {
+      optionEl.textContent = "Export " + listOrLibrary + " to " + formatLabel;
+      return;
+    }
+
+    // Prefer content script + getListType.js (same as export flow) – works in iframes and modern pages.
+    try {
+      const csResult = await new Promise((resolve) => {
+        chrome.tabs.sendMessage(tab.id, { action: "getListType" }, (response) => {
+          if (chrome.runtime.lastError) resolve(null);
+          else resolve(response);
+        });
+      });
+      if (csResult && csResult.isListPage === true) {
+        listOrLibrary = csResult.isLibrary ? "Library" : "List";
+        optionEl.textContent = "Export " + listOrLibrary + " to " + formatLabel;
+        return;
+      }
+    } catch (_) {}
+
+    const ctx = parseContextFromUrl(tab.url);
+    const siteUrl = (ctx.webAbsoluteUrl || "").replace(/\/$/, "");
+    const listIdFromUrl = (ctx.pageListId || "").replace(/[{}]/g, "").trim();
+
+    // Strategy 1: When URL has List= param, fetch BaseTemplate directly in main frame (same as export).
+    // This works regardless of which frame has _spPageContextInfo.
+    if (siteUrl && listIdFromUrl) {
+      try {
+        const inj = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: function (siteUrlArg, listIdArg) {
+            return fetch(siteUrlArg + "/_api/web/lists(guid'" + listIdArg + "')?$select=BaseTemplate", {
+              credentials: "include",
+              headers: { "Accept": "application/json;odata=nometadata" }
+            })
+              .then(function (r) { return r.json(); })
+              .then(function (j) {
+                var bt = j.BaseTemplate != null ? j.BaseTemplate : (j.d && j.d.BaseTemplate != null ? j.d.BaseTemplate : null);
+                var n = parseInt(bt, 10);
+                return { isListPage: true, isLibrary: n === 101 };
+              })
+              .catch(function () { return { isListPage: true, isLibrary: false }; });
+          },
+          args: [siteUrl, listIdFromUrl],
+          world: "MAIN"
+        });
+        if (inj && inj[0] && inj[0].result && inj[0].result.isListPage === true) {
+          listOrLibrary = inj[0].result.isLibrary ? "Library" : "List";
+          optionEl.textContent = "Export " + listOrLibrary + " to " + formatLabel;
+          return;
+        }
+      } catch (_) {}
+    }
+
+    // Strategy 2: No List= in URL or strategy 1 failed – run in all frames using _spPageContextInfo.
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: function () {
+        var spi = window._spPageContextInfo || {};
+        var listUrl = spi.listUrl || spi.listServerRelativeUrl;
+        if (!listUrl) return Promise.resolve({ isListPage: false, isLibrary: false });
+        var siteUrl = (spi.webAbsoluteUrl || spi.siteAbsoluteUrl || "").replace(/\/$/, "");
+        var listId = (spi.pageListId || "").replace(/[{}]/g, "").trim();
+        var enc = encodeURIComponent("'" + listUrl.replace(/'/g, "''") + "'");
+        var opts = { credentials: "include", headers: { "Accept": "application/json;odata=nometadata" } };
+        function getListId() {
+          if (listId) return Promise.resolve(listId);
+          return fetch(siteUrl + "/_api/web/GetList(@u)/Id?@u=" + enc, opts).then(function (r) { return r.json(); })
+            .then(function (j) {
+              var id = (j.value != null ? j.value : (j.d && j.d.Id) != null ? j.d.Id : j.Id || "");
+              return ("" + id).replace(/[{}]/g, "").trim();
+            });
+        }
+        return getListId().then(function (lid) {
+          if (!lid) return { isListPage: true, isLibrary: false };
+          return fetch(siteUrl + "/_api/web/lists(guid'" + lid + "')?$select=BaseTemplate", opts)
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+              var bt = j.BaseTemplate != null ? j.BaseTemplate : (j.d && j.d.BaseTemplate != null ? j.d.BaseTemplate : null);
+              var n = parseInt(bt, 10);
+              return { isListPage: true, isLibrary: n === 101 };
+            })
+            .catch(function () { return { isListPage: true, isLibrary: false }; });
+        }).catch(function () { return { isListPage: true, isLibrary: false }; });
+      },
+      world: "MAIN",
+      allFrames: true
+    });
+    let res = null;
+    if (results && results.length) {
+      const main = results[0] && results[0].result;
+      if (main && main.isListPage === true) {
+        res = main;
+      } else {
+        for (const frame of results) {
+          const r = frame && frame.result;
+          if (r && r.isListPage === true) {
+            res = r;
+            break;
+          }
+        }
+      }
+    }
+    if (res && res.isListPage) {
+      listOrLibrary = res.isLibrary ? "Library" : "List";
+    }
+  } catch (_) {}
+  optionEl.textContent = "Export " + listOrLibrary + " to " + formatLabel;
+}
 
 btnExport.addEventListener("click", () => {
   if (reportSelect && (reportSelect.value === "exportCSV" || reportSelect.value === "folderCount" || reportSelect.value === "pathLengths" || reportSelect.value === "permissionsMatrix")) runExport();
@@ -569,16 +1088,21 @@ btnSettings.addEventListener("click", () => {
   mainPanel.classList.add("hidden");
   pickerPanel.classList.remove("visible");
   settingsPanel.classList.add("visible");
+  document.body.classList.add("reports-settings-visible");
   loadSettings();
 });
 
 btnSettingsBack.addEventListener("click", () => {
   settingsPanel.classList.remove("visible");
   mainPanel.classList.remove("hidden");
+  document.body.classList.remove("reports-settings-visible");
   savePageSize();
+  saveDefaultExportFormat();
+  updateExportReportLabel();
 });
 
 pageSizeSelect.addEventListener("change", savePageSize);
+if (defaultExportFormatSelect) defaultExportFormatSelect.addEventListener("change", saveDefaultExportFormat);
 
 btnBack.addEventListener("click", closeColumnPicker);
 
@@ -605,4 +1129,24 @@ btnExportSelected.addEventListener("click", () => {
     return;
   }
   runExport(cols);
+});
+
+// Show version at bottom of extension settings
+const settingsVersionEl = document.getElementById("settingsVersionPopup");
+if (settingsVersionEl) settingsVersionEl.textContent = "v" + (chrome.runtime.getManifest().version || "");
+
+// Notify content script when extension popup opens so Site Contents launcher can roll down
+chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+  if (tabs[0]?.id) chrome.tabs.sendMessage(tabs[0].id, { type: "SPOToolkitPopupOpened" }).catch(() => {});
+});
+window.addEventListener("blur", () => {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (tabs[0]?.id) chrome.tabs.sendMessage(tabs[0].id, { type: "SPOToolkitPopupClosed" }).catch(() => {});
+  });
+});
+// When Site Contents panel is opened on the page, fade out then close the popup so both aren't open at once
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type !== "SPOToolkitPanelOpened") return;
+  document.body.classList.add("popup-fade-out");
+  setTimeout(() => window.close(), 220);
 });

@@ -1,14 +1,14 @@
 {
   "manifest_version": 3,
   "name": "SPO Dev Toolkit",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Export list/library data, run reports, manage views, and quick links on SharePoint.",
   "icons": {
     "16": "icon.png",
     "48": "icon.png",
     "128": "icon.png"
   },
-  "permissions": ["activeTab", "scripting", "storage"],
+  "permissions": ["activeTab", "scripting", "storage", "history"],
   "host_permissions": ["*://*.sharepoint.com/*"],
   "content_scripts": [
     {
@@ -19,7 +19,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["exportCSV.js","getFields.js","getSearchSchema.js","checkListPage.js","getViewsData.js","getPageContext.js","getPageContextJson.js","jszip.min.js","jszip-preload.js","jszip-restore.js"],
+      "resources": ["exportCSV.js","getFields.js","getSearchSchema.js","checkListPage.js","getListType.js","getRefinableMappings.js","getViewsData.js","getPageContext.js","getPageContextJson.js","getSiteLists.js","jszip.min.js","jszip-preload.js","jszip-restore.js","icon.png"],
       "matches": ["*://*.sharepoint.com/*"]
     }
   ],

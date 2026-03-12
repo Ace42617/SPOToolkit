@@ -34,18 +34,34 @@
 }
 
 /* ── BASE ─────────────────────────── */
-html { font-size: 13px; }
+html {
+  font-size: 13px;
+  border-radius: 0 0 14px 14px;
+  overflow: hidden;
+}
 body {
   font-family: var(--font);
   background: var(--bg);
   color: var(--txt);
-  width: 380px;
-  min-height: 500px;
+  width: 560px;
   max-height: 600px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   -webkit-font-smoothing: antialiased;
+  border-radius: 0 0 14px 14px;
+  animation: popup-fade-in 0.25s ease-out forwards;
+}
+body.popup-fade-out {
+  animation: popup-fade-out 0.2s ease-in forwards;
+}
+@keyframes popup-fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes popup-fade-out {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* ── SCROLLBAR ─────────────────────────── */
@@ -66,12 +82,30 @@ body {
 }
 .popup-header-icon {
   width: 30px; height: 30px;
-  background: rgba(255,255,255,.18);
+  background: rgba(255,255,255,.28);
   border-radius: var(--r-md);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
 }
-.popup-header-icon svg { width: 16px; height: 16px; fill: none; stroke: white; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.popup-header-icon:focus { outline: none; }
+.popup-header-icon:focus-visible { box-shadow: 0 0 0 2px rgba(255,255,255,.5); }
+.header-compass-img {
+  display: block;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+  transition: filter 0.25s ease-out;
+}
+.popup-header-icon.spin .header-compass-img {
+  filter: none;
+  animation: compass-spin 0.6s ease-in-out;
+  transition: filter 0.25s ease-out;
+}
+@keyframes compass-spin { to { transform: rotate(360deg); } }
+
 .popup-header-text { flex: 1; }
 .popup-header-title { font-size: .9375rem; font-weight: 700; color: white; letter-spacing: -.01em; }
 .popup-header-sub { font-size: .6875rem; color: rgba(255,255,255,.65); }
@@ -84,22 +118,164 @@ body {
   border-radius: var(--r-pill);
   border: 1px solid rgba(255,255,255,.2);
 }
+.popup-header-settings-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-sm);
+  background: rgba(255,255,255,.1);
+  color: rgba(255,255,255,.85);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background .15s, color .15s;
+}
+.popup-header-settings-btn:hover {
+  background: rgba(255,255,255,.18);
+  color: white;
+}
+.popup-header-settings-btn svg { width: 14px; height: 14px; }
+#popupMainContent { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+body.popup-settings-visible #popupMainContent { display: none; }
+.popup-settings-screen {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--surface);
+}
+body.popup-settings-visible .popup-settings-screen { display: flex; }
+.popup-settings-screen .settings-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg);
+}
+.popup-settings-screen .settings-back-btn {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--txt-mid);
+  border-radius: var(--r-md);
+  font-family: var(--font);
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.popup-settings-screen .settings-back-btn:hover {
+  border-color: var(--brand-mid);
+  color: var(--brand);
+  background: var(--brand-faint);
+}
+.popup-settings-screen .settings-title { font-size: .875rem; font-weight: 700; color: var(--txt); }
+.popup-settings-screen .settings-body { padding: 14px 16px; overflow-y: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.popup-settings-screen .settings-version { font-size: .7rem; color: var(--txt-soft); margin-top: auto; padding-top: 12px; margin-bottom: 0; }
+.popup-settings-screen .form-label { font-size: .75rem; font-weight: 600; color: var(--txt-mid); margin-bottom: 8px; display: block; }
+.popup-settings-screen .checkbox-row { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: .8125rem; color: var(--txt); margin-bottom: 4px; }
+.popup-settings-screen .checkbox-row input { accent-color: var(--brand); }
+
+/* ── NOT ON SHAREPOINT PANEL ─────────────────────────── */
+.not-on-sp-panel {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  padding: 20px 18px;
+  overflow-y: auto;
+  min-height: 0;
+}
+body.not-on-sharepoint .not-on-sp-panel { display: flex; }
+body.not-on-sharepoint .tab-bar,
+body.not-on-sharepoint .tab-content { display: none !important; }
+
+.not-on-sp-message {
+  padding: 16px 18px;
+  border: 1.5px solid var(--brand);
+  border-radius: var(--r-lg);
+  background: var(--brand-faint);
+  color: var(--brand);
+  font-size: .9rem;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+.not-on-sp-message strong { color: var(--brand); }
+html.dark-mode .not-on-sp-message {
+  background: rgba(34, 197, 94, .12);
+  border-color: rgba(74, 222, 128, .5);
+  color: #86efac;
+}
+
+.not-on-sp-label {
+  display: block;
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--txt-mid);
+  margin-bottom: 8px;
+}
+html.dark-mode .not-on-sp-label { color: var(--txt-soft); }
+.not-on-sp-select {
+  width: 100%;
+  padding: 8px 32px 8px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-family: var(--font);
+  font-size: .8125rem;
+  color: var(--txt);
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  transition: color .2s ease, border-color .2s ease, background-color .2s ease;
+}
+.not-on-sp-select:hover { border-color: var(--brand-mid); }
+.not-on-sp-select option {
+  background: var(--surface);
+  color: var(--txt);
+}
+html.dark-mode .not-on-sp-select {
+  color-scheme: dark;
+}
+html.dark-mode .not-on-sp-select option {
+  background: var(--surface);
+  color: var(--txt);
+}
 
 /* ── TAB BAR ─────────────────────────── */
 .tab-bar {
+  position: relative;
   background: var(--surface);
   border-bottom: 1.5px solid var(--border);
   display: flex;
   padding: 0 2px;
   flex-shrink: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
 }
 .tab-bar::-webkit-scrollbar { display: none; }
+.tab-indicator {
+  position: absolute;
+  bottom: -1.5px;
+  left: 0;
+  height: 2.5px;
+  background: var(--brand);
+  border-radius: 2px 2px 0 0;
+  pointer-events: none;
+  transition: left 0.16s cubic-bezier(0.4, 0, 0.2, 1), width 0.16s cubic-bezier(0.4, 0, 0.2, 1);
+}
 
-/* .tab — selected/toggled by popup.js */
+/* .tab — selected/toggled by popup.js; flex to fill width */
 .tab {
-  padding: 9px 11px 8px;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 9px 6px 8px;
   font-size: .75rem;
   font-weight: 600;
   color: var(--txt-soft);
@@ -109,23 +285,31 @@ body {
   border-bottom: 2.5px solid transparent;
   margin-bottom: -1.5px;
   white-space: nowrap;
-  transition: color .15s, border-color .15s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color .2s ease;
   font-family: var(--font);
+  text-align: center;
 }
 .tab:hover { color: var(--txt-mid); }
-.tab.active { color: var(--brand); border-bottom-color: var(--brand); }
+.tab.active { color: var(--brand); border-bottom-color: transparent; }
 
 /* .tab-content — shown/hidden by popup.js using .active */
 .tab-content {
   display: none;
-  flex: 1;
+  flex: 0 0 auto;
   overflow-y: auto;
   flex-direction: column;
+  max-height: 508px;
 }
 .tab-content.active { display: flex; }
 
+/* When column picker or settings is open, expand popup to 600px so that panel uses the space */
+body.reports-expanded { min-height: 600px; height: 600px; }
+body.reports-expanded #reportsPanel.active { flex: 1 1 0; min-height: 0; }
+
 /* body class toggled by popup.js when Columns tab is active */
-body.columns-tab-active { max-height: 700px; }
+body.columns-tab-active { max-height: 600px; }
 
 /* ── SHARED TOOLBAR PATTERN ─────────────────────────── */
 .toolbar {
@@ -149,8 +333,9 @@ body.columns-tab-active { max-height: 700px; }
   font-size: .8rem;
   color: var(--txt);
   outline: none;
-  transition: border-color .15s;
+  transition: color .2s ease, border-color .2s ease, background .2s ease, background-color .2s ease;
 }
+.toolbar input[type="text"]:hover { border-color: var(--brand-mid); color: var(--brand); background: var(--brand-faint); }
 .toolbar input[type="text"]:focus { border-color: var(--brand-mid); background: white; }
 .toolbar input[type="text"]::placeholder { color: var(--txt-soft); }
 
@@ -170,24 +355,42 @@ body.columns-tab-active { max-height: 700px; }
 }
 .btn-ghost:hover { border-color: var(--brand-mid); color: var(--brand); background: var(--brand-faint); }
 
+/* ── SHARED PRIMARY BUTTON ─────────────────────────── */
+.btn-primary {
+  padding: 8px 16px;
+  background: var(--brand);
+  color: white;
+  border: none;
+  border-radius: var(--r-md);
+  font-family: var(--font);
+  font-size: .8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(55, 174, 28, .3);
+  transition: all .15s;
+}
+.btn-primary:hover { background: var(--brand-dark); transform: translateY(-1px); }
+
 /* ── SHARED SELECT ─────────────────────────── */
 select {
   width: 100%;
   padding: 7px 28px 7px 10px;
   border: 1.5px solid var(--border);
   border-radius: var(--r-md);
-  background: white;
+  background-color: white;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235A5F8A' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
   font-family: var(--font);
   font-size: .8125rem;
   color: var(--txt);
   outline: none;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239EA3C8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
+  -webkit-appearance: none;
   cursor: pointer;
-  transition: border-color .14s;
+  transition: color .2s ease, border-color .2s ease, background .2s ease, background-color .2s ease;
 }
+select:hover { border-color: var(--brand-mid); color: var(--brand); background-color: var(--brand-faint); }
 select:focus { border-color: var(--brand-mid); }
 
 /* ── HINT — used as p.hint inside panels by JS ─────────────────────────── */
@@ -199,8 +402,156 @@ p.hint {
   padding: 6px 0;
 }
 
-/* ── STATUS — #status and #pickerStatus get class "info"/"error" by JS ─────────────────────────── */
-#status, #pickerStatus {
+/* ── STATUS TOAST — #status: fixed bottom-right, static border (no chase), still shows complete/error ─────────────────────────── */
+@keyframes status-spinner-spin {
+  to { transform: rotate(360deg); }
+}
+
+#status {
+  display: none;
+  position: fixed;
+  bottom: 12px;
+  right: 12px;
+  border-radius: calc(var(--r-md) + 3px);
+  z-index: 1000;
+  max-width: calc(100% - 24px);
+  overflow: hidden;
+}
+#status.info,
+#status.error,
+#status.success {
+  display: block;
+}
+/* Static border (no animation) */
+#status::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  border-radius: inherit;
+  background: #22C55E;
+  animation: none;
+}
+#status.success::before,
+#status.error::before {
+  animation: none;
+}
+#status.success::before {
+  background: #22C55E;
+}
+#status.error::before {
+  background: #F04E65;
+}
+/* Inner mask so only the border strip shows */
+#status::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
+  border-radius: var(--r-md);
+  background: var(--brand-soft);
+  z-index: -1;
+}
+#status.error::after {
+  background: #FFF1F3;
+}
+#status.success::after {
+  background: #ecfdf5;
+}
+#status .status-toast-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--r-md);
+  font-size: .8rem;
+  font-weight: 500;
+  background: transparent;
+  color: var(--brand-dark);
+  border: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+#status.error .status-toast-inner {
+  background: transparent;
+  color: #9F1239;
+  box-shadow: 0 2px 8px rgba(159,18,57,.12);
+}
+#status.success .status-toast-inner {
+  color: #047857;
+}
+#status .status-spinner {
+  display: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: status-spinner-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+#status.info .status-spinner {
+  display: block;
+}
+#status .status-success-icon {
+  display: none;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #22C55E;
+  flex-shrink: 0;
+}
+#status.success .status-success-icon {
+  display: inline-flex;
+}
+#status .status-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Night Owl (dark mode) status toast — static border */
+html.dark-mode #status::before {
+  background: #4ade80;
+}
+html.dark-mode #status.success::before {
+  background: #22C55E;
+}
+html.dark-mode #status.error::before {
+  background: #f87171;
+}
+html.dark-mode #status::after {
+  background: rgba(30, 30, 40, .95);
+}
+html.dark-mode #status.error::after {
+  background: rgba(40, 25, 30, .95);
+}
+html.dark-mode #status.success::after {
+  background: rgba(22, 101, 52, .4);
+}
+html.dark-mode #status .status-toast-inner {
+  background: transparent;
+  color: #86efac;
+  box-shadow: 0 2px 12px rgba(0,0,0,.4);
+}
+html.dark-mode #status.error .status-toast-inner {
+  background: transparent;
+  color: #fca5a5;
+  box-shadow: 0 2px 12px rgba(248,113,113,.15);
+}
+html.dark-mode #status.success .status-toast-inner {
+  color: #86efac;
+}
+html.dark-mode #status.success .status-success-icon {
+  color: #4ade80;
+}
+
+#pickerStatus {
   display: none;
   padding: 8px 12px;
   border-radius: var(--r-md);
@@ -208,8 +559,10 @@ p.hint {
   font-weight: 500;
   margin: 10px 14px 0;
 }
-#status.info, #pickerStatus.info   { display: block; background: var(--brand-soft); color: var(--brand-dark); border: 1.5px solid #C7CDFB; }
-#status.error, #pickerStatus.error { display: block; background: #FFF1F3; color: #9F1239; border: 1.5px solid #FECDD3; }
+#pickerStatus.info,
+#pickerStatus.error { display: block; }
+#pickerStatus.info   { background: var(--brand-soft); color: var(--brand-dark); border: 1.5px solid #C7CDFB; }
+#pickerStatus.error  { background: #FFF1F3; color: #9F1239; border: 1.5px solid #FECDD3; }
 
 /* ── FORM HELPERS ─────────────────────────── */
 .form-label {
@@ -520,6 +873,8 @@ p.hint {
    REPORTS TAB
 ═══════════════════════════════════════ */
 #reportsPanel { padding: 0; position: relative; }
+/* Only when settings overlay is open: prevent panel collapse */
+body.reports-settings-visible #reportsPanel { min-height: 260px; }
 
 /* #downloadMain — toggled with .hidden by JS */
 #downloadMain {
@@ -728,6 +1083,60 @@ p.hint {
 }
 
 /* ═══════════════════════════════════════
+   REFINABLE PROPS TAB
+═══════════════════════════════════════ */
+#refinablePropsPanel { padding: 0; }
+.refinable-props-body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.btn-configure {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 16px;
+  background: var(--brand);
+  color: white;
+  border: none;
+  border-radius: var(--r-md);
+  font-family: var(--font);
+  font-size: .8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(55, 174, 28, .3);
+  transition: all .15s;
+  margin-top: 4px;
+}
+.btn-configure:hover { background: var(--brand-dark); transform: translateY(-1px); }
+.btn-configure-icon { width: 18px; height: 18px; flex-shrink: 0; }
+
+.refinable-mappings-section { margin-top: 4px; }
+.refinable-mappings-out {
+  margin-top: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+  font-size: .8rem;
+  color: var(--txt-mid);
+}
+.refinable-mappings-out.empty { display: none; }
+.refinable-mappings-out.loading { font-style: italic; color: var(--txt-soft); }
+.refinable-mappings-out.error { color: var(--coral); }
+.refinable-mappings-list { list-style: none; padding: 0; margin: 0; }
+.refinable-mappings-list li {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  font-family: monospace;
+  font-size: .75rem;
+}
+.refinable-mappings-list li:last-child { border-bottom: none; }
+.refinable-mappings-list .refinable-mapping-type { color: var(--txt-soft); font-size: .7rem; margin-left: 8px; }
+.refinable-mappings-header { font-size: .7rem; font-weight: 700; color: var(--txt-soft); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .05em; }
+.refinable-alias { margin: 0 0 8px 0; font-size: .85rem; color: var(--txt-soft); }
+
+/* ═══════════════════════════════════════
    VIEWS TAB
 ═══════════════════════════════════════ */
 #viewManagerPanel { padding: 16px; }
@@ -775,34 +1184,230 @@ p.hint {
 }
 #btnOpenViewManager:hover { background: var(--brand-dark); transform: translateY(-1px); }
 #btnOpenViewManager svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ═══════════════════════════════════════
+   DARK MODE — html.dark-mode
+═══════════════════════════════════════ */
+html.dark-mode {
+  --brand:       #4ade80;
+  --brand-dark:  #7B89F5;
+  --brand-mid:   #a5b4fc;
+  --brand-soft:  rgba(74, 222, 128, .12);
+  --brand-faint: rgba(74, 222, 128, .06);
+  --green:       #4ade80;
+  --coral:       #f87171;
+  --bg:          #0f1117;
+  --surface:     #181b23;
+  --border:      #2a2e3a;
+  --border-mid:  #3d4354;
+  --txt:         #e8eaef;
+  --txt-mid:     #9ca3bf;
+  --txt-soft:    #6b728c;
+}
+html.dark-mode .popup-header {
+  background: linear-gradient(135deg, #166534 0%, #1e3a5f 50%, #312e81 100%);
+  box-shadow: 0 2px 16px rgba(0,0,0,.4);
+}
+html.dark-mode .popup-header-icon { background: rgba(255,255,255,.22); }
+html.dark-mode .popup-header-sub { color: rgba(255,255,255,.6); }
+html.dark-mode .popup-header-badge {
+  background: rgba(255,255,255,.12);
+  border-color: rgba(255,255,255,.15);
+}
+html.dark-mode .toolbar input[type="text"]:focus { background: var(--surface); }
+html.dark-mode select {
+  background-color: var(--surface);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239EA3C8' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+html.dark-mode #pickerStatus.info {
+  background: rgba(74, 222, 128, .12);
+  color: #86efac;
+  border-color: rgba(74, 222, 128, .25);
+}
+html.dark-mode #status.error,
+html.dark-mode #pickerStatus.error {
+  background: rgba(248, 113, 113, .15);
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, .3);
+}
+html.dark-mode #searchSchemaError {
+  background: rgba(248, 113, 113, .15);
+  border-color: rgba(248, 113, 113, .3);
+  color: #fca5a5;
+}
+html.dark-mode .vm-card {
+  background: rgba(74, 222, 128, .08);
+  border-color: rgba(74, 222, 128, .2);
+}
+html.dark-mode #quicklinksHint {
+  border-color: rgba(74, 222, 128, .25);
+}
+html.dark-mode .vm-card-icon { box-shadow: 0 4px 14px rgba(74, 222, 128, .25); }
+html.dark-mode #btnExport,
+html.dark-mode #btnExportSelected,
+html.dark-mode #btnOpenViewManager,
+html.dark-mode .btn-primary {
+  box-shadow: 0 3px 12px rgba(74, 222, 128, .35);
+}
+html.dark-mode #btnExport:hover,
+html.dark-mode #btnExportSelected:hover,
+html.dark-mode #btnOpenViewManager:hover,
+html.dark-mode .btn-primary:hover {
+  background: #22c55e;
+}
+
+/* ── Dark mode toggle (Early Riser / Night Owl) ─────────────────────────── */
+.dark-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-left: 4px;
+}
+.dark-toggle-btn {
+  width: 52px;
+  height: 24px;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: linear-gradient(90deg, #f5e6c8 0%, #e8d4a8 35%, #3d2a5c 65%, #1a0a2e 100%);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.2), 0 0 0 1px rgba(255,255,255,.15);
+  transition: box-shadow .2s ease;
+}
+.dark-toggle-btn:hover {
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.25), 0 0 0 1px rgba(255,255,255,.25);
+}
+.dark-toggle-btn::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b8860b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='10' r='4'/%3E%3Cpath d='M12 2v2M12 18v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M18 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41'/%3E%3Cpath d='M5 14h14'/%3E%3C/svg%3E") no-repeat center / contain;
+  opacity: .95;
+  pointer-events: none;
+}
+.dark-toggle-btn::after {
+  content: '';
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23c9b8e8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'/%3E%3C/svg%3E") no-repeat center / contain;
+  opacity: .9;
+  pointer-events: none;
+}
+.dark-toggle-btn .dark-toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #fff 0%, #f0ebe0 50%, #e0d8c8 100%);
+  box-shadow: 0 1px 3px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.5);
+  transition: transform .25s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Sunrise icon on knob when Early Riser (light mode) */
+.dark-toggle-btn .dark-toggle-knob::before {
+  content: '';
+  width: 11px;
+  height: 11px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23c4952a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='9' r='3'/%3E%3Cpath d='M12 1v1.5M12 19.5V21M4.22 4.22l1.06 1.06M18.72 18.72l1.06 1.06M1 12h1.5M19.5 12H21M4.22 19.78l1.06-1.06M18.72 5.28l1.06-1.06'/%3E%3Cpath d='M4 14h16'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+html.dark-mode .dark-toggle-btn .dark-toggle-knob::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e8e0f0' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+html.dark-mode .dark-toggle-btn .dark-toggle-knob {
+  transform: translateX(28px);
+  background: radial-gradient(circle at 30% 30%, #c9b8e8 0%, #5c4d7a 50%, #2d2345 100%);
+  box-shadow: 0 1px 3px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.15);
+}
+.dark-toggle-btn:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 2px;
+}
 </style>
 </head>
 <body>
 
 <!-- HEADER -->
 <div class="popup-header">
-  <div class="popup-header-icon">
-    <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-  </div>
+  <button type="button" class="popup-header-icon" id="headerIconBtn" aria-label="Toolkit icon">
+    <img id="headerCompassIcon" class="header-compass-img" src="" alt="" width="20" height="20" />
+  </button>
   <div class="popup-header-text">
     <div class="popup-header-title">SP Developer Toolkit</div>
     <div class="popup-header-sub">SharePoint Extension</div>
   </div>
-  <div class="popup-header-badge">v1</div>
+  <div class="dark-toggle">
+    <button type="button" class="dark-toggle-btn" id="darkModeToggle" title="Early Riser" aria-label="Theme: Early Riser. Click to switch to Night Owl."><span class="dark-toggle-knob"></span></button>
+  </div>
+  <button type="button" class="popup-header-settings-btn" id="btnSettingsGear" title="Settings" aria-label="Settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+  </button>
+</div>
+
+<!-- Settings screen (own area, toggled by gear; back button returns to main) -->
+<div class="popup-settings-screen" id="settingsPanelPopup">
+  <div class="settings-header">
+    <button type="button" class="settings-back-btn" id="btnSettingsBackToMain" aria-label="Back">← Back</button>
+    <span class="settings-title">Settings</span>
+  </div>
+  <div class="settings-body">
+    <div class="form-label">Extension</div>
+    <label class="checkbox-row">
+      <input type="checkbox" id="chkListsLauncherEnabled" />
+      <span>Show lists &amp; libraries icon on SharePoint pages</span>
+    </label>
+    <p class="settings-version" id="settingsVersionPopup"></p>
+  </div>
+</div>
+
+<!-- Main content (tabs + panels) -->
+<div id="popupMainContent">
+<!-- Shown only when current tab is not a SharePoint page -->
+<div id="notOnSharePointPanel" class="not-on-sp-panel" aria-live="polite">
+  <div class="not-on-sp-message">
+    Navigate to a SharePoint Online site or select a recently visited site below.
+  </div>
+  <div class="not-on-sp-recent">
+    <label for="recentSharePointSelect" class="not-on-sp-label">Recently visited SharePoint sites</label>
+    <select id="recentSharePointSelect" class="not-on-sp-select">
+      <option value="">Choose a site…</option>
+    </select>
+  </div>
 </div>
 
 <!-- TABS — .tab and data-tab attributes used by popup.js -->
 <div class="tab-bar">
+  <span class="tab-indicator" aria-hidden="true"></span>
   <button class="tab active" data-tab="quicklinks">Quick Links</button>
   <button class="tab" data-tab="context">Page Props</button>
   <button class="tab" id="tabColumns" data-tab="searchSchema">Columns</button>
   <button class="tab" data-tab="reports">Reports</button>
+  <button class="tab" data-tab="refinableProps">Refinables</button>
   <button class="tab" id="tabViewManager" data-tab="viewManager">Views</button>
 </div>
 
 <!-- ═══ QUICK LINKS ═══ -->
 <div class="tab-content active" id="quicklinksPanel">
-  <div id="quicklinksHint">Navigate to a SharePoint page to see quick links and admin shortcuts.</div>
+  <div id="quicklinksHint">Navigate to a SharePoint Online site or select a recently visited site below.</div>
   <div id="quicklinksContent">
     <div class="ql-section-label">Current Site</div>
     <ul id="quicklinksCurrentSite"></ul>
@@ -850,12 +1455,12 @@ p.hint {
 
   <!-- #downloadMain — .hidden toggled by JS -->
   <div id="downloadMain">
-    <div id="status"></div>
+    <div id="status"><span class="status-toast-inner"><span class="status-spinner" aria-hidden="true"></span><span class="status-success-icon" aria-hidden="true">✓</span><span class="status-text"></span></span></div>
 
     <div>
       <label class="form-label">Report Type</label>
       <select id="reportSelect">
-        <option value="exportCSV">Export List / Library to CSV / Excel</option>
+        <option value="exportCSV" id="reportOptionExportCSV">Export List / Library to CSV / Excel</option>
         <option value="folderCount">Folder &amp; Item Counts</option>
         <option value="pathLengths">Path Length Report</option>
         <option value="permissionsMatrix">Permissions Matrix</option>
@@ -876,10 +1481,6 @@ p.hint {
           <option value="csv">CSV (.csv)</option>
         </select>
       </div>
-      <label class="checkbox-row">
-        <input type="checkbox" id="chkIncludeVersions" />
-        <label for="chkIncludeVersions">Include version history</label>
-      </label>
     </div>
 
     <div class="btn-row">
@@ -927,9 +1528,43 @@ p.hint {
         </select>
       </div>
       <p class="settings-note">Larger page sizes export faster but may time out on very large lists. 5000 is recommended.</p>
+      <div>
+        <label class="form-label" for="defaultExportFormatSelect">Default export format</label>
+        <select id="defaultExportFormatSelect">
+          <option value="xlsx" selected>Excel (.xlsx)</option>
+          <option value="csv">CSV (.csv)</option>
+        </select>
+      </div>
+      <p class="settings-note">Used for the &quot;Export List/Library&quot; report. You can still change the format per run in the Reports tab.</p>
     </div>
   </div>
 
+</div>
+
+<!-- ═══ REFINABLE PROPS ═══ -->
+<div class="tab-content" id="refinablePropsPanel">
+  <div class="refinable-props-body">
+    <div>
+      <label class="form-label" for="refinableTypeSelect">Refinable type</label>
+      <select id="refinableTypeSelect">
+        <!-- Options filled by popup.js -->
+      </select>
+    </div>
+    <div>
+      <label class="form-label" for="refinableNumberSelect">Number</label>
+      <select id="refinableNumberSelect">
+        <!-- Options filled by popup.js -->
+      </select>
+    </div>
+    <p class="settings-note">Opens the search schema managed property page for the selected refinable (e.g. RefinableString00).</p>
+    <div class="refinable-mappings-section">
+      <div id="refinableMappingsOut" class="refinable-mappings-out empty" aria-live="polite"></div>
+    </div>
+    <button type="button" id="btnRefinableConfigure" class="btn-configure">
+      <svg class="btn-configure-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Configure
+    </button>
+  </div>
 </div>
 
 <!-- ═══ VIEWS ═══ -->
@@ -945,7 +1580,9 @@ p.hint {
     </button>
   </div>
 </div>
+</div><!-- /#popupMainContent -->
 
+<script src="sharepoint-facts.js"></script>
 <script src="popup.js"></script>
 </body>
 </html>
