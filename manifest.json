@@ -9,6 +9,9 @@
     "128": "icon.png"
   },
   "permissions": ["activeTab", "scripting", "storage", "history"],
+  "background": {
+    "service_worker": "background.js"
+  },
   "host_permissions": ["*://*.sharepoint.com/*"],
   "content_scripts": [
     {

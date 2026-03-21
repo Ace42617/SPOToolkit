@@ -9,7 +9,6 @@
   <style>
     /* ── RESET ─────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     /* ── TOKENS (match popup) ─────────────────────────── */
     :root {
       --brand:       #37ae1c;
@@ -275,8 +274,49 @@
     .context-bar strong { color: var(--txt); }
     .context-block { margin-bottom: 16px; }
     .context-block:last-child { margin-bottom: 0; }
+    .context-lines-stack { display: flex; flex-direction: column; gap: 18px; width: 100%; }
     .context-card-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .context-list-heading { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+    .context-list-kind {
+      font-size: .9375rem;
+      font-weight: 600;
+      letter-spacing: .025em;
+      text-transform: uppercase;
+      color: var(--txt-soft);
+      line-height: 1;
+      margin: 0;
+    }
+    .context-list-kind.hide { display: none; }
     .context-card-row h2 { margin: 0; padding-bottom: 0; border: none; font-size: 1rem; }
+    /* Pull title up so type + name read as one tight block (must follow .context-card-row h2) */
+    .context-card-row .context-list-heading h2 { margin: -3px 0 0 0; line-height: 1.25; }
+    .content-types-section { width: 100%; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); }
+    .content-types-heading { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--txt-mid); margin: 0 0 8px 0; }
+    .content-types-hint { font-size: .75rem; color: var(--txt-soft); margin: 0 0 8px 0; }
+    .content-types-hint.loading { color: var(--brand-dark); }
+    .content-types-hint.error { color: var(--coral); }
+    .content-types-scroll { max-height: 220px; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); }
+    .content-types-table { width: 100%; border-collapse: collapse; font-size: .75rem; }
+    .content-types-table th { text-align: left; padding: 8px 10px; font-size: .75rem; font-weight: 600; color: var(--txt-mid); background: var(--bg); border-bottom: 1px solid var(--border); position: sticky; top: 0; }
+    .content-types-table td { padding: 8px 10px; font-size: .75rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .content-types-table tr:last-child td { border-bottom: none; }
+    .content-types-table .ct-id-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    /* Match List ID / View ID row: same code size, padding, and default secondary button sizing */
+    .content-types-table code.ct-id-cell {
+      font-size: .75rem;
+      word-break: break-all;
+      flex: 1;
+      min-width: 0;
+      background: var(--bg);
+      padding: 6px 10px;
+      border-radius: var(--r-sm);
+      border: 1px solid var(--border);
+      color: var(--txt);
+      font-family: ui-monospace, monospace;
+    }
+    .content-types-table .ct-copy-btn { flex-shrink: 0; }
+    .content-types-table .ct-parent-cell { max-width: 200px; word-break: break-word; }
+    .content-types-table .ct-parent-unknown { color: var(--txt-soft); }
     .context-ids { display: block; }
     .context-ids .context-id-wrap { margin-bottom: 6px; }
     .context-ids .context-id-wrap:last-child { margin-bottom: 0; }
@@ -462,7 +502,55 @@
     }
     .sort-row:last-child, .filter-row:last-child { border-bottom: none; }
     .sort-row select, .filter-row select { min-width: 140px; }
-    .filter-row input[type="text"] { min-width: 160px; }
+    .filter-block { border-bottom: 1px solid var(--border); padding: 10px 0; }
+    .filter-block:last-of-type { border-bottom: none; }
+    #filterContainer .filter-row { border-bottom: none; padding: 0; }
+    .filter-join-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      padding: 6px 0 10px 4px;
+      font-size: .8125rem;
+      color: var(--txt-mid);
+    }
+    .filter-join-row label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 500; color: var(--txt); }
+    .filter-value-wrap { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .filter-value-typeahead-wrap { position: relative; display: inline-block; min-width: 180px; flex: 1; max-width: min(100%, 420px); }
+    .filter-typeahead-list {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: calc(100% + 4px);
+      margin: 0;
+      padding: 4px 0;
+      max-height: 240px;
+      overflow-y: auto;
+      z-index: 100;
+      list-style: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      box-shadow: 0 10px 28px rgba(28, 31, 74, .12);
+    }
+    html.dark-mode .filter-typeahead-list { box-shadow: 0 10px 28px rgba(0, 0, 0, .4); }
+    .filter-typeahead-item {
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: .8125rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      line-height: 1.25;
+    }
+    .filter-typeahead-item:hover,
+    .filter-typeahead-item.active {
+      background: var(--brand-faint);
+    }
+    .filter-typeahead-token { font-family: ui-monospace, monospace; font-weight: 600; color: var(--txt); font-size: .8rem; word-break: break-all; }
+    .filter-typeahead-hint { font-size: .72rem; color: var(--txt-soft); }
+    .filter-row input[type="text"],
+    .filter-row .filter-value-bool { min-width: 160px; }
     .filter-op { min-width: 120px; }
     .group-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
     .group-row select { min-width: 200px; }
@@ -562,18 +650,33 @@
   <div class="container">
     <div class="card" id="contextCard">
       <p class="status loading" id="contextStatus">Loading context…</p>
-      <div id="contextLines" class="context-card-row">
-        <h2 id="contextListName">—</h2>
-        <div class="context-ids">
-          <div class="context-id-wrap">
-            <strong>List ID:</strong>
-            <code id="contextListIdDisplay">—</code>
-            <button type="button" class="secondary" id="btnCopyListId" title="Copy full List ID">Copy</button>
+      <div id="contextLines" class="context-lines-stack">
+        <div class="context-card-row">
+          <div class="context-list-heading">
+            <span class="context-list-kind hide" id="contextListKind"></span>
+            <h2 id="contextListName">—</h2>
           </div>
-          <div class="context-id-wrap hide" id="contextViewIdWrap">
-            <strong>View ID:</strong>
-            <code id="contextViewIdDisplay">—</code>
-            <button type="button" class="secondary" id="btnCopyViewId" title="Copy View ID">Copy</button>
+          <div class="context-ids">
+            <div class="context-id-wrap">
+              <strong>List ID:</strong>
+              <code id="contextListIdDisplay">—</code>
+              <button type="button" class="secondary" id="btnCopyListId" title="Copy full List ID">Copy</button>
+            </div>
+            <div class="context-id-wrap hide" id="contextViewIdWrap">
+              <strong>View ID:</strong>
+              <code id="contextViewIdDisplay">—</code>
+              <button type="button" class="secondary" id="btnCopyViewId" title="Copy View ID">Copy</button>
+            </div>
+          </div>
+        </div>
+        <div class="content-types-section hide" id="contentTypesSection">
+          <h3 class="content-types-heading">Content types</h3>
+          <p class="content-types-hint" id="contentTypesStatus"></p>
+          <div class="content-types-scroll">
+            <table class="content-types-table" id="contentTypesTable" aria-label="List content types">
+              <thead><tr><th>Name</th><th>Parent</th><th>Content Type ID</th></tr></thead>
+              <tbody id="contentTypesBody"></tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -636,7 +739,7 @@
           </div>
 
           <h3>Filter</h3>
-          <p class="empty-hint">All conditions are combined with AND. Leave value blank to skip that condition.</p>
+          <p class="empty-hint">Combine conditions with <strong>And</strong> / <strong>Or</strong> between rows (left to right). Leave value blank to skip a row. <strong>Value</strong> type-ahead for <code>[Today]</code> / offsets appears on <strong>Date</strong> columns only; <code>[Me]</code> on <strong>Person</strong> columns only.</p>
           <div id="filterContainer"></div>
           <div class="section-add-wrap">
             <button type="button" class="link" id="btnAddFilter">+ Add filter condition</button>
@@ -666,6 +769,7 @@
     </div>
   </div>
   <script src="sharepoint-facts.js"></script>
+  <script src="filterTypeaheadLogic.js"></script>
   <script src="views.js"></script>
 </body>
 </html>

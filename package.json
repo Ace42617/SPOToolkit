@@ -1,0 +1,12 @@
+{
+  "name": "spotoolkit",
+  "private": true,
+  "description": "SP Developer Toolkit — extension; run npm test before changing View Manager REST logic",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/**/*.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

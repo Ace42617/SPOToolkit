@@ -2,10 +2,8 @@
 
 const PROGRESS_BOX_ID = "sp-csv-export-progress";
 const SCRIPT_TIMEOUT = 15000;
-/** JSON script node read by getViewsData.js (page context). */
 const SP_VIEWS_PARAMS_SCRIPT_ID = "sp-views-params";
 
-/** Injects/replaces #sp-views-params for View Manager REST (listId, optional viewId, webAbsoluteUrl). */
 function attachSpViewsParamsScript(message) {
   const payload = {
     viewId: message.viewId || null,
@@ -74,7 +72,7 @@ function finishProgress(success, message, stopReason) {
   if (msgEl) msgEl.textContent = message || (success ? "Done!" : "Error.");
   const hasEarlyStop = stopReason && /no View ID|returned 0 rows/.test(stopReason);
   const displayMs = (success && stopReason) ? 15000 : (success ? 3500 : 10000);
-  if (hasEarlyStop) alert("SharePoint CSV Export: " + stopReason);
+  if (hasEarlyStop) alert("SP Developer Toolkit Lite: " + stopReason);
   setTimeout(() => {
     const e = document.getElementById(PROGRESS_BOX_ID);
     if (e && e.parentNode) e.parentNode.removeChild(e);
@@ -156,18 +154,11 @@ const LISTS_LAUNCHER_CSS =
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light{background:#fff;color:#1C1F4A;border:1px solid #E4E6F5;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-lists-panel-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.12);flex-shrink:0;transition:border-color .2s;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-lists-panel-header{border-bottom-color:#E4E6F5;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-header-left{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;flex:1;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-header-tenant-line{font-size:11px;opacity:.7;color:inherit;margin-top:0;line-height:1.3;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-header-left{display:flex;align-items:center;gap:0;min-width:0;flex:1;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-header-tabs{display:flex;align-items:center;gap:2px;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-header-tab{padding:4px 10px;font-size:12px;font-weight:500;border-radius:6px;background:transparent;border:none;color:rgba(255,255,255,.6);cursor:pointer;font-family:inherit;transition:background .15s,color .15s;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-header-tab.sp-toolkit-header-tab-label{color:rgba(255,255,255,.9);cursor:default;pointer-events:none;font-size:14px;padding-left:0;text-align:left;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-header-tab.sp-toolkit-header-tab-label .sp-toolkit-label-site-name{font-weight:700;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-header-tab.sp-toolkit-header-tab-label.active{background:transparent;color:rgba(255,255,255,.9);}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-header-tab{color:#5A5F8A;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-header-tab.sp-toolkit-header-tab-label{color:#1C1F4A;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-header-tab.sp-toolkit-header-tab-label.active{background:transparent;color:#1C1F4A;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-header-tab:hover{color:inherit;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-header-tab.sp-toolkit-header-tab-label:hover{color:inherit;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-header-tab.active{background:rgba(55,174,28,.2);color:#86efac;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-header-tab.active{background:#EEF0FE;color:#37ae1c;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-subsites-view{display:none;overflow-y:auto;flex:1;min-height:0;padding:12px;}" +
@@ -196,26 +187,16 @@ const LISTS_LAUNCHER_CSS =
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-contents-table .sp-toolkit-row-icon{color:rgba(255,255,255,.88)!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-contents-table .sp-toolkit-row-settings a{color:rgba(255,255,255,.85)!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-contents-table .sp-toolkit-row-view-manager{color:rgba(255,255,255,.85)!important;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-header-tab-label," +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-header-tab-label .sp-toolkit-label-site-name{color:rgba(255,255,255,.92)!important;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-header-tenant-line{color:rgba(255,255,255,.75)!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th{text-align:left;padding:8px 10px;font-weight:600;border-bottom:1px solid rgba(255,255,255,.12);color:inherit;white-space:nowrap;cursor:pointer;user-select:none;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th:first-child," + "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table td:first-child{padding-left:12px;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th:hover{opacity:.9;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th .sp-toolkit-sort-icon{opacity:.6;margin-left:4px;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table th{border-bottom-color:#E4E6F5;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-filter-row th{padding:4px 8px;vertical-align:middle;cursor:default;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-filter-row th:hover{opacity:1;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-filter-row input," +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-filter-row select{width:100%;max-width:140px;padding:6px 8px;font-size:12px;border-radius:6px;border:1px solid rgba(255,255,255,.15);background:#252a30;color:rgba(255,255,255,.95);font-family:inherit;cursor:pointer;appearance:auto;-webkit-appearance:menulist;-moz-appearance:menulist;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-filter-row input{background:#252a30;color:rgba(255,255,255,.95);cursor:text;appearance:none;-webkit-appearance:none;-moz-appearance:none;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-filter-row select:hover{border-color:rgba(255,255,255,.25);}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-filter-row select:focus{outline:none;border-color:rgba(55,174,28,.5);box-shadow:0 0 0 2px rgba(55,174,28,.15);}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-filter-row select{width:100%;max-width:140px;padding:4px 8px;font-size:11px;border-radius:4px;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.2);color:inherit;font-family:inherit;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-filter-row input," +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-filter-row select{background:#f5f6ff;border-color:#E4E6F5;color:#1C1F4A;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-filter-row input{background:#fff;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-filter-row select:hover{border-color:#CDD0EE;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-filter-row select:focus{border-color:#37ae1c;box-shadow:0 0 0 2px rgba(55,174,28,.2);}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-filter-row select{background:#f5f6ff;border-color:#E4E6F5;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:middle;white-space:nowrap;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table td{border-bottom-color:#E4E6F5;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-name{display:flex;align-items:center;gap:8px;}" +
@@ -224,20 +205,12 @@ const LISTS_LAUNCHER_CSS =
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-contents-table .sp-toolkit-row-name a:hover{color:#86efac;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-row-name a:hover{color:#37ae1c;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table tr.sp-toolkit-current .sp-toolkit-row-name a{font-weight:600;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table tr.sp-toolkit-current td:first-child{border-left:3px solid #37ae1c;padding-left:9px;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table tr.sp-toolkit-current td:first-child{border-left:3px solid #37ae1c;padding-left:7px;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table td:nth-child(2){color:inherit;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-type-pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-type-pill{background:rgba(55,174,28,.25);color:#86efac;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-type-pill{background:#EEF0FE;color:#5A5F8A;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table td:nth-child(3),#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table td:nth-child(4){text-align:center;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-settings{display:flex;align-items:center;justify-content:center;gap:2px;min-width:56px;text-align:center;vertical-align:middle;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-settings a{display:inline-flex;align-items:center;justify-content:center;color:inherit;opacity:.7;padding:4px;border-radius:4px;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-settings a:hover{opacity:1;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-settings svg{width:18px;height:18px;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-view-manager{display:inline-flex;align-items:center;justify-content:center;color:inherit;opacity:.7;padding:4px;margin:0;border:none;background:transparent;cursor:pointer;border-radius:4px;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-view-manager:hover{opacity:1;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-view-manager svg{width:18px;height:18px;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th[data-column=\"settings\"]{cursor:default;min-width:56px;width:64px;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-name a:hover{text-decoration:underline;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-lists-loading,.sp-toolkit-lists-error{padding:14px;font-size:13px;color:#9ca3bf;transition:color .2s;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-lists-loading,.sp-toolkit-lists-panel-light .sp-toolkit-lists-error{color:#5A5F8A;}" +
@@ -357,14 +330,14 @@ function toggleListsLauncher() {
           a.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">" + svgPath + "</svg>";
           iconsEl.appendChild(a);
         };
-        if (!onSiteContentsPage) addIcon(siteUrl + "/_layouts/15/viewlsts.aspx", "Site contents", "<rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/>");
+        if (!onSiteContentsPage) addIcon(siteUrl + "/_layouts/15/viewlsts.aspx", "Site contents", "<line x1=\"4\" y1=\"6\" x2=\"20\" y2=\"6\"/><line x1=\"4\" y1=\"12\" x2=\"20\" y2=\"12\"/><line x1=\"4\" y1=\"18\" x2=\"20\" y2=\"18\"/>");
         addIcon(siteUrl + "/_layouts/15/settings.aspx", "Site settings", "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z\"/>");
         const currentListId = ev.data.currentListId && String(ev.data.currentListId).replace(/^\{|\}$/g, "").trim();
         if (currentListId) {
           const listGuid = "{" + currentListId.toUpperCase() + "}";
           addIcon(siteUrl + "/_layouts/15/listedit.aspx?List=" + encodeURIComponent(listGuid), "Current list/library settings", "<line x1=\"4\" y1=\"21\" x2=\"4\" y2=\"14\"/><line x1=\"4\" y1=\"10\" x2=\"4\" y2=\"3\"/><line x1=\"12\" y1=\"21\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"3\"/><line x1=\"20\" y1=\"21\" x2=\"20\" y2=\"16\"/><line x1=\"20\" y1=\"12\" x2=\"20\" y2=\"3\"/><line x1=\"1\" y1=\"14\" x2=\"7\" y2=\"14\"/><line x1=\"9\" y1=\"8\" x2=\"15\" y2=\"8\"/><line x1=\"17\" y1=\"16\" x2=\"23\" y2=\"16\"/>");
         }
-        addIcon(siteUrl + "/_layouts/15/RecycleBin.aspx", "Recycle bin", "<path d=\"M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z\"/><line x1=\"10\" y1=\"11\" x2=\"10\" y2=\"17\"/><line x1=\"14\" y1=\"11\" x2=\"14\" y2=\"17\"/>");
+        addIcon(siteUrl + "/_layouts/15/RecycleBin.aspx", "Recycle bin", "<polyline points=\"3 6 5 6 21 6\"/><path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"/><line x1=\"10\" y1=\"11\" x2=\"10\" y2=\"17\"/><line x1=\"14\" y1=\"11\" x2=\"14\" y2=\"17\"/>");
       }
       function formatModified(s) {
         if (!s) return "";
@@ -382,7 +355,15 @@ function toggleListsLauncher() {
       const thead = tableEl ? tableEl.querySelector("thead") : null;
       if (thead && tableEl) {
         thead.innerHTML = "";
-        const cols = [{ key: "name", label: "Name" }, { key: "type", label: "Type" }, { key: "items", label: "Items" }, { key: "modified", label: "Modified" }, { key: "settings", label: "" }];
+        const cols = [{ key: "name", label: "Name" }, { key: "type", label: "Type" }, { key: "items", label: "Items" }, { key: "modified", label: "Modified" }];
+        const headerRow = document.createElement("tr");
+        cols.forEach(function (c) {
+          const th = document.createElement("th");
+          th.setAttribute("data-column", c.key);
+          th.innerHTML = c.label + " <span class=\"sp-toolkit-sort-icon\" aria-hidden=\"true\">↕</span>";
+          headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
         const filterRow = document.createElement("tr");
         filterRow.className = "sp-toolkit-filter-row";
         const filterNameTh = document.createElement("th");
@@ -418,19 +399,10 @@ function toggleListsLauncher() {
         filterRow.appendChild(filterTypeTh);
         filterRow.appendChild(document.createElement("th"));
         filterRow.appendChild(document.createElement("th"));
-        filterRow.appendChild(document.createElement("th"));
         thead.appendChild(filterRow);
-        const headerRow = document.createElement("tr");
-        cols.forEach(function (c) {
-          const th = document.createElement("th");
-          th.setAttribute("data-column", c.key);
-          th.innerHTML = c.key === "settings" ? c.label : c.label + " <span class=\"sp-toolkit-sort-icon\" aria-hidden=\"true\">↕</span>";
-          headerRow.appendChild(th);
-        });
-        thead.appendChild(headerRow);
         panel._siteContentsLists = lists;
         panel._siteContentsCurrentPath = currentPath;
-        panel._siteContentsSort = { col: "type", dir: 1 };
+        panel._siteContentsSort = { col: null, dir: 1 };
         panel._siteContentsFilter = { name: "", type: "" };
         function renderRows() {
           if (!tbody) return;
@@ -481,41 +453,6 @@ function toggleListsLauncher() {
             const modCell = document.createElement("td");
             modCell.textContent = formatModified(item.modified);
             tr.appendChild(modCell);
-            const settingsCell = document.createElement("td");
-            settingsCell.className = "sp-toolkit-row-settings";
-            const listGuid = item.id != null ? ("{" + String(item.id).replace(/[{}]/g, "").trim().toUpperCase() + "}") : "";
-            if (listGuid && siteUrl) {
-              const guidNoBraces = String(item.id).replace(/[{}]/g, "").trim().toUpperCase();
-              const vmBtn = document.createElement("button");
-              vmBtn.type = "button";
-              vmBtn.className = "sp-toolkit-row-view-manager";
-              vmBtn.title = "View Manager for this list";
-              vmBtn.setAttribute("aria-label", "View Manager for " + (item.title || "list"));
-              vmBtn.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>";
-              vmBtn.addEventListener("click", function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                try {
-                  chrome.runtime.sendMessage({ type: "SPOToolkitOpenViewManager", listId: guidNoBraces, webUrl: siteUrl }, function (res) {
-                    if (chrome.runtime.lastError || (res && res.ok === false)) {
-                      console.warn("SPOToolkit: View Manager open failed", chrome.runtime.lastError || res);
-                    }
-                  });
-                } catch (err) {
-                  console.warn("SPOToolkit: View Manager open failed", err);
-                }
-              });
-              settingsCell.appendChild(vmBtn);
-              const settingsLink = document.createElement("a");
-              settingsLink.href = siteUrl + "/_layouts/15/listedit.aspx?List=" + encodeURIComponent(listGuid);
-              settingsLink.target = "_blank";
-              settingsLink.rel = "noopener";
-              settingsLink.title = "List settings";
-              settingsLink.setAttribute("aria-label", "Settings for " + (item.title || "list"));
-              settingsLink.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><line x1=\"4\" y1=\"21\" x2=\"4\" y2=\"14\"/><line x1=\"4\" y1=\"10\" x2=\"4\" y2=\"3\"/><line x1=\"12\" y1=\"21\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"3\"/><line x1=\"20\" y1=\"21\" x2=\"20\" y2=\"16\"/><line x1=\"20\" y1=\"12\" x2=\"20\" y2=\"3\"/><line x1=\"1\" y1=\"14\" x2=\"7\" y2=\"14\"/><line x1=\"9\" y1=\"8\" x2=\"15\" y2=\"8\"/><line x1=\"17\" y1=\"16\" x2=\"23\" y2=\"16\"/></svg>";
-              settingsCell.appendChild(settingsLink);
-            }
-            tr.appendChild(settingsCell);
             tbody.appendChild(tr);
           });
         }
@@ -524,7 +461,7 @@ function toggleListsLauncher() {
           headerRow.querySelectorAll("th[data-column]").forEach(function (th) {
             const key = th.getAttribute("data-column");
             const icon = th.querySelector(".sp-toolkit-sort-icon");
-            if (!icon || key === "settings") return;
+            if (!icon) return;
             if (sort.col !== key) { icon.textContent = "↕"; return; }
             icon.textContent = sort.dir === 1 ? "↑" : "↓";
           });
@@ -532,7 +469,6 @@ function toggleListsLauncher() {
         headerRow.querySelectorAll("th[data-column]").forEach(function (th) {
           th.addEventListener("click", function () {
             const key = th.getAttribute("data-column");
-            if (key === "settings") return;
             const sort = panel._siteContentsSort || { col: null, dir: 1 };
             if (sort.col === key) panel._siteContentsSort = { col: key, dir: -sort.dir };
             else panel._siteContentsSort = { col: key, dir: 1 };
@@ -548,46 +484,11 @@ function toggleListsLauncher() {
       const headerTabsEl = panel.querySelector(".sp-toolkit-header-tabs");
       const contentsWrapEl = panel.querySelector(".sp-toolkit-contents-wrap");
       const subsitesViewEl = panel.querySelector(".sp-toolkit-subsites-view");
-      function escapeHtml(str) {
-        const div = document.createElement("div");
-        div.textContent = str;
-        return div.innerHTML;
-      }
-      function siteContentsLabelHtml(tenantName, siteName, listTitle) {
-        const t = (tenantName || "").trim();
-        const s = (siteName || "").trim();
-        const list = (listTitle || "").trim();
-        if (s && list) return "<span class=\"sp-toolkit-label-site-name\">" + escapeHtml(s) + "</span>" + " | " + escapeHtml(list) + " | Contents";
-        if (s) return "<span class=\"sp-toolkit-label-site-name\">" + escapeHtml(s) + "</span>" + " | Contents";
-        if (t) return escapeHtml(t) + " | Site Contents";
-        return "Site Contents";
-      }
-      const labelHtml = siteContentsLabelHtml(ev.data.tenantName, ev.data.siteName, currentListTitle);
-      const tenantName = (ev.data.tenantName || "").trim();
-      const siteUrlForLabel = (siteUrl || ev.data.siteUrl || "").replace(/\/$/, "");
-      const tenantLineText = tenantName && siteUrlForLabel ? tenantName + " - " + siteUrlForLabel : tenantName || siteUrlForLabel || "";
-      const headerLeftEl = panel.querySelector(".sp-toolkit-header-left");
-      function applyTenantLine(container, text) {
-        if (!container) return;
-        const lines = container.querySelectorAll(".sp-toolkit-header-tenant-line");
-        const first = lines[0];
-        if (first) {
-          first.textContent = text;
-          first.style.display = text ? "" : "none";
-          for (let i = 1; i < lines.length; i++) lines[i].remove();
-        } else if (text) {
-          const el = document.createElement("div");
-          el.className = "sp-toolkit-header-tenant-line";
-          el.textContent = text;
-          el.setAttribute("aria-hidden", "true");
-          container.appendChild(el);
-        }
-      }
       if (headerTabsEl && !headerTabsEl.querySelector(".sp-toolkit-header-tab")) {
         const tabContents = document.createElement("button");
         tabContents.type = "button";
-        tabContents.className = "sp-toolkit-header-tab sp-toolkit-header-tab-label active";
-        tabContents.innerHTML = labelHtml;
+        tabContents.className = "sp-toolkit-header-tab active";
+        tabContents.textContent = "Site Contents";
         tabContents.addEventListener("click", function () {
           headerTabsEl.querySelectorAll(".sp-toolkit-header-tab").forEach(function (t) { t.classList.remove("active"); });
           tabContents.classList.add("active");
@@ -595,11 +496,6 @@ function toggleListsLauncher() {
           if (subsitesViewEl) subsitesViewEl.classList.remove("visible");
         });
         headerTabsEl.appendChild(tabContents);
-        applyTenantLine(headerLeftEl, tenantLineText);
-      } else {
-        const existingLabel = headerTabsEl && headerTabsEl.querySelector(".sp-toolkit-header-tab-label");
-        if (existingLabel) existingLabel.innerHTML = labelHtml;
-        applyTenantLine(headerLeftEl, tenantLineText);
       }
     };
     listsLauncherSubsitesListener = (ev) => {
@@ -615,7 +511,7 @@ function toggleListsLauncher() {
       if (!headerTabs.querySelector(".sp-toolkit-header-tab")) {
         const tabContents = document.createElement("button");
         tabContents.type = "button";
-        tabContents.className = "sp-toolkit-header-tab sp-toolkit-header-tab-label active";
+        tabContents.className = "sp-toolkit-header-tab active";
         tabContents.textContent = "Site Contents";
         tabContents.addEventListener("click", function () {
           headerTabs.querySelectorAll(".sp-toolkit-header-tab").forEach(function (t) { t.classList.remove("active"); });
@@ -891,35 +787,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message.action === "rest") {
     const method = (message.method || "GET").toUpperCase();
+    if (method !== "GET") {
+      sendResponse({ ok: false, error: "Lite: only GET is allowed. No PATCH, POST, or DELETE." });
+      return true;
+    }
     const path = message.path || "";
-    const body = message.body;
     (async () => {
       try {
-        let digest = null;
-        if (method === "POST" || method === "PATCH" || method === "DELETE") {
-          const apiIdx = path.indexOf("/_api/");
-          const sitePath = apiIdx >= 0 ? path.substring(0, apiIdx) || "/" : "/";
-          const contextUrl = location.origin + sitePath + "/_api/contextinfo";
-          const cr = await fetch(contextUrl, {
-            method: "POST",
-            credentials: "include",
-            headers: { Accept: "application/json;odata=nometadata" }
-          });
-          if (cr.ok) {
-            const cj = await cr.json();
-            digest = cj.FormDigestValue || null;
-          }
-        }
         const opts = {
-          method,
+          method: "GET",
           credentials: "include",
           headers: { Accept: "application/json;odata=nometadata" }
         };
-        if (digest) opts.headers["X-RequestDigest"] = digest;
-        if (body != null && method !== "GET") {
-          opts.headers["Content-Type"] = "application/json;odata=nometadata";
-          opts.body = typeof body === "string" ? body : JSON.stringify(body);
-        }
         const r = await fetch(location.origin + path, opts);
         const text = await r.text();
         let data = text;
@@ -953,37 +832,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       }),
       sendResponse,
       { timeoutMs: 6000, errorPayload: { isListPage: false, isLibrary: false } }
-    );
-    return true;
-  }
-
-  if (message.action === "getRefinableMappings") {
-    injectAndWait(
-      "getRefinableMappings.js",
-      "SPCSVRefinableMappingsResult",
-      (data) => ({
-        ok: !!data.ok,
-        error: data.error || null,
-        mappings: Array.isArray(data.mappings) ? data.mappings : [],
-        alias: data.alias != null ? data.alias : null
-      }),
-      sendResponse,
-      {
-        beforeInject() {
-          let el = document.getElementById("sp-refinable-params");
-          if (el) el.remove();
-          el = document.createElement("script");
-          el.id = "sp-refinable-params";
-          el.type = "application/json";
-          el.textContent = JSON.stringify({
-            siteUrl: message.siteUrl || "",
-            propertyName: message.propertyName || ""
-          });
-          (document.head || document.documentElement).appendChild(el);
-        },
-        timeoutMs: 15000,
-        errorPayload: { ok: false, error: "Timeout or load failed", mappings: [], alias: null }
-      }
     );
     return true;
   }

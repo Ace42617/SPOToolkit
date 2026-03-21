@@ -41,11 +41,17 @@ Chrome/Edge extension for SharePoint: export list or library data, run reports, 
 | `checkListPage.js` | Injected: detects list/library page |
 | `getFields.js` | Injected: list fields for column picker |
 | `getSearchSchema.js` | Injected: search schema columns |
-| `getViewsData.js` | Injected: views and view details |
+| `getViewsData.js` | Injected: views and view details (see `lib/viewsDataCore.mjs` + `npm test`) |
+| `lib/viewsDataCore.mjs` | View Manager REST logic (unit-tested; keep in sync with `getViewsData.js`) |
 | `saveView.js` | Injected: create/update list view |
 | `jszip*.js` | XLSX export (preload, library, restore) |
 
 See **OWSSVR-LISTS.md** for owssvr vs REST fallback behavior.
+
+## Development & tests
+
+- Install [Node.js](https://nodejs.org/) **18+**, then from the repo root run **`npm test`** (`node --test` over `test/**/*.mjs`).
+- View Manager REST behavior is implemented in **`lib/viewsDataCore.mjs`** (tested) and mirrored in the page-injected **`getViewsData.js`** (and **`SP-Developer-Toolkit-Lite/getViewsData.js`**). Change both when you change loading rules, OData paging, or URL resolution.
 
 ## License
 

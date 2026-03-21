@@ -1,6 +1,8 @@
 (function () {
   const params = new URLSearchParams(window.location.search);
   const tabId = params.get("tabId") ? parseInt(params.get("tabId"), 10) : null;
+  const forcedViewManagerListId = (params.get("listId") || "").replace(/[{}]/g, "").trim();
+  const forcedViewManagerWebUrl = (params.get("webUrl") || "").replace(/\/$/, "");
 
   // Sync dark/light mode and optional branding from extension storage (same as popup)
   if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
@@ -76,8 +78,11 @@
   }
 
   let sitePath = "";
+  /** Full web URL for REST (passed into getViewsData when list is opened off-list). */
+  let contextWebAbsoluteUrl = "";
   let listId = "";
   let listTitle = "";
+  let contentTypes = [];
   let views = [];
   let fields = [];
   let selectedViewId = null;
@@ -89,6 +94,23 @@
   let groupByColumn = "";
   let groupExpand = true;
 
+  const LIST_TYPE_LABELS = {
+    100: "List",
+    101: "Document library",
+    106: "Events list",
+    107: "Links list",
+    109: "Picture library",
+    110: "Survey",
+    119: "Page library",
+    171: "Issue tracking"
+  };
+  function listBaseTemplateLabel(bt) {
+    if (bt == null || bt === "") return "";
+    const n = typeof bt === "number" ? bt : parseInt(String(bt), 10);
+    if (isNaN(n)) return "";
+    return LIST_TYPE_LABELS[n] || "List";
+  }
+
   const FILTER_OPS = [
     { value: "Eq", label: "equals" },
     { value: "Neq", label: "not equals" },
@@ -99,6 +121,288 @@
     { value: "Contains", label: "contains" },
     { value: "BeginsWith", label: "begins with" }
   ];
+
+  function filterTypeaheadApi() {
+    return typeof window !== "undefined" && window.SPFilterTypeahead ? window.SPFilterTypeahead : null;
+  }
+
+  function filterTypeaheadKindsForField(internalName) {
+    const ta = filterTypeaheadApi();
+    if (!ta) return [];
+    const fd = fields.find(function (x) { return x.internalName === internalName; });
+    return ta.kindsFromTypeAsString(fd && fd.typeAsString);
+  }
+
+  /** Text before caret: open `[…` token or last whitespace-delimited word. */
+  function filterTypeaheadQuery(input) {
+    const v = input.value;
+    const start = input.selectionStart != null ? input.selectionStart : v.length;
+    const before = v.slice(0, start);
+    const bracketStart = before.lastIndexOf("[");
+    if (bracketStart >= 0 && before.indexOf("]", bracketStart) < 0) {
+      return before.slice(bracketStart);
+    }
+    const lastSeg = before.match(/[^\s]*$/);
+    return lastSeg ? lastSeg[0] : "";
+  }
+
+  function filterTypeaheadInsertAtCaret(input, token, rowIndex) {
+    const v = input.value;
+    const start = input.selectionStart != null ? input.selectionStart : v.length;
+    const before = v.slice(0, start);
+    const after = v.slice(start);
+    const bStart = before.lastIndexOf("[");
+    const partialBracket = bStart >= 0 && before.indexOf("]", bStart) < 0;
+    let nv;
+    let caret;
+    if (partialBracket) {
+      nv = v.slice(0, bStart) + token + after;
+      caret = bStart + token.length;
+    } else if (!v.trim()) {
+      nv = token;
+      caret = token.length;
+    } else {
+      const seg = before.match(/[^\s]*$/);
+      const segLen = seg ? seg[0].length : 0;
+      const replaceStart = before.length - segLen;
+      const prefix = v.slice(0, replaceStart);
+      const needsSpace = prefix.length > 0 && !/\s$/.test(prefix);
+      nv = prefix + (needsSpace ? " " : "") + token + after;
+      caret = prefix.length + (needsSpace ? 1 : 0) + token.length;
+    }
+    input.value = nv;
+    input.setSelectionRange(caret, caret);
+    filters[rowIndex].value = nv;
+  }
+
+  function attachFilterValueTypeahead(input, rowIndex) {
+    const wrap = input.parentElement;
+    const ta = filterTypeaheadApi();
+    if (!wrap || !ta) return;
+
+    const listEl = document.createElement("ul");
+    listEl.className = "filter-typeahead-list hide";
+    listEl.setAttribute("role", "listbox");
+    wrap.appendChild(listEl);
+
+    let activeIdx = -1;
+
+    function suggestionsForCurrentField() {
+      const kinds = filterTypeaheadKindsForField(filters[rowIndex].field);
+      const q = filterTypeaheadQuery(input);
+      const search = q === "" || q === "[" ? "" : q;
+      return ta.suggest(kinds, search);
+    }
+
+    function renderList() {
+      const items = suggestionsForCurrentField();
+      listEl.innerHTML = "";
+      if (items.length === 0) {
+        listEl.classList.add("hide");
+        return;
+      }
+      items.forEach(function (s) {
+        const li = document.createElement("li");
+        li.className = "filter-typeahead-item";
+        li.setAttribute("role", "option");
+        li.dataset.token = s.token;
+        const tokSpan = document.createElement("span");
+        tokSpan.className = "filter-typeahead-token";
+        tokSpan.textContent = s.token;
+        li.appendChild(tokSpan);
+        if (s.hint) {
+          const hintSpan = document.createElement("span");
+          hintSpan.className = "filter-typeahead-hint";
+          hintSpan.textContent = s.hint;
+          li.appendChild(hintSpan);
+        }
+        li.addEventListener("mousedown", function (e) {
+          e.preventDefault();
+          filterTypeaheadInsertAtCaret(input, s.token, rowIndex);
+          listEl.classList.add("hide");
+          input.focus();
+        });
+        listEl.appendChild(li);
+      });
+      listEl.classList.remove("hide");
+      activeIdx = -1;
+    }
+
+    function updateActive(lis) {
+      lis.forEach(function (li, j) { li.classList.toggle("active", j === activeIdx); });
+      if (activeIdx >= 0 && lis[activeIdx]) lis[activeIdx].scrollIntoView({ block: "nearest" });
+    }
+
+    input.addEventListener("input", function () {
+      filters[rowIndex].value = input.value;
+      renderList();
+    });
+    input.addEventListener("focus", function () { renderList(); });
+    input.addEventListener("blur", function () {
+      setTimeout(function () {
+        listEl.classList.add("hide");
+        activeIdx = -1;
+      }, 120);
+    });
+    input.addEventListener("keydown", function (e) {
+      if (listEl.classList.contains("hide")) return;
+      const lis = listEl.querySelectorAll(".filter-typeahead-item");
+      if (!lis.length) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        activeIdx = Math.min(activeIdx + 1, lis.length - 1);
+        updateActive(lis);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        activeIdx = Math.max(activeIdx - 1, 0);
+        updateActive(lis);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const idx = activeIdx >= 0 ? activeIdx : 0;
+        filterTypeaheadInsertAtCaret(input, lis[idx].dataset.token, rowIndex);
+        listEl.classList.add("hide");
+        input.focus();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        listEl.classList.add("hide");
+        activeIdx = -1;
+      }
+    });
+  }
+
+  function filterValuePlaceholderForField(internalName) {
+    const kinds = filterTypeaheadKindsForField(internalName);
+    if (kinds.indexOf("date") >= 0 && kinds.indexOf("person") >= 0) {
+      return "Date tokens or [Me]…";
+    }
+    if (kinds.indexOf("date") >= 0) {
+      return "Date or type [ for [Today]…";
+    }
+    if (kinds.indexOf("person") >= 0) {
+      return "User id or [Me]…";
+    }
+    return "Value";
+  }
+
+  /** Normalize: first row has no join; others default to And. */
+  function normalizeFilterJoins(arr) {
+    arr.forEach(function (f, idx) {
+      if (idx === 0) {
+        delete f.join;
+      } else {
+        const j = String(f.join || "").toLowerCase();
+        f.join = j === "or" ? "Or" : "And";
+      }
+    });
+  }
+
+  function matchBalancedOuter(s, tag) {
+    const openRe = new RegExp("^<" + tag + "\\s*>", "i");
+    const om = s.match(openRe);
+    if (!om) return null;
+    let i = om[0].length;
+    let depth = 1;
+    while (i < s.length && depth > 0) {
+      const rest = s.slice(i);
+      const no = rest.match(new RegExp("^<" + tag + "\\s*>", "i"));
+      const nc = rest.match(new RegExp("^</" + tag + "\\s*>", "i"));
+      if (nc && (!no || nc.index < no.index)) {
+        depth--;
+        i += nc[0].length;
+        if (depth === 0) return s.slice(0, i);
+        continue;
+      }
+      if (no) {
+        depth++;
+        i += no[0].length;
+        continue;
+      }
+      i++;
+    }
+    return null;
+  }
+
+  function takeFirstFilterSegment(s) {
+    s = s.trim();
+    const leafTags = ["Eq", "Neq", "Gt", "Geq", "Lt", "Leq", "Contains", "BeginsWith"];
+    for (let t = 0; t < leafTags.length; t++) {
+      const tag = leafTags[t];
+      const re = new RegExp("^<" + tag + "\\s*>[\\s\\S]*?</" + tag + "\\s*>", "i");
+      const m = s.match(re);
+      if (m) return [m[0], s.slice(m[0].length).trim()];
+    }
+    const tries = ["And", "Or"];
+    for (let t = 0; t < tries.length; t++) {
+      const block = matchBalancedOuter(s, tries[t]);
+      if (block) return [block, s.slice(block.length).trim()];
+    }
+    return null;
+  }
+
+  function takeAllFilterSegments(body) {
+    const segs = [];
+    let rest = body.trim();
+    while (rest.length) {
+      const seg = takeFirstFilterSegment(rest);
+      if (!seg) return null;
+      segs.push(seg[0].trim());
+      rest = seg[1].trim();
+    }
+    return segs.length ? segs : null;
+  }
+
+  function parseLeafCondString(s) {
+    const norm = s.replace(/\s+/g, " ").trim();
+    const re = /^<(Eq|Neq|Gt|Geq|Lt|Leq|Contains|BeginsWith)\s*>\s*<FieldRef\s+Name="([^"]+)"\s*\/>\s*<Value\s+Type="([^"]*)">([^<]*)<\/Value>\s*<\/\1\s*>$/i;
+    const m = norm.match(re);
+    if (!m) return null;
+    const v = (m[4] || "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+    return { type: "leaf", field: m[2], op: m[1], value: v };
+  }
+
+  function parseWhereExpr(inner) {
+    inner = inner.trim();
+    const leaf = parseLeafCondString(inner);
+    if (leaf) return leaf;
+    const tries = ["And", "Or"];
+    for (let ti = 0; ti < tries.length; ti++) {
+      const tag = tries[ti];
+      const full = matchBalancedOuter(inner, tag);
+      if (!full || full.length !== inner.length) continue;
+      const openM = inner.match(new RegExp("^<" + tag + "\\s*>", "i"));
+      const body = inner.slice(openM[0].length, inner.length - ("</" + tag + ">").length).trim();
+      const segs = takeAllFilterSegments(body);
+      if (!segs || segs.length === 0) return null;
+      const nodes = segs.map(function (seg) { return parseWhereExpr(seg); });
+      if (nodes.some(function (n) { return !n; })) return null;
+      let acc = nodes[0];
+      for (let k = 1; k < nodes.length; k++) {
+        acc = { type: "bin", op: tag, left: acc, right: nodes[k] };
+      }
+      return acc;
+    }
+    return null;
+  }
+
+  function binTreeToFilterRows(node) {
+    if (node.type === "leaf") {
+      return [{ field: node.field, op: node.op, value: node.value }];
+    }
+    const L = binTreeToFilterRows(node.left);
+    const R = binTreeToFilterRows(node.right);
+    if (R.length === 0) return L;
+    R[0].join = node.op;
+    return L.concat(R);
+  }
+
+  function parseViewQueryToFilterRows(viewQuery) {
+    if (!viewQuery || typeof viewQuery !== "string") return null;
+    const wm = viewQuery.replace(/\s+/g, " ").match(/<Where>\s*([\s\S]*?)\s*<\/Where>/i);
+    if (!wm) return null;
+    const tree = parseWhereExpr(wm[1].trim());
+    if (!tree) return null;
+    return binTreeToFilterRows(tree);
+  }
 
   function escapeHtml(s) {
     const div = document.createElement("div");
@@ -175,10 +479,11 @@
     }
   }
 
-  function showContext(webAbsoluteUrl, listUrl, listIdVal, listTitleVal) {
+  function showContext(webAbsoluteUrl, listUrl, listIdVal, listTitleVal, listKindLabel) {
     listId = listIdVal || "";
     listTitle = listTitleVal || "";
     if (webAbsoluteUrl) {
+      contextWebAbsoluteUrl = String(webAbsoluteUrl).replace(/\/$/, "");
       try {
         const u = new URL(webAbsoluteUrl);
         sitePath = u.pathname.replace(/\/$/, "") || "/";
@@ -187,8 +492,15 @@
       }
     }
     const nameEl = document.getElementById("contextListName");
+    const kindEl = document.getElementById("contextListKind");
     const idEl = document.getElementById("contextListIdDisplay");
     const linesEl = document.getElementById("contextLines");
+    const label = listKindLabel != null ? String(listKindLabel).trim() : "";
+    if (kindEl) {
+      kindEl.textContent = label;
+      kindEl.classList.toggle("hide", !label);
+      kindEl.setAttribute("aria-hidden", label ? "false" : "true");
+    }
     if (nameEl) nameEl.textContent = listTitle || "—";
     if (idEl) idEl.textContent = listId || "—";
     if (linesEl) linesEl.classList.add("visible");
@@ -291,6 +603,38 @@
     }
     showContextStatus("Loading context…", false);
     try {
+      if (forcedViewManagerListId) {
+        let webUrl = forcedViewManagerWebUrl;
+        if (!webUrl) {
+          const pc = await sendToTab({ action: "getPageContext" });
+          webUrl = (pc && (pc.webAbsoluteUrl || pc.siteAbsoluteUrl) || "").replace(/\/$/, "");
+        }
+        if (!webUrl) {
+          showContextStatus("Could not determine site URL.", true);
+          document.getElementById("noListCard").classList.remove("hide");
+          return false;
+        }
+        try {
+          const u = new URL(webUrl);
+          sitePath = u.pathname.replace(/\/$/, "") || "/";
+        } catch (_) {
+          sitePath = "/";
+        }
+        const titlePath =
+          sitePath + "/_api/web/lists(guid'" + forcedViewManagerListId.replace(/'/g, "''") + "')?$select=Title,BaseTemplate";
+        const titleRes = await rest("GET", titlePath);
+        let title = "";
+        let baseTemplate = null;
+        if (titleRes && titleRes.ok && titleRes.data) {
+          const t = titleRes.data.Title || titleRes.data.title;
+          if (t != null) title = String(t);
+          if (titleRes.data.BaseTemplate != null) baseTemplate = titleRes.data.BaseTemplate;
+        }
+        showContext(webUrl, "", forcedViewManagerListId, title, listBaseTemplateLabel(baseTemplate));
+        document.getElementById("noListCard").classList.add("hide");
+        showContextStatus(null);
+        return true;
+      }
       const res = await sendToTab({ action: "getPageContext" });
       if (!res || !res.ok) {
         showContextStatus(res && res.error ? res.error : "Could not get page context.", true);
@@ -311,7 +655,7 @@
         sitePath = "/";
       }
       if (!listUrl) {
-        showContext(webUrl, "", "", "");
+        showContext(webUrl, "", "", "", "");
         showContextStatus("Not on a list or library. Open a list view and try again.", true);
         document.getElementById("noListCard").classList.remove("hide");
         return false;
@@ -319,20 +663,22 @@
       const apiPath = sitePath + "/_api/web/GetList(@a)/Id?@a='" + encodeURIComponent(listUrl.replace(/'/g, "''")) + "'";
       const idRes = await rest("GET", apiPath);
       if (!idRes || !idRes.ok) {
-        showContext(webUrl, listUrl, "", "");
+        showContext(webUrl, listUrl, "", "", "");
         showContextStatus(idRes && idRes.error ? String(idRes.error) : "Could not resolve list ID.", true);
         return false;
       }
       let lid = (idRes.data && (idRes.data.value !== undefined ? idRes.data.value : (idRes.data.d && idRes.data.d.Id) || idRes.data.Id)) || "";
       if (lid && typeof lid === "string") lid = lid.replace(/[{}]/g, "").trim();
-      const titlePath = sitePath + "/_api/web/lists(guid'" + lid + "')?$select=Title";
+      const titlePath = sitePath + "/_api/web/lists(guid'" + lid + "')?$select=Title,BaseTemplate";
       const titleRes = await rest("GET", titlePath);
       let title = "";
+      let baseTemplate = null;
       if (titleRes && titleRes.ok && titleRes.data) {
         const t = titleRes.data.Title || titleRes.data.title;
         if (t != null) title = String(t);
+        if (titleRes.data.BaseTemplate != null) baseTemplate = titleRes.data.BaseTemplate;
       }
-      showContext(webUrl, listUrl, lid, title);
+      showContext(webUrl, listUrl, lid, title, listBaseTemplateLabel(baseTemplate));
       document.getElementById("noListCard").classList.add("hide");
       return true;
     } catch (e) {
@@ -342,10 +688,227 @@
     }
   }
 
+  /**
+   * Content type IDs are hierarchical (parent ID + suffix). Longer prefixes first so
+   * 0x0120D5 (Document Set) wins over 0x0120 (Folder). See MS Learn “Content type IDs”.
+   */
+  const CT_PARENT_PREFIXES = [
+    ["0x0120D5", "Document Set"],
+    ["0x0120", "Folder"],
+    ["0x0110", "Form"],
+    ["0x0107", "Task"],
+    ["0x0106", "Link"],
+    ["0x0105", "Message"],
+    ["0x0104", "Discussion"],
+    ["0x0102", "Event"],
+    ["0x0101", "Document"],
+    ["0x01", "Item"]
+  ];
+
+  /** Gallery parent for a built-in when the list CT has the same display name as that type. */
+  const CT_BUILTIN_GALLERY_PARENT = {
+    item: "",
+    document: "Item",
+    folder: "Item",
+    "document set": "Folder",
+    event: "Item",
+    task: "Item",
+    link: "Item",
+    message: "Item",
+    discussion: "Item",
+    form: "Item"
+  };
+
+  function normalizeContentTypeId(id) {
+    return String(id || "")
+      .replace(/\s/g, "")
+      .replace(/[{}]/g, "")
+      .toUpperCase();
+  }
+
+  function inferImmediateParentFromContentTypeId(stringId) {
+    const s = String(stringId || "").replace(/\s/g, "");
+    if (!s) return "";
+    const u = s.toUpperCase();
+    if (u === "0X0101") return "Item";
+    if (u === "0X0120") return "Item";
+    if (u === "0X0120D5") return "Folder";
+    for (let i = 0; i < CT_PARENT_PREFIXES.length; i++) {
+      const p = CT_PARENT_PREFIXES[i][0].toUpperCase();
+      if (u.length > p.length && u.indexOf(p) === 0) {
+        return CT_PARENT_PREFIXES[i][1];
+      }
+    }
+    return "";
+  }
+
+  /** Parent label for UI: ID inference + fix list CTs named like their parent type. */
+  function resolveParentContentTypeLabel(stringId, contentTypeName) {
+    const immediate = inferImmediateParentFromContentTypeId(stringId);
+    if (!immediate) return "";
+    const n = (contentTypeName || "").trim().toLowerCase();
+    const key = immediate.trim().toLowerCase();
+    if (n && n === key) {
+      const gallery = CT_BUILTIN_GALLERY_PARENT[n];
+      return gallery !== undefined && gallery !== "" ? gallery : immediate;
+    }
+    return immediate;
+  }
+
+  async function loadContentTypes() {
+    const section = document.getElementById("contentTypesSection");
+    const tbody = document.getElementById("contentTypesBody");
+    const statusEl = document.getElementById("contentTypesStatus");
+    if (!section || !tbody) return;
+    if (!listId) {
+      section.classList.add("hide");
+      tbody.innerHTML = "";
+      contentTypes = [];
+      return;
+    }
+    section.classList.remove("hide");
+    tbody.innerHTML = "";
+    contentTypes = [];
+    if (statusEl) {
+      statusEl.textContent = "Loading content types…";
+      statusEl.className = "content-types-hint loading";
+    }
+    try {
+      const listCtBase =
+        sitePath + "/_api/web/lists(guid'" + listId.replace(/'/g, "''") + "')/ContentTypes";
+      const withParent =
+        listCtBase +
+        "?$select=Name,StringId,Id,Hidden,Group,Parent/Name,Parent/StringId&$expand=Parent&$orderby=Name";
+      let res = await rest("GET", withParent);
+      if (!res || !res.ok) {
+        res = await rest(
+          "GET",
+          listCtBase + "?$select=Name,StringId,Id,Hidden,Group&$orderby=Name"
+        );
+      }
+      if (!res || !res.ok) {
+        if (statusEl) {
+          statusEl.textContent = res && res.error ? String(res.error) : "Could not load content types.";
+          statusEl.className = "content-types-hint error";
+        }
+        return;
+      }
+      const raw = res.data && (res.data.value != null ? res.data.value : res.data.d && res.data.d.results) || [];
+      const arr = Array.isArray(raw) ? raw : [];
+      const seen = new Set();
+      contentTypes = [];
+      for (let i = 0; i < arr.length; i++) {
+        const c = arr[i];
+        const name = (c.Name != null ? String(c.Name) : c.name != null ? String(c.name) : "").trim();
+        let sid = "";
+        if (c.StringId != null) sid = String(c.StringId).trim();
+        else if (c.stringId != null) sid = String(c.stringId).trim();
+        else if (c.Id != null) sid = String(c.Id).trim();
+        const key = (sid || name).toLowerCase();
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        const hidden = !!(c.Hidden || c.hidden);
+        let parentName = "";
+        let parentSid = "";
+        const par = c.Parent;
+        if (par && typeof par === "object" && !par.__deferred) {
+          parentName = (par.Name != null ? String(par.Name) : par.name != null ? String(par.name) : "").trim();
+          if (par.StringId != null) parentSid = String(par.StringId).trim();
+          else if (par.stringId != null) parentSid = String(par.stringId).trim();
+          else if (par.Id != null) parentSid = String(par.Id).trim();
+        }
+        const sidNorm = sid ? normalizeContentTypeId(sid) : "";
+        const parSidNorm = parentSid ? normalizeContentTypeId(parentSid) : "";
+        const apiParentSameAsSelf =
+          (parentName && name && parentName.toLowerCase() === name.toLowerCase()) ||
+          (sidNorm && parSidNorm && parSidNorm === sidNorm);
+        if (apiParentSameAsSelf) {
+          parentName = "";
+          parentSid = "";
+        }
+        if (!parentName && sid && sid !== "—") {
+          parentName = resolveParentContentTypeLabel(sid, name);
+        }
+        contentTypes.push({
+          name: name || "—",
+          stringId: sid || "—",
+          hidden: hidden,
+          parentName: parentName,
+          parentStringId: parentSid
+        });
+      }
+      tbody.innerHTML = "";
+      contentTypes.forEach(function (ct) {
+        const tr = document.createElement("tr");
+        const tdName = document.createElement("td");
+        tdName.textContent = ct.hidden ? ct.name + " (hidden)" : ct.name;
+        const tdParent = document.createElement("td");
+        tdParent.className = "ct-parent-cell";
+        if (ct.parentName) {
+          tdParent.textContent = ct.parentName;
+          if (ct.parentStringId) {
+            tdParent.title = "Parent ID: " + ct.parentStringId;
+          }
+        } else {
+          tdParent.textContent = "—";
+          tdParent.classList.add("ct-parent-unknown");
+        }
+        const tdId = document.createElement("td");
+        const wrap = document.createElement("div");
+        wrap.className = "ct-id-wrap";
+        const code = document.createElement("code");
+        code.className = "ct-id-cell";
+        code.textContent = ct.stringId;
+        wrap.appendChild(code);
+        const copyBtn = document.createElement("button");
+        copyBtn.type = "button";
+        copyBtn.className = "secondary ct-copy-btn";
+        copyBtn.textContent = "Copy";
+        copyBtn.title = "Copy content type ID";
+        copyBtn.setAttribute("aria-label", "Copy content type ID for " + (ct.name || "type"));
+        const idToCopy = ct.stringId && ct.stringId !== "—" ? ct.stringId : "";
+        copyBtn.disabled = !idToCopy;
+        copyBtn.addEventListener("click", function () {
+          if (!idToCopy) return;
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(idToCopy).then(function () {
+              copyBtn.textContent = "Copied!";
+              setTimeout(function () { copyBtn.textContent = "Copy"; }, 1200);
+            });
+          }
+        });
+        wrap.appendChild(copyBtn);
+        tdId.appendChild(wrap);
+        tr.appendChild(tdName);
+        tr.appendChild(tdParent);
+        tr.appendChild(tdId);
+        tbody.appendChild(tr);
+      });
+      if (statusEl) {
+        statusEl.textContent =
+          contentTypes.length + " content type" + (contentTypes.length !== 1 ? "s" : "") + " on this list/library.";
+        statusEl.className = "content-types-hint";
+      }
+    } catch (e) {
+      if (statusEl) {
+        statusEl.textContent = e && e.message ? e.message : "Failed to load content types.";
+        statusEl.className = "content-types-hint error";
+      }
+    }
+  }
+
+  async function loadListEditorData() {
+    await Promise.all([loadViewsAndFields(), loadContentTypes()]);
+  }
+
   async function loadViewsAndFields() {
     if (!listId) return;
     try {
-      const res = await sendToTab({ action: "getViewsData" });
+      const res = await sendToTab({
+        action: "getViewsData",
+        listId: forcedViewManagerListId || undefined,
+        webAbsoluteUrl: contextWebAbsoluteUrl || undefined
+      });
       if (!res || res.error) {
         showSaveStatus(res && res.error ? res.error : "Failed to load views and columns.", true);
         return;
@@ -367,7 +930,12 @@
   async function loadViewDetails(viewId) {
     if (!viewId) return;
     try {
-      const res = await sendToTab({ action: "getViewsData", viewId: viewId });
+      const res = await sendToTab({
+        action: "getViewsData",
+        viewId: viewId,
+        listId: forcedViewManagerListId || undefined,
+        webAbsoluteUrl: contextWebAbsoluteUrl || undefined
+      });
       if (!res || res.error || !res.viewDetails) {
         showSaveStatus(res && res.error ? res.error : "Failed to load view details.", true);
         return;
@@ -380,9 +948,25 @@
       columnOrder = viewFields.slice();
       otherFields.forEach(function (f) { columnOrder.push(f.internalName); });
       sortLevels = viewDetails.orderBy ? [{ field: viewDetails.orderBy.field, ascending: viewDetails.orderBy.ascending }] : [];
-      filters = (viewDetails.filters || []).map(function (f) {
-        return { field: f.field, op: f.op, value: f.value || "" };
-      });
+      const parsedFq = parseViewQueryToFilterRows(viewDetails.viewQuery || "");
+      if (parsedFq && parsedFq.length) {
+        filters = parsedFq.map(function (row) {
+          let val = row.value || "";
+          if (isBooleanFieldName(row.field)) val = booleanFilterRawToDisplay(val);
+          const o = { field: row.field, op: row.op, value: val };
+          if (row.join) o.join = row.join;
+          return o;
+        });
+      } else {
+        filters = (viewDetails.filters || []).map(function (f, idx) {
+          let val = f.value || "";
+          if (isBooleanFieldName(f.field)) val = booleanFilterRawToDisplay(val);
+          const o = { field: f.field, op: f.op, value: val };
+          if (idx > 0) o.join = "And";
+          return o;
+        });
+      }
+      normalizeFilterJoins(filters);
       groupByColumn = viewDetails.groupBy || "";
       groupExpand = true;
       document.getElementById("viewName").value = viewDetails.viewTitle || "";
@@ -626,7 +1210,34 @@
   function renderFilterConditions() {
     const container = document.getElementById("filterContainer");
     container.innerHTML = "";
+    normalizeFilterJoins(filters);
     filters.forEach(function (f, i) {
+      const block = document.createElement("div");
+      block.className = "filter-block";
+      if (i > 0) {
+        const joinRow = document.createElement("div");
+        joinRow.className = "filter-join-row";
+        const legend = document.createElement("span");
+        legend.textContent = "Match previous row with:";
+        joinRow.appendChild(legend);
+        ["And", "Or"].forEach(function (opName) {
+          const id = "filterJoin_" + i + "_" + opName;
+          const label = document.createElement("label");
+          const radio = document.createElement("input");
+          radio.type = "radio";
+          radio.name = "filterJoinGroup_" + i;
+          radio.value = opName;
+          radio.id = id;
+          radio.checked = (f.join || "And") === opName;
+          radio.addEventListener("change", function () {
+            if (radio.checked) filters[i].join = opName;
+          });
+          label.appendChild(radio);
+          label.appendChild(document.createTextNode(" " + opName));
+          joinRow.appendChild(label);
+        });
+        block.appendChild(joinRow);
+      }
       const row = document.createElement("div");
       row.className = "filter-row";
       const fieldSel = document.createElement("select");
@@ -647,35 +1258,73 @@
         if (o.value === f.op) opt.selected = true;
         opSel.appendChild(opt);
       });
-      const valInput = document.createElement("input");
-      valInput.type = "text";
-      valInput.placeholder = "Value";
-      valInput.value = f.value || "";
+      const valueWrap = document.createElement("span");
+      valueWrap.className = "filter-value-wrap";
+      if (isBooleanFieldName(f.field)) {
+        const valSel = document.createElement("select");
+        valSel.className = "filter-value filter-value-bool";
+        [["", "—"], ["Yes", "Yes"], ["No", "No"]].forEach(function (pair) {
+          const opt = document.createElement("option");
+          opt.value = pair[0];
+          opt.textContent = pair[1];
+          valSel.appendChild(opt);
+        });
+        const cur = (f.value || "").trim();
+        valSel.value = cur === "Yes" || cur === "No" ? cur : "";
+        valSel.addEventListener("change", function () { filters[i].value = valSel.value; });
+        valueWrap.appendChild(valSel);
+      } else {
+        const valInput = document.createElement("input");
+        valInput.type = "text";
+        valInput.className = "filter-value";
+        valInput.autocomplete = "off";
+        valInput.spellcheck = false;
+        valInput.value = f.value || "";
+        valInput.placeholder = filterValuePlaceholderForField(f.field);
+        valueWrap.appendChild(valInput);
+        const kinds = filterTypeaheadKindsForField(f.field);
+        if (kinds.length > 0 && filterTypeaheadApi()) {
+          valueWrap.classList.add("filter-value-typeahead-wrap");
+          attachFilterValueTypeahead(valInput, i);
+        } else {
+          valInput.addEventListener("input", function () { filters[i].value = valInput.value; });
+        }
+      }
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "link";
       btn.textContent = "Remove";
       btn.addEventListener("click", function () {
         filters.splice(i, 1);
+        normalizeFilterJoins(filters);
         renderFilterConditions();
       });
       row.appendChild(fieldSel);
       row.appendChild(opSel);
-      row.appendChild(valInput);
+      row.appendChild(valueWrap);
       row.appendChild(btn);
-      container.appendChild(row);
-      fieldSel.addEventListener("change", function () { filters[i].field = fieldSel.value; });
+      block.appendChild(row);
+      container.appendChild(block);
+      fieldSel.addEventListener("change", function () {
+        filters[i].field = fieldSel.value;
+        if (isBooleanFieldName(fieldSel.value)) {
+          filters[i].value = coerceBooleanFilterStoredValue(filters[i].value || "");
+        }
+        renderFilterConditions();
+      });
       opSel.addEventListener("change", function () { filters[i].op = opSel.value; });
-      valInput.addEventListener("input", function () { filters[i].value = valInput.value; });
     });
   }
 
   document.getElementById("btnAddFilter").addEventListener("click", function () {
-    filters.push({
+    const row = {
       field: fields[0] ? fields[0].internalName : "",
       op: "Eq",
       value: ""
-    });
+    };
+    if (filters.length > 0) row.join = "And";
+    filters.push(row);
+    normalizeFilterJoins(filters);
     renderFilterConditions();
   });
 
@@ -699,27 +1348,83 @@
     groupExpand = document.getElementById("groupExpand").checked;
   });
 
+  function isBooleanFieldName(fieldInternalName) {
+    const fd = fields.find(function (f) { return f.internalName === fieldInternalName; });
+    const t = (fd && fd.typeAsString) ? String(fd.typeAsString) : "";
+    return /Boolean|YesNo/i.test(t);
+  }
+
+  /** Map CAML / API values to display Yes/No for Yes/No columns */
+  function booleanFilterRawToDisplay(raw) {
+    const s = String(raw == null ? "" : raw).trim();
+    if (s === "") return "";
+    const low = s.toLowerCase();
+    if (low === "0" || low === "false" || low === "no") return "No";
+    if (low === "1" || low === "true" || low === "yes") return "Yes";
+    return s;
+  }
+
+  /** When switching a row to a Yes/No field, keep only Yes/No/blank */
+  function coerceBooleanFilterStoredValue(v) {
+    const d = booleanFilterRawToDisplay(v);
+    if (d === "Yes" || d === "No" || d === "") return d;
+    return "";
+  }
+
+  /** CAML Yes/No uses Type=Integer with 0 or 1 */
+  function booleanFilterDisplayToCamlInteger(s) {
+    const t = String(s || "").trim().toLowerCase();
+    if (t === "yes" || t === "true" || t === "1") return "1";
+    if (t === "no" || t === "false" || t === "0") return "0";
+    return null;
+  }
+
   function getValueTypeForField(fieldInternalName) {
     const fd = fields.find(function (f) { return f.internalName === fieldInternalName; });
     const t = (fd && fd.typeAsString) ? String(fd.typeAsString) : "";
-    if (/Integer|Counter|Boolean/i.test(t)) return "Integer";
+    if (/Integer|Counter|Boolean|YesNo/i.test(t)) return "Integer";
     if (/Number|Currency|Decimal/i.test(t)) return "Number";
     if (/DateTime|Date/i.test(t)) return "DateTime";
     return "Text";
   }
 
+  function buildOneFilterCondXml(f) {
+    let type = getValueTypeForField(f.field).replace(/"/g, "");
+    let inner;
+    if (isBooleanFieldName(f.field)) {
+      const camlInt = booleanFilterDisplayToCamlInteger(f.value);
+      if (camlInt == null) return null;
+      inner = camlInt;
+      type = "Integer";
+    } else {
+      inner = String(f.value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+    return "<" + f.op + "><FieldRef Name=\"" + escapeAttr(f.field) + "\"/><Value Type=\"" + type + "\">" + inner + "</Value></" + f.op + ">";
+  }
+
+  /** Left-associative And/Or chain matching rows with non-blank values (skips blank rows). */
+  function buildFilterWhereXml() {
+    const chunks = [];
+    for (let i = 0; i < filters.length; i++) {
+      const f = filters[i];
+      if (!(f.value || "").trim()) continue;
+      const xml = buildOneFilterCondXml(f);
+      if (!xml) continue;
+      chunks.push({ xml: xml, join: chunks.length === 0 ? null : (f.join || "And") });
+    }
+    if (chunks.length === 0) return "";
+    let acc = chunks[0].xml;
+    for (let k = 1; k < chunks.length; k++) {
+      const op = chunks[k].join || "And";
+      acc = "<" + op + ">" + acc + chunks[k].xml + "</" + op + ">";
+    }
+    return "<Where>" + acc + "</Where>";
+  }
+
   function buildViewQuery() {
     const parts = [];
-    const hasFilter = filters.some(function (f) { return (f.value || "").trim() !== ""; });
-    if (hasFilter) {
-      const conds = filters.filter(function (f) { return (f.value || "").trim() !== ""; }).map(function (f) {
-        const v = String(f.value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        const type = getValueTypeForField(f.field).replace(/"/g, "");
-        return "<" + f.op + "><FieldRef Name=\"" + escapeAttr(f.field) + "\"/><Value Type=\"" + type + "\">" + v + "</Value></" + f.op + ">";
-      });
-      if (conds.length === 1) parts.push("<Where>" + conds[0] + "</Where>");
-      else if (conds.length > 1) parts.push("<Where><And>" + conds.join("") + "</And></Where>");
-    }
+    const whereXml = buildFilterWhereXml();
+    if (whereXml) parts.push(whereXml);
     if (sortLevels.length > 0) {
       const refs = sortLevels.filter(function (s) { return s.field; }).map(function (s) {
         return "<FieldRef Name=\"" + escapeAttr(s.field) + "\" Ascending=\"" + (s.ascending ? "True" : "False") + "\"/>";
@@ -813,7 +1518,7 @@
       updateViewIdDisplay();
       updatePersonalViewVisibility();
       updateDeleteButtonVisibility();
-      loadContext().then(function () { loadViewsAndFields(); });
+      loadContext().then(function () { loadListEditorData(); });
     } catch (e) {
       showSaveStatus(e && e.message ? e.message : "Save failed.", true);
       document.getElementById("btnSave").disabled = false;
@@ -831,7 +1536,7 @@
       selectedViewId = null;
       document.getElementById("viewSelect").value = "";
       setNewViewDefaults();
-      loadContext().then(function () { loadViewsAndFields(); });
+      loadContext().then(function () { loadListEditorData(); });
     } catch (e) {
       showSaveStatus(e && e.message ? e.message : "Delete failed.", true);
     }
@@ -888,6 +1593,6 @@
 
   (async function init() {
     const ok = await loadContext();
-    if (ok) await loadViewsAndFields();
+    if (ok) await loadListEditorData();
   })();
 })();
