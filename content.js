@@ -138,20 +138,21 @@ const LISTS_LAUNCHER_PANEL_ID = "sp-toolkit-lists-panel";
 const LISTS_LAUNCHER_STYLE_ID = "sp-toolkit-lists-launcher-style";
 
 const LISTS_LAUNCHER_CSS =
-  "#" + LISTS_LAUNCHER_ID + "{position:fixed;bottom:20px;right:20px;z-index:2147483646;font-family:'Segoe UI',sans-serif;transition:opacity .15s ease-out;display:block;width:48px;flex-shrink:0;box-sizing:border-box;}" +
+  "#" + LISTS_LAUNCHER_ID + "{position:fixed;bottom:20px;right:20px;z-index:2147483646;font-family:'Segoe UI',sans-serif;transition:opacity .15s ease-out;display:block;width:58px;flex-shrink:0;box-sizing:border-box;}" +
   "#" + LISTS_LAUNCHER_ID + ".sp-toolkit-launcher-rolled-up{opacity:0;pointer-events:none;}" +
-  "#" + LISTS_LAUNCHER_ID + " .sp-toolkit-lists-btn{width:48px!important;height:48px!important;min-width:48px!important;min-height:48px!important;max-width:48px!important;max-height:48px!important;flex:0 0 48px!important;border-radius:50%;border:none;cursor:pointer;display:inline-flex!important;align-items:center;justify-content:center;padding:0!important;box-sizing:border-box!important;overflow:hidden;" +
-  "background:linear-gradient(135deg,#e8eaef 0%,#d8dce4 100%);color:#1a1d24;box-shadow:0 4px 16px rgba(0,0,0,.18);transition:transform .15s,box-shadow .15s;}" +
+  "#" + LISTS_LAUNCHER_ID + " .sp-toolkit-lists-btn{width:58px!important;height:58px!important;min-width:58px!important;min-height:58px!important;max-width:58px!important;max-height:58px!important;flex:0 0 58px!important;border-radius:50%;border:2px solid rgba(61,79,214,.45);cursor:pointer;display:inline-flex!important;align-items:center;justify-content:center;padding:0!important;box-sizing:border-box!important;overflow:hidden;" +
+  "background:linear-gradient(135deg,#f7f9ff 0%,#e7ecff 100%);color:#1a1d24;box-shadow:0 6px 20px rgba(0,0,0,.2);transition:transform .15s,box-shadow .15s,border-color .15s;}" +
   "#" + LISTS_LAUNCHER_ID + " .sp-toolkit-lists-btn:hover{transform:scale(1.05);box-shadow:0 6px 20px rgba(0,0,0,.25);}" +
-  "#" + LISTS_LAUNCHER_ID + ".sp-toolkit-launcher-dark .sp-toolkit-lists-btn{background:linear-gradient(135deg,#3d4048 0%,#2d3038 100%);border:1px solid rgba(0,0,0,.4);box-shadow:0 4px 16px rgba(0,0,0,.35);}" +
+  "#" + LISTS_LAUNCHER_ID + " .sp-toolkit-lists-btn:hover{border-color:rgba(61,79,214,.75);}" +
+  "#" + LISTS_LAUNCHER_ID + ".sp-toolkit-launcher-dark .sp-toolkit-lists-btn{background:linear-gradient(135deg,#3d4048 0%,#2d3038 100%);border:2px solid rgba(134,239,172,.55);box-shadow:0 4px 16px rgba(0,0,0,.35);}" +
   "#" + LISTS_LAUNCHER_ID + ".sp-toolkit-launcher-dark .sp-toolkit-lists-btn:hover{box-shadow:0 6px 22px rgba(0,0,0,.5);}" +
   "#" + LISTS_LAUNCHER_ID + ".sp-toolkit-launcher-dark .sp-toolkit-lists-btn .sp-toolkit-launcher-compass{filter:brightness(0) invert(1);}" +
-  "#" + LISTS_LAUNCHER_ID + " .sp-toolkit-lists-btn .sp-toolkit-launcher-compass,#" + LISTS_LAUNCHER_ID + " .sp-toolkit-lists-btn img.sp-toolkit-launcher-compass{width:24px!important;height:24px!important;min-width:24px!important;min-height:24px!important;max-width:24px!important;max-height:24px!important;display:block;flex-shrink:0;object-fit:contain;transition:transform .25s ease;}" +
+  "#" + LISTS_LAUNCHER_ID + " .sp-toolkit-lists-btn .sp-toolkit-launcher-compass,#" + LISTS_LAUNCHER_ID + " .sp-toolkit-lists-btn img.sp-toolkit-launcher-compass{width:30px!important;height:30px!important;min-width:30px!important;min-height:30px!important;max-width:30px!important;max-height:30px!important;display:block;flex-shrink:0;object-fit:contain;transition:transform .25s ease;}" +
   "#" + LISTS_LAUNCHER_ID + " .sp-toolkit-lists-btn:hover .sp-toolkit-launcher-compass{animation:sp-toolkit-launcher-spin .7s ease-in-out 1;}" +
   "#" + LISTS_LAUNCHER_ID + " .sp-toolkit-lists-btn.sp-toolkit-launcher-click-spin .sp-toolkit-launcher-compass{animation:sp-toolkit-launcher-spin-click .55s ease-out 1 forwards;}" +
   "@keyframes sp-toolkit-launcher-spin{to{transform:rotate(360deg);}}" +
   "@keyframes sp-toolkit-launcher-spin-click{to{transform:rotate(1080deg);}}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + "{position:absolute;bottom:56px;right:0;width:max-content;min-width:360px;max-width:min(92vw, 1000px);max-height:70vh;overflow:hidden;display:flex;flex-direction:column;border-radius:11px;box-shadow:0 8px 32px rgba(0,0,0,.25);transition:background .2s,color .2s,border-color .2s;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + "{position:absolute;bottom:68px;right:0;width:max-content;min-width:360px;max-width:min(92vw, 1000px);max-height:70vh;overflow:hidden;display:flex;flex-direction:column;border-radius:11px;box-shadow:0 8px 32px rgba(0,0,0,.25);transition:background .2s,color .2s,border-color .2s;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark{background:#181b23!important;color:#fff!important;border:1px solid rgba(255,255,255,.08);color-scheme:dark;isolation:isolate;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light{background:#fff;color:#1C1F4A;border:1px solid #E4E6F5;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-lists-panel-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.12);flex-shrink:0;transition:border-color .2s;}" +
@@ -333,6 +334,8 @@ function toggleListsLauncher() {
         tableEl.style.display = "table";
       }
       const siteUrl = (ev.data.siteUrl || "").replace(/\/$/, "");
+      /* Fluent Key 24 regular — Fabric MDL2 "Permissions" / Unicode E8D7 (flicon.io) */
+      const fluentPermissionsKeySvgInner = "<path fill=\"currentColor\" d=\"M18.2493 6.99982C18.2493 7.69017 17.6896 8.24982 16.9993 8.24982C16.3089 8.24982 15.7493 7.69017 15.7493 6.99982C15.7493 6.30946 16.3089 5.74982 16.9993 5.74982C17.6896 5.74982 18.2493 6.30946 18.2493 6.99982ZM15.4992 2.0498C11.885 2.0498 8.94922 4.98559 8.94922 8.5998C8.94922 8.98701 8.99939 9.36017 9.05968 9.70382C9.07749 9.80529 9.04493 9.89344 8.99046 9.94791L2.75467 16.1837C2.23895 16.6994 1.94922 17.3989 1.94922 18.1282V20.2998C1.94922 21.2663 2.73272 22.0498 3.69922 22.0498H6.19922C7.16572 22.0498 7.94922 21.2663 7.94922 20.2998V19.0498H9.69922C10.3896 19.0498 10.9492 18.4902 10.9492 17.7998V16.0498H12.6992C13.3741 16.0498 13.9241 15.515 13.9484 14.846C14.4451 14.9738 14.9689 15.0498 15.4992 15.0498C19.1134 15.0498 22.0492 12.114 22.0492 8.4998C22.0492 4.86866 19.0963 2.0498 15.4992 2.0498ZM10.4492 8.5998C10.4492 5.81402 12.7134 3.5498 15.4992 3.5498C18.3021 3.5498 20.5492 5.73095 20.5492 8.4998C20.5492 11.2856 18.285 13.5498 15.4992 13.5498C14.8199 13.5498 14.1206 13.3787 13.4947 13.1104C13.2629 13.0111 12.9968 13.0349 12.7864 13.1737C12.5759 13.3125 12.4492 13.5477 12.4492 13.7998V14.5498H10.6992C10.0089 14.5498 9.44922 15.1094 9.44922 15.7998V17.5498H7.69922C7.00886 17.5498 6.44922 18.1094 6.44922 18.7998V20.2998C6.44922 20.4379 6.33729 20.5498 6.19922 20.5498H3.69922C3.56115 20.5498 3.44922 20.4379 3.44922 20.2998V18.1282C3.44922 17.7967 3.58091 17.4788 3.81534 17.2443L10.0511 11.0086C10.4695 10.5902 10.6349 10.0018 10.5371 9.44461C10.4834 9.13865 10.4492 8.8622 10.4492 8.5998Z\"/>";
       const lists = Array.isArray(ev.data.lists) ? ev.data.lists : [];
       const currentPath = (location.pathname || "").split("?")[0].replace(/\/$/, "") || "/";
       const onSiteContentsPage = /viewlsts\.aspx/i.test(location.pathname || "");
@@ -347,24 +350,29 @@ function toggleListsLauncher() {
       const iconsEl = panel.querySelector(".sp-toolkit-lists-panel-icons");
       if (iconsEl && siteUrl) {
         iconsEl.innerHTML = "";
-        const addIcon = (href, title, svgPath) => {
+        const addIcon = (href, title, svgPath, filled) => {
           const a = document.createElement("a");
           a.href = href;
           a.target = "_blank";
-          a.rel = "noopener";
+          a.rel = "noopener noreferrer";
           a.title = title;
           a.setAttribute("aria-label", title);
-          a.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">" + svgPath + "</svg>";
+          if (filled) {
+            a.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">" + svgPath + "</svg>";
+          } else {
+            a.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">" + svgPath + "</svg>";
+          }
           iconsEl.appendChild(a);
         };
         if (!onSiteContentsPage) addIcon(siteUrl + "/_layouts/15/viewlsts.aspx", "Site contents", "<rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/>");
         addIcon(siteUrl + "/_layouts/15/settings.aspx", "Site settings", "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z\"/>");
+        addIcon(siteUrl + "/_layouts/15/user.aspx", "Site permissions", fluentPermissionsKeySvgInner, true);
         const currentListId = ev.data.currentListId && String(ev.data.currentListId).replace(/^\{|\}$/g, "").trim();
         if (currentListId) {
           const listGuid = "{" + currentListId.toUpperCase() + "}";
           addIcon(siteUrl + "/_layouts/15/listedit.aspx?List=" + encodeURIComponent(listGuid), "Current list/library settings", "<line x1=\"4\" y1=\"21\" x2=\"4\" y2=\"14\"/><line x1=\"4\" y1=\"10\" x2=\"4\" y2=\"3\"/><line x1=\"12\" y1=\"21\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"3\"/><line x1=\"20\" y1=\"21\" x2=\"20\" y2=\"16\"/><line x1=\"20\" y1=\"12\" x2=\"20\" y2=\"3\"/><line x1=\"1\" y1=\"14\" x2=\"7\" y2=\"14\"/><line x1=\"9\" y1=\"8\" x2=\"15\" y2=\"8\"/><line x1=\"17\" y1=\"16\" x2=\"23\" y2=\"16\"/>");
         }
-        addIcon(siteUrl + "/_layouts/15/RecycleBin.aspx", "Recycle bin", "<path d=\"M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z\"/><line x1=\"10\" y1=\"11\" x2=\"10\" y2=\"17\"/><line x1=\"14\" y1=\"11\" x2=\"14\" y2=\"17\"/>");
+        addIcon(siteUrl + "/_layouts/15/RecycleBin.aspx", "Recycle bin", "<path fill=\"currentColor\" d=\"M7.03454 3.5C6.13437 3.5 5.4063 4.17543 5.2982 5.02738C5.36232 5.00954 5.4299 5 5.49971 5H18.4997C18.5695 5 18.6371 5.00954 18.7012 5.02738C18.5931 4.17543 17.8651 3.5 16.9649 3.5H7.03454ZM6.85063 19.8306C6.8918 20.2114 7.21327 20.5 7.59629 20.5H16.4031C16.7861 20.5 17.1076 20.2114 17.1488 19.8306L18.5905 6.49456C18.5608 6.49815 18.5304 6.5 18.4997 6.5H5.49971C5.46897 6.5 5.43866 6.49815 5.4089 6.49456L6.85063 19.8306ZM3.80337 5.59932C3.59559 3.67734 5.10136 2 7.03454 2H16.9649C18.8981 2 20.4038 3.67733 20.196 5.59932L18.6401 19.9918C18.5166 21.1342 17.5522 22 16.4031 22H7.59629C6.44725 22 5.48282 21.1342 5.35932 19.9918L3.80337 5.59932ZM11.7919 10.4094C11.8909 10.2614 12.1085 10.2614 12.2075 10.4094L12.8763 11.4092C13.1067 11.7535 13.5725 11.8459 13.9167 11.6156C14.261 11.3852 14.3534 10.9194 14.1231 10.5752L13.4542 9.57538C12.7612 8.53947 11.2382 8.53946 10.5452 9.57538L9.87634 10.5752C9.64602 10.9194 9.7384 11.3852 10.0827 11.6156C10.427 11.8459 10.8928 11.7535 11.1231 11.4092L11.7919 10.4094ZM9.63558 12.5991C9.99077 12.8122 10.1059 13.2729 9.89283 13.6281L9.5287 14.2349C9.32874 14.5682 9.5688 14.9922 9.95745 14.9922H10.7497C11.1639 14.9922 11.4997 15.328 11.4997 15.7422C11.4997 16.1564 11.1639 16.4922 10.7497 16.4922H9.95745C8.40286 16.4922 7.44263 14.7962 8.24246 13.4632L8.60659 12.8563C8.8197 12.5011 9.2804 12.386 9.63558 12.5991ZM14.1087 13.6276C13.8958 13.2723 14.0113 12.8117 14.3666 12.5988C14.722 12.3859 15.1826 12.5014 15.3954 12.8568L15.7594 13.4644C16.558 14.7974 15.5977 16.4922 14.0437 16.4922H13.2497C12.8355 16.4922 12.4997 16.1564 12.4997 15.7422C12.4997 15.328 12.8355 14.9922 13.2497 14.9922H14.0437C14.4322 14.9922 14.6723 14.5685 14.4727 14.2352L14.1087 13.6276Z\"/>", true);
       }
       function formatModified(s) {
         if (!s) return "";
@@ -514,6 +522,14 @@ function toggleListsLauncher() {
               settingsLink.setAttribute("aria-label", "Settings for " + (item.title || "list"));
               settingsLink.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><line x1=\"4\" y1=\"21\" x2=\"4\" y2=\"14\"/><line x1=\"4\" y1=\"10\" x2=\"4\" y2=\"3\"/><line x1=\"12\" y1=\"21\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"3\"/><line x1=\"20\" y1=\"21\" x2=\"20\" y2=\"16\"/><line x1=\"20\" y1=\"12\" x2=\"20\" y2=\"3\"/><line x1=\"1\" y1=\"14\" x2=\"7\" y2=\"14\"/><line x1=\"9\" y1=\"8\" x2=\"15\" y2=\"8\"/><line x1=\"17\" y1=\"16\" x2=\"23\" y2=\"16\"/></svg>";
               settingsCell.appendChild(settingsLink);
+              const permsLink = document.createElement("a");
+              permsLink.href = siteUrl + "/_layouts/15/user.aspx?obj=" + encodeURIComponent(listGuid + ",list");
+              permsLink.target = "_blank";
+              permsLink.rel = "noopener";
+              permsLink.title = "List/library permissions";
+              permsLink.setAttribute("aria-label", "Permissions for " + (item.title || "list"));
+              permsLink.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">" + fluentPermissionsKeySvgInner + "</svg>";
+              settingsCell.appendChild(permsLink);
             }
             tr.appendChild(settingsCell);
             tbody.appendChild(tr);
@@ -870,7 +886,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       "SPCSVPageContext",
       (data) => {
         const url = data.webAbsoluteUrl || data.siteAbsoluteUrl || "";
-        return url ? { ok: true, webAbsoluteUrl: url, pageListId: data.pageListId || "", listUrl: data.listUrl || "" } : { ok: false, error: "No context from page" };
+        return url
+          ? {
+              ok: true,
+              webAbsoluteUrl: url,
+              pageListId: data.pageListId || "",
+              listUrl: data.listUrl || "",
+              siteId: data.siteId || "",
+              webId: data.webId || ""
+            }
+          : { ok: false, error: "No context from page" };
       },
       sendResponse,
       { timeoutMs: 5000, errorPayload: { ok: false, error: "No context from page" } }
@@ -992,7 +1017,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     injectAndWait(
       "getSearchSchema.js",
       "SPCSVSearchSchemaResult",
-      (data) => data.error ? { ok: false, error: data.error } : { ok: true, columns: data.columns || [], siteUrl: data.siteUrl },
+      (data) => data.error ? { ok: false, error: data.error } : { ok: true, columns: data.columns || [], siteUrl: data.siteUrl || "", listId: data.listId || "" },
       sendResponse,
       { errorPayload: { ok: false, error: "Timeout loading columns" } }
     );

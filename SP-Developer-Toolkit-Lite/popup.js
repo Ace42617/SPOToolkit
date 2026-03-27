@@ -3,7 +3,7 @@ import {
   listColumnSettingsUrl,
   searchSchemaColumnMatchesFilter,
   searchSchemaListMetaFromResponse,
-} from "./lib/popupUi.mjs";
+} from "../lib/popupUi.mjs";
 
 const btnExport = document.getElementById("btnExport");
 const btnChooseColumns = document.getElementById("btnChooseColumns");
@@ -32,23 +32,6 @@ const SHAREPOINT_FACTS = window.SHAREPOINT_FACTS || [];
 
 const DEFAULT_PAGE_SIZE = 5000;
 const DEFAULT_EXPORT_FORMAT = "xlsx";
-
-// Refinable managed property types and their index range (00 to count-1). Default: RefinableString.
-const REFINABLE_TYPES = [
-  { id: "RefinableString", label: "RefinableString", count: 200 },
-  { id: "RefinableStringFirst", label: "RefinableStringFirst", count: 40 },
-  { id: "RefinableStringLn", label: "RefinableStringLn", count: 10 },
-  { id: "RefinableStringWbOff", label: "RefinableStringWbOff", count: 50 },
-  { id: "RefinableStringWbOffFirst", label: "RefinableStringWbOffFirst", count: 50 },
-  { id: "RefinableDate", label: "RefinableDate", count: 20 },
-  { id: "RefinableDateFirst", label: "RefinableDateFirst", count: 20 },
-  { id: "RefinableDateSingle", label: "RefinableDateSingle", count: 5 },
-  { id: "RefinableDateInvariant", label: "RefinableDateInvariant", count: 2 },
-  { id: "RefinableInt", label: "RefinableInt", count: 50 },
-  { id: "RefinableDecimal", label: "RefinableDecimal", count: 10 },
-  { id: "RefinableDouble", label: "RefinableDouble", count: 10 },
-  { id: "RefinableYesNo", label: "RefinableYesNo", count: 5 }
-];
 
 // --- Dark mode ---
 async function loadDarkMode() {
@@ -122,7 +105,7 @@ chkListsLauncherEnabled?.addEventListener("change", () => {
 });
 
 // --- Tabs: Quick links, Page Properties, Reports ---
-const TAB_IDS = ["quicklinks", "context", "searchSchema", "reports", "refinableProps", "viewManager"];
+const TAB_IDS = ["quicklinks", "context", "searchSchema", "reports"];
 function updateTabIndicator() {
   const bar = document.querySelector(".tab-bar");
   const indicator = bar && bar.querySelector(".tab-indicator");
@@ -149,7 +132,6 @@ function switchToTab(id) {
     updateExportReportLabel();
     toggleReportOptions();
   }
-  else if (id === "refinableProps") initRefinableProps();
 }
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
@@ -329,125 +311,7 @@ function filterQuickLinks() {
   const input = document.getElementById("quicklinksFilter");
   const content = document.getElementById("quicklinksContent");
   if (!input || !content) return;
-  const q = String(input.value || "").toLowerCase().trim();
-  const sections = content.querySelectorAll(".ql-section");
-  if (!q) {
-    sections.forEach((section) => {
-      section.style.display = "";
-      section.querySelectorAll("li").forEach((li) => {
-        li.style.display = "";
-      });
-    });
-    return;
-  }
-  sections.forEach((section) => {
-    const labelEl = section.querySelector(".ql-section-label");
-    const labelText = labelEl ? (labelEl.textContent || "").toLowerCase() : "";
-    const sectionLabelMatch = labelText.indexOf(q) >= 0;
-    const lis = section.querySelectorAll("li");
-    let any = false;
-    lis.forEach((li) => {
-      const a = li.querySelector("a");
-      const text = a ? (a.textContent || "").toLowerCase() : "";
-      const href = a ? (a.getAttribute("href") || "").toLowerCase() : "";
-      const match = sectionLabelMatch || text.indexOf(q) >= 0 || href.indexOf(q) >= 0;
-      li.style.display = match ? "" : "none";
-      if (match) any = true;
-    });
-    section.style.display = any ? "" : "none";
-  });
-}
-
-let renderQuickLinksBusy = false;
-async function renderQuickLinks() {
-  if (renderQuickLinksBusy) return;
-  const hint = document.getElementById("quicklinksHint");
-  const content = document.getElementById("quicklinksContent");
-  const currentSite = document.getElementById("quicklinksCurrentSite");
-  const currentUser = document.getElementById("quicklinksCurrentUser");
-  const modes = document.getElementById("quicklinksModes");
-  const tenant = document.getElementById("quicklinksTenant");
-  if (!content || !currentSite || !currentUser || !modes || !tenant) return;
-  renderQuickLinksBusy = true;
-  currentSite.innerHTML = "";
-  currentUser.innerHTML = "";
-  modes.innerHTML = "";
-  tenant.innerHTML = "";
-  let tab = null;
-  try {
-    const [t] = await chrome.tabs.query({ active: true, currentWindow: true });
-    tab = t;
-    if (!tab?.url?.includes("sharepoint.com")) {
-      hint.style.display = "block";
-      content.style.display = "none";
-      renderQuickLinksBusy = false;
-      return;
-    }
-  } catch (_) {
-    hint.style.display = "block";
-    content.style.display = "none";
-    renderQuickLinksBusy = false;
-    return;
-  }
-  hint.style.display = "none";
-  content.style.display = "block";
-  const ctx = parseContextFromUrl(tab.url);
-  const siteBase = (ctx.webAbsoluteUrl || "").replace(/\/$/, "") || new URL(tab.url).origin;
-  const host = new URL(tab.url).host;
-  const adminHost = host.replace(".sharepoint.com", "-admin.sharepoint.com");
-  const siteId = await getCurrentSiteIdFromPage(tab.id, siteBase);
-
-  addQuickLink(currentSite, "Site settings", siteBase + "/_layouts/15/settings.aspx", "settings");
-  addQuickLink(currentSite, "Site contents", siteBase + "/_layouts/15/viewlsts.aspx", "folder");
-  addQuickLink(currentSite, "Site content types", siteBase + "/_layouts/15/SPModernTypeGallery.aspx", "layers");
-  addQuickLink(
-    currentSite,
-    "Tenant content types",
-    `https://${adminHost}/_layouts/15/online/AdminHome.aspx#/contentTypes`,
-    "adminHome"
-  );
-  addQuickLink(currentSite, "Recycle bin", siteBase + "/_layouts/15/RecycleBin.aspx", "trash");
-  addQuickLink(currentSite, "All People", siteBase + "/_layouts/15/people.aspx?MembershipGroupId=0", "users");
-  addQuickLink(currentSite, "Storage metrics", siteBase + "/_layouts/15/storman.aspx", "chart");
-  addQuickLink(
-    currentSite,
-    "SharePoint Admin Settings",
-    siteId
-      ? `https://${adminHost}/_layouts/15/online/AdminHome.aspx#/siteManagement/:/SiteDetails/${siteId}`
-      : `https://${adminHost}/_layouts/15/online/AdminHome.aspx#/siteManagement`,
-    "adminHome"
-  );
-
-  addQuickLink(currentUser, "Edit user profile", siteBase + "/_layouts/15/me.aspx", "user");
-  addQuickLink(currentUser, "Login as another user", siteBase + "/_layouts/15/closeConnection.aspx?loginasanotheruser=1", "logout");
-
-  const pageUrl = tab.url.split("?")[0];
-  const q = (param) => pageUrl + (pageUrl.indexOf("?") >= 0 ? "&" : "?") + param;
-  addQuickLink(modes, "MaintenanceMode", q("MaintenanceMode=true"), "wrench");
-  addQuickLink(modes, "WebView", q("env=WebView"), "monitor");
-  addQuickLink(modes, "WebViewList", q("env=WebViewList"), "list");
-  addQuickLink(modes, "Disable SPFx code", q("disable3PCode"), "shield");
-  addQuickLink(modes, "Web Part Maintenance", q("contents=1"), "layers");
-
-  addQuickLink(tenant, "Admin center", `https://${adminHost}`, "shield");
-  addQuickLink(
-    tenant,
-    "Admin Center Settings",
-    siteId
-      ? `https://${adminHost}/_layouts/15/online/AdminHome.aspx#/siteManagement/:/SiteDetails/${siteId}/Settings`
-      : `https://${adminHost}/_layouts/15/online/AdminHome.aspx#/siteManagement`,
-    "settings"
-  );
-  addQuickLink(tenant, "Tenant site settings", `https://${adminHost}/_layouts/15/online/tenantsettings.aspx`, "settings");
-  addQuickLink(tenant, "User profiles", `https://${adminHost}/_layouts/15/TenantProfileAdmin/ManageUserProfileServiceApplication.aspx`, "users");
-  addQuickLink(tenant, "Term store", `https://${host}/_layouts/15/termstoremanager.aspx`, "tag");
-  addQuickLink(tenant, "Search administration", `https://${adminHost}/_layouts/15/searchadmin/TA_SearchAdministration.aspx`, "search");
-  addQuickLink(tenant, "API access", `https://${adminHost}/_layouts/15/online/AdminHome.aspx#/webApiPermissionManagement`, "key");
-  addQuickLink(tenant, "Teams admin", "https://admin.teams.microsoft.com/dashboard", "teams");
-  addQuickLink(tenant, "App catalog", `https://${host}/sites/AppCatalog/_layouts/15/appStore.aspx`, "package");
-  addQuickLink(tenant, "Classic app catalog", `https://${host}/sites/AppCatalog`, "archive");
-
-  renderQuickLinksBusy = false;
+  applyQuicklinksFilter(content, input.value);
 }
 
 function normalizeGuidString(raw) {
@@ -537,6 +401,89 @@ async function getCurrentSiteIdFromPage(tabId, webAbsoluteUrl) {
       resolve("");
     }
   });
+}
+
+let renderQuickLinksBusy = false;
+async function renderQuickLinks() {
+  if (renderQuickLinksBusy) return;
+  const hint = document.getElementById("quicklinksHint");
+  const content = document.getElementById("quicklinksContent");
+  const currentSite = document.getElementById("quicklinksCurrentSite");
+  const currentUser = document.getElementById("quicklinksCurrentUser");
+  const modes = document.getElementById("quicklinksModes");
+  const tenant = document.getElementById("quicklinksTenant");
+  if (!content || !currentSite || !currentUser || !modes || !tenant) return;
+  renderQuickLinksBusy = true;
+  currentSite.innerHTML = "";
+  currentUser.innerHTML = "";
+  modes.innerHTML = "";
+  tenant.innerHTML = "";
+  let tab = null;
+  try {
+    const [t] = await chrome.tabs.query({ active: true, currentWindow: true });
+    tab = t;
+    if (!tab?.url?.includes("sharepoint.com")) {
+      hint.style.display = "block";
+      content.style.display = "none";
+      renderQuickLinksBusy = false;
+      return;
+    }
+  } catch (_) {
+    hint.style.display = "block";
+    content.style.display = "none";
+    renderQuickLinksBusy = false;
+    return;
+  }
+  hint.style.display = "none";
+  content.style.display = "block";
+  const ctx = parseContextFromUrl(tab.url);
+  const siteBase = (ctx.webAbsoluteUrl || "").replace(/\/$/, "") || new URL(tab.url).origin;
+  const host = new URL(tab.url).host;
+  const adminHost = host.replace(".sharepoint.com", "-admin.sharepoint.com");
+  const siteId = await getCurrentSiteIdFromPage(tab.id, siteBase);
+
+  addQuickLink(currentSite, "Site settings", siteBase + "/_layouts/15/settings.aspx", "settings");
+  addQuickLink(currentSite, "Site contents", siteBase + "/_layouts/15/viewlsts.aspx", "folder");
+  addQuickLink(currentSite, "Site content types", siteBase + "/_layouts/15/SPModernTypeGallery.aspx", "layers");
+  addQuickLink(
+    currentSite,
+    "Tenant content types",
+    `https://${adminHost}/_layouts/15/online/AdminHome.aspx#/contentTypes`,
+    "adminHome"
+  );
+  addQuickLink(currentSite, "Recycle bin", siteBase + "/_layouts/15/RecycleBin.aspx", "trash");
+  addQuickLink(currentSite, "All People", siteBase + "/_layouts/15/people.aspx?MembershipGroupId=0", "users");
+  addQuickLink(currentSite, "Storage metrics", siteBase + "/_layouts/15/storman.aspx", "chart");
+  addQuickLink(
+    currentSite,
+    "SharePoint Admin Settings",
+    siteId
+      ? `https://${adminHost}/_layouts/15/online/AdminHome.aspx#/siteManagement/:/SiteDetails/${siteId}`
+      : `https://${adminHost}/_layouts/15/online/AdminHome.aspx#/siteManagement`,
+    "adminHome"
+  );
+
+  addQuickLink(currentUser, "Edit user profile", siteBase + "/_layouts/15/me.aspx", "user");
+  addQuickLink(currentUser, "Login as another user", siteBase + "/_layouts/15/closeConnection.aspx?loginasanotheruser=1", "logout");
+
+  const pageUrl = tab.url.split("?")[0];
+  const q = (param) => pageUrl + (pageUrl.indexOf("?") >= 0 ? "&" : "?") + param;
+  addQuickLink(modes, "MaintenanceMode", q("MaintenanceMode=true"), "wrench");
+  addQuickLink(modes, "WebView", q("env=WebView"), "monitor");
+  addQuickLink(modes, "WebViewList", q("env=WebViewList"), "list");
+
+  addQuickLink(tenant, "Admin center", `https://${adminHost}`, "shield");
+  addQuickLink(tenant, "Tenant site settings", `https://${adminHost}/_layouts/15/online/tenantsettings.aspx`, "settings");
+  addQuickLink(tenant, "User profiles", `https://${adminHost}/_layouts/15/TenantProfileAdmin/ManageUserProfileServiceApplication.aspx`, "users");
+  addQuickLink(tenant, "Term store", `https://${host}/_layouts/15/termstoremanager.aspx`, "tag");
+  addQuickLink(tenant, "Search administration", `https://${adminHost}/_layouts/15/searchadmin/TA_SearchAdministration.aspx`, "search");
+  addQuickLink(tenant, "API access", `https://${adminHost}/_layouts/15/online/AdminHome.aspx#/webApiPermissionManagement`, "key");
+  addQuickLink(tenant, "Teams admin", "https://admin.teams.microsoft.com/dashboard", "teams");
+  addQuickLink(tenant, "App catalog", `https://${host}/sites/AppCatalog/_layouts/15/appStore.aspx`, "package");
+  addQuickLink(tenant, "Classic app catalog", `https://${host}/sites/AppCatalog`, "archive");
+
+  filterQuickLinks();
+  renderQuickLinksBusy = false;
 }
 
 let contextData = null;
@@ -688,15 +635,6 @@ if (quicklinksFilterEl) quicklinksFilterEl.addEventListener("input", () => filte
 document.getElementById("contextFilterInput").addEventListener("input", () => renderContextList());
 document.getElementById("contextFilterByValue").addEventListener("change", () => renderContextList());
 
-document.getElementById("btnOpenViewManager").addEventListener("click", async () => {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id || !tab.url?.includes("sharepoint.com")) {
-    alert("Open a SharePoint list or library page first, then open View Manager.");
-    return;
-  }
-  chrome.tabs.create({ url: chrome.runtime.getURL("views.html?tabId=" + tab.id) });
-});
-
 // --- Columns tab: list fields via REST; display name links to FldEdit.aspx
 let searchSchemaColumns = [];
 let searchSchemaListMeta = { siteUrl: "", listId: "" };
@@ -822,132 +760,6 @@ function clearStatus() {
   statusEl.style.display = "none";
   statusEl.className = "";
 }
-
-// --- Refinable Props tab ---
-const refinableTypeSelect = document.getElementById("refinableTypeSelect");
-const refinableNumberSelect = document.getElementById("refinableNumberSelect");
-const btnRefinableConfigure = document.getElementById("btnRefinableConfigure");
-const refinableMappingsOut = document.getElementById("refinableMappingsOut");
-
-function initRefinableProps() {
-  if (!refinableTypeSelect || !refinableNumberSelect) return;
-  if (refinableTypeSelect.options.length === 0) {
-    REFINABLE_TYPES.forEach((t) => {
-      const opt = document.createElement("option");
-      opt.value = t.id;
-      opt.textContent = t.label;
-      refinableTypeSelect.appendChild(opt);
-    });
-    refinableTypeSelect.value = "RefinableString";
-  }
-  fillRefinableNumberOptions();
-  loadRefinableMappings();
-}
-
-function fillRefinableNumberOptions() {
-  if (!refinableTypeSelect || !refinableNumberSelect) return;
-  const typeId = refinableTypeSelect.value;
-  const type = REFINABLE_TYPES.find((t) => t.id === typeId) || REFINABLE_TYPES[0];
-  const count = type.count;
-  refinableNumberSelect.innerHTML = "";
-  for (let i = 0; i < count; i++) {
-    const opt = document.createElement("option");
-    const num = String(i).padStart(2, "0");
-    opt.value = num;
-    opt.textContent = num;
-    refinableNumberSelect.appendChild(opt);
-  }
-}
-
-refinableTypeSelect?.addEventListener("change", function () {
-  fillRefinableNumberOptions();
-  loadRefinableMappings();
-});
-refinableNumberSelect?.addEventListener("change", loadRefinableMappings);
-
-function clearRefinableMappingsDisplay() {
-  if (refinableMappingsOut) {
-    refinableMappingsOut.textContent = "";
-    refinableMappingsOut.className = "refinable-mappings-out empty";
-  }
-}
-
-btnRefinableConfigure?.addEventListener("click", async () => {
-  const typeId = refinableTypeSelect?.value || "RefinableString";
-  const num = refinableNumberSelect?.value || "00";
-  const propertyName = typeId + num;
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.url?.includes("sharepoint.com")) {
-      alert("Open a SharePoint site in the current tab first, then click Configure to open the managed property page for that site.");
-      return;
-    }
-    const ctx = parseContextFromUrl(tab.url);
-    const siteUrl = (ctx.webAbsoluteUrl || "").replace(/\/$/, "");
-    if (!siteUrl) {
-      alert("Could not determine the site URL. Open a SharePoint site page and try again.");
-      return;
-    }
-    const url = siteUrl + "/_layouts/15/managedproperty.aspx?property=" + encodeURIComponent(propertyName) + "&level=sitecol";
-    chrome.tabs.create({ url });
-  } catch (e) {
-    alert("Error: " + (e.message || String(e)));
-  }
-});
-
-async function loadRefinableMappings() {
-  if (!refinableMappingsOut) return;
-  const typeId = refinableTypeSelect?.value || "RefinableString";
-  const num = refinableNumberSelect?.value || "00";
-  const propertyName = typeId + num;
-  refinableMappingsOut.textContent = "Loading…";
-  refinableMappingsOut.className = "refinable-mappings-out loading";
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !tab.url?.includes("sharepoint.com")) {
-      refinableMappingsOut.textContent = "Open a SharePoint site in the current tab to load mappings.";
-      refinableMappingsOut.className = "refinable-mappings-out error";
-      return;
-    }
-    const ctx = parseContextFromUrl(tab.url);
-    const siteUrl = (ctx.webAbsoluteUrl || "").replace(/\/$/, "");
-    if (!siteUrl) {
-      refinableMappingsOut.textContent = "Could not determine site URL. Open a SharePoint site page first.";
-      refinableMappingsOut.className = "refinable-mappings-out error";
-      return;
-    }
-    const res = await chrome.tabs.sendMessage(tab.id, {
-      action: "getRefinableMappings",
-      siteUrl,
-      propertyName
-    });
-    if (!res) {
-      refinableMappingsOut.textContent = "No response. Refresh the SharePoint tab and try again.";
-      refinableMappingsOut.className = "refinable-mappings-out error";
-      return;
-    }
-    if (!res.ok) {
-      refinableMappingsOut.textContent = res.error || "Failed to load mappings.";
-      refinableMappingsOut.className = "refinable-mappings-out error";
-      return;
-    }
-    if (!res.mappings || res.mappings.length === 0) {
-      refinableMappingsOut.innerHTML = `<span class="refinable-mappings-header">Crawled properties</span>${res.alias ? `<p class="refinable-alias">Alias: ${escapeHtml(res.alias)}</p>` : ""}<p>No crawled properties mapped for ${escapeHtml(propertyName)}.</p>`;
-      refinableMappingsOut.className = "refinable-mappings-out";
-      return;
-    }
-    const aliasPart = res.alias ? `<p class="refinable-alias">Alias: ${escapeHtml(res.alias)}</p>` : "";
-    const listItems = res.mappings.map((m) => `<li>${escapeHtml(m.name)}${m.type ? `<span class="refinable-mapping-type">${escapeHtml(m.type)}</span>` : ""}</li>`).join("");
-    refinableMappingsOut.innerHTML = `${aliasPart}<span class="refinable-mappings-header">Crawled properties (${res.mappings.length})</span><ul class="refinable-mappings-list">${listItems}</ul>`;
-    refinableMappingsOut.className = "refinable-mappings-out";
-  } catch (e) {
-    refinableMappingsOut.textContent = "Error: " + (e.message || String(e)) + ". Try refreshing the SharePoint tab.";
-    refinableMappingsOut.className = "refinable-mappings-out error";
-  }
-}
-
-// Run once so number dropdown is populated if user opens Refinable Props first
-initRefinableProps();
 
 function parseContextFromUrl(pageUrl) {
   if (!pageUrl || !pageUrl.includes("sharepoint.com")) return { webAbsoluteUrl: "", pageListId: "", viewId: "" };
@@ -1242,7 +1054,7 @@ btnExport.addEventListener("click", () => {
   if (reportSelect && (reportSelect.value === "exportCSV" || reportSelect.value === "folderCount" || reportSelect.value === "pathLengths" || reportSelect.value === "permissionsMatrix")) runExport();
 });
 
-btnChooseColumns.addEventListener("click", openColumnPicker);
+if (btnChooseColumns) btnChooseColumns.addEventListener("click", openColumnPicker);
 
 btnSettings.addEventListener("click", () => {
   mainPanel.classList.add("hidden");
@@ -1293,7 +1105,7 @@ btnExportSelected.addEventListener("click", () => {
 
 // Show version at bottom of extension settings
 const settingsVersionEl = document.getElementById("settingsVersionPopup");
-if (settingsVersionEl) settingsVersionEl.textContent = "v" + (chrome.runtime.getManifest().version || "");
+if (settingsVersionEl) settingsVersionEl.textContent = "SP Developer Toolkit Lite v" + (chrome.runtime.getManifest().version || "");
 
 // Notify content script when extension popup opens so Site Contents launcher can roll down
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {

@@ -149,7 +149,7 @@ const LISTS_LAUNCHER_CSS =
   "#" + LISTS_LAUNCHER_ID + " .sp-toolkit-lists-btn.sp-toolkit-launcher-click-spin .sp-toolkit-launcher-compass{animation:sp-toolkit-launcher-spin-click .55s ease-out 1 forwards;}" +
   "@keyframes sp-toolkit-launcher-spin{to{transform:rotate(360deg);}}" +
   "@keyframes sp-toolkit-launcher-spin-click{to{transform:rotate(1080deg);}}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + "{position:absolute;bottom:56px;right:0;width:max-content;min-width:360px;max-width:min(92vw, 1000px);max-height:70vh;overflow:hidden;display:flex;flex-direction:column;border-radius:11px;box-shadow:0 8px 32px rgba(0,0,0,.25);transition:background .2s,color .2s,border-color .2s;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + "{position:absolute;bottom:68px;right:0;width:max-content;min-width:360px;max-width:min(92vw, 1000px);max-height:70vh;overflow:hidden;display:flex;flex-direction:column;border-radius:11px;box-shadow:0 8px 32px rgba(0,0,0,.25);transition:background .2s,color .2s,border-color .2s;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark{background:#181b23!important;color:#fff!important;border:1px solid rgba(255,255,255,.08);color-scheme:dark;isolation:isolate;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light{background:#fff;color:#1C1F4A;border:1px solid #E4E6F5;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-lists-panel-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.12);flex-shrink:0;transition:border-color .2s;}" +
@@ -320,14 +320,18 @@ function toggleListsLauncher() {
       const iconsEl = panel.querySelector(".sp-toolkit-lists-panel-icons");
       if (iconsEl && siteUrl) {
         iconsEl.innerHTML = "";
-        const addIcon = (href, title, svgPath) => {
+        const addIcon = (href, title, svgPath, filled) => {
           const a = document.createElement("a");
           a.href = href;
           a.target = "_blank";
-          a.rel = "noopener";
+          a.rel = "noopener noreferrer";
           a.title = title;
           a.setAttribute("aria-label", title);
-          a.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">" + svgPath + "</svg>";
+          if (filled) {
+            a.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">" + svgPath + "</svg>";
+          } else {
+            a.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">" + svgPath + "</svg>";
+          }
           iconsEl.appendChild(a);
         };
         if (!onSiteContentsPage) addIcon(siteUrl + "/_layouts/15/viewlsts.aspx", "Site contents", "<line x1=\"4\" y1=\"6\" x2=\"20\" y2=\"6\"/><line x1=\"4\" y1=\"12\" x2=\"20\" y2=\"12\"/><line x1=\"4\" y1=\"18\" x2=\"20\" y2=\"18\"/>");
@@ -337,7 +341,7 @@ function toggleListsLauncher() {
           const listGuid = "{" + currentListId.toUpperCase() + "}";
           addIcon(siteUrl + "/_layouts/15/listedit.aspx?List=" + encodeURIComponent(listGuid), "Current list/library settings", "<line x1=\"4\" y1=\"21\" x2=\"4\" y2=\"14\"/><line x1=\"4\" y1=\"10\" x2=\"4\" y2=\"3\"/><line x1=\"12\" y1=\"21\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"3\"/><line x1=\"20\" y1=\"21\" x2=\"20\" y2=\"16\"/><line x1=\"20\" y1=\"12\" x2=\"20\" y2=\"3\"/><line x1=\"1\" y1=\"14\" x2=\"7\" y2=\"14\"/><line x1=\"9\" y1=\"8\" x2=\"15\" y2=\"8\"/><line x1=\"17\" y1=\"16\" x2=\"23\" y2=\"16\"/>");
         }
-        addIcon(siteUrl + "/_layouts/15/RecycleBin.aspx", "Recycle bin", "<polyline points=\"3 6 5 6 21 6\"/><path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"/><line x1=\"10\" y1=\"11\" x2=\"10\" y2=\"17\"/><line x1=\"14\" y1=\"11\" x2=\"14\" y2=\"17\"/>");
+        addIcon(siteUrl + "/_layouts/15/RecycleBin.aspx", "Recycle bin", "<path fill=\"currentColor\" d=\"M7.03454 3.5C6.13437 3.5 5.4063 4.17543 5.2982 5.02738C5.36232 5.00954 5.4299 5 5.49971 5H18.4997C18.5695 5 18.6371 5.00954 18.7012 5.02738C18.5931 4.17543 17.8651 3.5 16.9649 3.5H7.03454ZM6.85063 19.8306C6.8918 20.2114 7.21327 20.5 7.59629 20.5H16.4031C16.7861 20.5 17.1076 20.2114 17.1488 19.8306L18.5905 6.49456C18.5608 6.49815 18.5304 6.5 18.4997 6.5H5.49971C5.46897 6.5 5.43866 6.49815 5.4089 6.49456L6.85063 19.8306ZM3.80337 5.59932C3.59559 3.67734 5.10136 2 7.03454 2H16.9649C18.8981 2 20.4038 3.67733 20.196 5.59932L18.6401 19.9918C18.5166 21.1342 17.5522 22 16.4031 22H7.59629C6.44725 22 5.48282 21.1342 5.35932 19.9918L3.80337 5.59932ZM11.7919 10.4094C11.8909 10.2614 12.1085 10.2614 12.2075 10.4094L12.8763 11.4092C13.1067 11.7535 13.5725 11.8459 13.9167 11.6156C14.261 11.3852 14.3534 10.9194 14.1231 10.5752L13.4542 9.57538C12.7612 8.53947 11.2382 8.53946 10.5452 9.57538L9.87634 10.5752C9.64602 10.9194 9.7384 11.3852 10.0827 11.6156C10.427 11.8459 10.8928 11.7535 11.1231 11.4092L11.7919 10.4094ZM9.63558 12.5991C9.99077 12.8122 10.1059 13.2729 9.89283 13.6281L9.5287 14.2349C9.32874 14.5682 9.5688 14.9922 9.95745 14.9922H10.7497C11.1639 14.9922 11.4997 15.328 11.4997 15.7422C11.4997 16.1564 11.1639 16.4922 10.7497 16.4922H9.95745C8.40286 16.4922 7.44263 14.7962 8.24246 13.4632L8.60659 12.8563C8.8197 12.5011 9.2804 12.386 9.63558 12.5991ZM14.1087 13.6276C13.8958 13.2723 14.0113 12.8117 14.3666 12.5988C14.722 12.3859 15.1826 12.5014 15.3954 12.8568L15.7594 13.4644C16.558 14.7974 15.5977 16.4922 14.0437 16.4922H13.2497C12.8355 16.4922 12.4997 16.1564 12.4997 15.7422C12.4997 15.328 12.8355 14.9922 13.2497 14.9922H14.0437C14.4322 14.9922 14.6723 14.5685 14.4727 14.2352L14.1087 13.6276Z\"/>", true);
       }
       function formatModified(s) {
         if (!s) return "";
@@ -840,7 +844,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     injectAndWait(
       "getSearchSchema.js",
       "SPCSVSearchSchemaResult",
-      (data) => data.error ? { ok: false, error: data.error } : { ok: true, columns: data.columns || [], siteUrl: data.siteUrl },
+      (data) => data.error ? { ok: false, error: data.error } : { ok: true, columns: data.columns || [], siteUrl: data.siteUrl || "", listId: data.listId || "" },
       sendResponse,
       { errorPayload: { ok: false, error: "Timeout loading columns" } }
     );

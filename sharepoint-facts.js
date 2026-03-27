@@ -34,3 +34,6 @@ window.SHAREPOINT_FACTS = [
   { text: "Documentation is the difference between architecture and folklore." },
   { text: "Never gonna give you up... 🎵", openUrl: "https://ia801509.us.archive.org/10/items/Rick_Astley_Never_Gonna_Give_You_Up/Rick_Astley_Never_Gonna_Give_You_Up.mp4" },
 ];
+
+/** Microsoft Forms link for extension feedback (popup, page UI, content script). */
+window.SPOTOOLKIT_FEEDBACK_URL = "https://forms.cloud.microsoft/r/HtmARYViZP";
