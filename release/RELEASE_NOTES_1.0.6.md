@@ -58,7 +58,7 @@
 ## Technical / developer
 
 - **`lib/popupUi.mjs`** – `listColumnSettingsUrl`, quick-links DOM filter, column filter matching; covered by **`test/popupUi.test.mjs`**.
-- **Popup script** is an ES module: **`&lt;script type="module" src="popup.js"&gt;`** loads **`./lib/popupUi.mjs`** (Lite build uses **`../lib/popupUi.mjs`**).
+- **Popup script** is an ES module (`<script type="module" src="popup.js">`) loading **`./lib/popupUi.mjs`** (Lite build uses **`../lib/popupUi.mjs`**).
 - **`getSearchSchema.js`** – Returns **`siteUrl`** and **`listId`** with the column list for FldEdit links.
 
 ## Cleanup
