@@ -1,31 +1,74 @@
-# Release notes – 1.0.6
+# Release notes – SPO Developer Toolkit **1.0.6**
 
-## Summary of updates
+*Compared to **1.0.5**.*
 
-### Not on SharePoint experience
-- When the current tab is **not** a SharePoint Online page, the popup now hides all tabs and shows a single message panel.
-- Message: *"Navigate to a SharePoint Online site or select a recently visited site below."*
-- **Recently visited SharePoint sites** dropdown: populated from browser history and from sites where the extension was opened; one entry per site (deduped by site base URL). Labels show site name (e.g. `hr — 823cwd.sharepoint.com`).
-- Selecting a site navigates the current tab to that URL and closes the popup; reopening on that tab shows the full toolkit.
+## Highlights
 
-### View Manager (views.html / views.js)
-- **Export column names to CSV**: button in the actions bar; filename `sitename-libraryname-columns.csv`.
-- Dark toggle and "Back to SharePoint" link aligned with popup styling.
-- Sort/Filter spacing and per-field hover (border, background, green text); select/input hover styling.
-- Removed row-level hover on sort/filter rows.
-
-### Popup
-- **Field hover**: Toolbar text inputs and all selects use the same hover style (border, background, green text) in both popup and View Manager.
-- **Quick Links duplicate fix**: Re-entry guard prevents duplicate "Edit user profile", "Login as another user", "MaintenanceMode", etc., when the popup is shown or tab is restored.
-- **Refinables tab**: Renamed from "Refinable Props" to "Refinables".
-
-### Permissions
-- Added **history** permission to support the recently visited SharePoint sites list from browser history.
-
-### Cleanup and refactor
-- Removed unused files: **searchQuery.js**, **views_from_ct.html** (temporary).
-- Popup: re-entry guard for Quick Links; refinable mappings HTML built with template literals; `var` → `let`/`const` and minor loop simplifications in popup.js.
+- **Quick Links** – Filter bar, modern **site content type gallery**, **tenant** content types in admin center, sticky filter while scrolling.
+- **Columns** – Click a column **display name** to open **column settings** (`FldEdit.aspx`) in a new tab; **Type** column left-aligned; **refresh** icon on the toolbar.
+- **Page Properties** – **Refresh** as an icon button (same style as Columns).
+- **Popup** – **Send feedback** in the header (Microsoft Forms); **Settings** gear (e.g. lists launcher); codebase uses **`lib/popupUi.mjs`** for shared column/link/filter helpers.
+- **When not on SharePoint** – Dedicated panel with **recent SharePoint sites** (history + extension usage); **`history`** permission added.
+- **View Manager** – **Export column names to CSV**; REST pipeline aligned with tested **`lib/viewsDataCore.mjs`**; layout and field UI polish.
+- **Page experience** – **Site Contents** launcher affordance on SharePoint pages (when enabled in Settings).
+- **Misc** – **Refinables** tab label (was “Refinable Props”); Quick Links re-entry guard; `npm test` includes filter-typeahead tests.
 
 ---
 
-*No tab content sliding animation; tab bar uses animated underline (0.16s) and instant content switch.*
+## Quick Links
+
+- **Filter links…** – Live filter on link title, URL, and section heading (Current Site, Current User, Page Modes, Tenant Admin). Toolbar stays visible while scrolling (`position: sticky`).
+- **Site content types** – Opens **`/_layouts/15/SPModernTypeGallery.aspx`** (modern site gallery).
+- **Tenant content types** – SharePoint admin center hash route to content types.
+- **SharePoint Admin Settings** – Deep link to site in admin center when site ID is available.
+- Duplicate tiles no longer appear when reopening the popup or restoring the tab (re-entry guard).
+
+## Columns (list / library)
+
+- Lists **fields** from the current list (REST): display name, internal name, inferred crawled property name, type.
+- **Display name** is a link to classic sharePoint column edit (**`FldEdit.aspx`**) for that list field, in a **new** tab.
+- Toolbar uses a **refresh** icon (reload column list) instead of a “Load” label.
+- **Type** column and header are **left-aligned**.
+
+## Page Properties
+
+- **Refresh** is an icon button (reloads `_spPageContextInfo` / context payload).
+
+## Popup & settings
+
+- **Feedback** – Header link to the toolkit feedback form (`forms.cloud.microsoft`).
+- **Settings** (gear) – e.g. **Show lists & libraries icon** on SharePoint pages; version string.
+- **Dark mode** toggle unchanged (Early Riser / Night Owl).
+
+## Not on a SharePoint tab
+
+- Tabs are hidden; message explains how to proceed.
+- **Recently visited SharePoint sites** – Dropdown from browser history and sites where the extension was used; deduped by site base; choosing an entry navigates the current tab.
+
+## View Manager (`views.html`)
+
+- **Export column names to CSV** in the actions area (filename pattern includes site/library).
+- Sort/filter row styling and hover behavior aligned with the popup.
+- View/load logic kept in sync with unit-tested **`lib/viewsDataCore.mjs`**.
+
+## Site Contents launcher
+
+- Optional **lists & libraries** launcher on SharePoint pages (toggle in Settings).
+
+## Technical / developer
+
+- **`lib/popupUi.mjs`** – `listColumnSettingsUrl`, quick-links DOM filter, column filter matching; covered by **`test/popupUi.test.mjs`**.
+- **Popup script** is an ES module: **`&lt;script type="module" src="popup.js"&gt;`** loads **`./lib/popupUi.mjs`** (Lite build uses **`../lib/popupUi.mjs`**).
+- **`getSearchSchema.js`** – Returns **`siteUrl`** and **`listId`** with the column list for FldEdit links.
+
+## Cleanup
+
+- Removed unused **`searchQuery.js`** and **`views_from_ct.html`**.
+
+---
+
+## Install (load unpacked)
+
+1. Download **`SPOToolkit-1.0.6.zip`** from this release (or clone this repo).
+2. Unzip if needed.
+3. In **edge://extensions** or **chrome://extensions**, enable **Developer mode** → **Load unpacked** → select the folder that contains **`manifest.json`**.

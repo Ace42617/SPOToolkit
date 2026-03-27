@@ -1,6 +1,12 @@
-# SPO Toolkit Alpha 1.0
+# SPO Developer Toolkit – release notes index
 
-First alpha release of the SPO Toolkit Chrome/Edge extension: export list/library data, run reports, manage views, and access quick links on SharePoint.
+**Current release:** **1.0.6** — see [`release/RELEASE_NOTES_1.0.6.md`](RELEASE_NOTES_1.0.6.md) for the full changelog.
+
+---
+
+## Historical: SPO Toolkit Alpha 1.0
+
+Early alpha packaging notes for the Chrome/Edge extension: export list/library data, run reports, manage views, and quick links on SharePoint.
 
 ## Installation
 
