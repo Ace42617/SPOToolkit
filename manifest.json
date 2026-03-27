@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SPO Dev Toolkit",
-  "version": "1.0.6",
+  "version": "1.0.6.1",
   "description": "Export list/library data, run reports, manage views, and quick links on SharePoint.",
   "icons": {
     "16": "icon.png",

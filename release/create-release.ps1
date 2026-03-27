@@ -1,7 +1,7 @@
 # Create a GitHub release for the current extension version (after: gh auth login).
 # 1) Bump manifest.json version  2) Commit  3) Run this from repo root or release folder
 $ErrorActionPreference = "Stop"
-$version = "1.0.6"
+$version = "1.0.6.1"
 $tag = "v$version"
 $zipName = "SPOToolkit-$version.zip"
 $root = Split-Path $PSScriptRoot -Parent

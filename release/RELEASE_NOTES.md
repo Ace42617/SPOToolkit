@@ -1,6 +1,6 @@
 # SPO Developer Toolkit – release notes index
 
-**Current release:** **1.0.6** — see [`release/RELEASE_NOTES_1.0.6.md`](RELEASE_NOTES_1.0.6.md) for the full changelog.
+**Current release:** **1.0.6.1** — hotfix: [`release/RELEASE_NOTES_1.0.6.1.md`](RELEASE_NOTES_1.0.6.1.md). Full 1.0.6 feature list: [`release/RELEASE_NOTES_1.0.6.md`](RELEASE_NOTES_1.0.6.md).
 
 ---
 

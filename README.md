@@ -21,7 +21,7 @@ The popup shows a short message and a **Recently visited SharePoint sites** drop
 
 ### Quick Links
 
-- **Current Site** – Settings, Site contents, **modern Site content types** gallery, Recycle bin, People, Storage metrics, **SharePoint admin** site details (when site ID is known).
+- **Current Site** – Settings, Site contents, **Site content types** (modern site admin `#/contentTypes`), Recycle bin, People, Storage metrics, **SharePoint admin** site details (when site ID is known).
 - **Current User** – Edit profile, sign in as another user.
 - **Page Modes** – Maintenance mode, WebView / WebViewList, disable SPFx third-party code, web part maintenance.
 - **Tenant Admin** – Admin center, tenant settings, user profiles, term store, search administration, API access, Teams admin, app catalog(s).

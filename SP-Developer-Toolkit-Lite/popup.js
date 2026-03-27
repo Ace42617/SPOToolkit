@@ -444,7 +444,7 @@ async function renderQuickLinks() {
 
   addQuickLink(currentSite, "Site settings", siteBase + "/_layouts/15/settings.aspx", "settings");
   addQuickLink(currentSite, "Site contents", siteBase + "/_layouts/15/viewlsts.aspx", "folder");
-  addQuickLink(currentSite, "Site content types", siteBase + "/_layouts/15/SPModernTypeGallery.aspx", "layers");
+  addQuickLink(currentSite, "Site content types", siteBase + "/_layouts/15/SiteAdmin.aspx#/contentTypes", "layers");
   addQuickLink(
     currentSite,
     "Tenant content types",

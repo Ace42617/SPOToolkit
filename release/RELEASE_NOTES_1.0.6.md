@@ -4,7 +4,7 @@
 
 ## Highlights
 
-- **Quick Links** – Filter bar, modern **site content type gallery**, **tenant** content types in admin center, sticky filter while scrolling.
+- **Quick Links** – Filter bar, **site content types** (`SiteAdmin.aspx#/contentTypes`), **tenant** content types in admin center, sticky filter while scrolling.
 - **Columns** – Click a column **display name** to open **column settings** (`FldEdit.aspx`) in a new tab; **Type** column left-aligned; **refresh** icon on the toolbar.
 - **Page Properties** – **Refresh** as an icon button (same style as Columns).
 - **Popup** – **Send feedback** in the header (Microsoft Forms); **Settings** gear (e.g. lists launcher); codebase uses **`lib/popupUi.mjs`** for shared column/link/filter helpers.
@@ -18,7 +18,7 @@
 ## Quick Links
 
 - **Filter links…** – Live filter on link title, URL, and section heading (Current Site, Current User, Page Modes, Tenant Admin). Toolbar stays visible while scrolling (`position: sticky`).
-- **Site content types** – Opens **`/_layouts/15/SPModernTypeGallery.aspx`** (modern site gallery).
+- **Site content types** – Opens **`/_layouts/15/SiteAdmin.aspx#/contentTypes`** (modern site content type gallery).
 - **Tenant content types** – SharePoint admin center hash route to content types.
 - **SharePoint Admin Settings** – Deep link to site in admin center when site ID is available.
 - Duplicate tiles no longer appear when reopening the popup or restoring the tab (re-entry guard).
