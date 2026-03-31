@@ -206,8 +206,8 @@ const LISTS_LAUNCHER_CSS =
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-row-name a:hover{color:#37ae1c;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table tr.sp-toolkit-current .sp-toolkit-row-name a{font-weight:600;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table tr.sp-toolkit-current td:first-child{border-left:3px solid #37ae1c;padding-left:7px;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table td:nth-child(2){color:inherit;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-type-pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table td.sp-toolkit-type-cell{display:flex;align-items:center;color:inherit;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-type-pill{display:inline-flex;align-items:center;justify-content:center;line-height:1;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;white-space:nowrap;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-type-pill{background:rgba(55,174,28,.25);color:#86efac;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-type-pill{background:#EEF0FE;color:#5A5F8A;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table td:nth-child(3),#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table td:nth-child(4){text-align:center;}" +
@@ -446,6 +446,7 @@ function toggleListsLauncher() {
             tr.appendChild(nameCell);
             const typeLabel = item.typeLabel != null ? item.typeLabel : (item.isLibrary ? "Document library" : "List");
             const typeCell = document.createElement("td");
+            typeCell.className = "sp-toolkit-type-cell";
             const pill = document.createElement("span");
             pill.className = "sp-toolkit-type-pill";
             pill.textContent = typeLabel;
@@ -769,8 +770,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       "getPageContext.js",
       "SPCSVPageContext",
       (data) => {
-        const url = data.webAbsoluteUrl || data.siteAbsoluteUrl || "";
-        return url ? { ok: true, webAbsoluteUrl: url, pageListId: data.pageListId || "", listUrl: data.listUrl || "" } : { ok: false, error: "No context from page" };
+        const web = (data.webAbsoluteUrl || "").replace(/\/$/, "");
+        const site = (data.siteAbsoluteUrl || "").replace(/\/$/, "");
+        const primaryWeb = web || site;
+        if (!primaryWeb) return { ok: false, error: "No context from page" };
+        return {
+          ok: true,
+          webAbsoluteUrl: primaryWeb,
+          siteAbsoluteUrl: site,
+          pageListId: data.pageListId || "",
+          listUrl: data.listUrl || "",
+          siteId: data.siteId || "",
+          webId: data.webId || ""
+        };
       },
       sendResponse,
       { timeoutMs: 5000, errorPayload: { ok: false, error: "No context from page" } }

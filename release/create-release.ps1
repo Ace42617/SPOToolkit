@@ -12,9 +12,10 @@ New-Item -ItemType Directory -Path $staging | Out-Null
 $files = @(
   "manifest.json", "background.js", "content.js",
   "popup.html", "popup.js", "views.html", "views.js",
+  "view-formatter.html", "view-formatter.js",
   "sharepoint-facts.js", "filterTypeaheadLogic.js", "icon.png",
   "exportCSV.js", "getFields.js", "getSearchSchema.js", "checkListPage.js", "getListType.js",
-  "getRefinableMappings.js", "getViewsData.js", "getPageContext.js", "getPageContextJson.js", "getSiteLists.js",
+  "getRefinableMappings.js", "getViewsData.js", "getPageContext.js", "getPageContextJson.js", "getViewFormatContext.js", "getSiteLists.js",
   "jszip.min.js", "jszip-preload.js", "jszip-restore.js",
   "README.md", "OWSSVR-LISTS.md"
 )
@@ -23,6 +24,8 @@ foreach ($f in $files) {
   if (-not (Test-Path $p)) { throw "Missing: $p" }
   Copy-Item $p $staging
 }
+$rulesSrc = Join-Path $root "rules"
+if (Test-Path $rulesSrc) { Copy-Item $rulesSrc (Join-Path $staging "rules") -Recurse }
 Copy-Item (Join-Path $root "lib") (Join-Path $staging "lib") -Recurse
 
 $zipPath = Join-Path $PSScriptRoot $zipName

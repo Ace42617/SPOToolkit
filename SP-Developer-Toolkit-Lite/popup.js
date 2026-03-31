@@ -4,6 +4,7 @@ import {
   searchSchemaColumnMatchesFilter,
   searchSchemaListMetaFromResponse,
 } from "../lib/popupUi.mjs";
+import { secondStageRecycleBinUrl, normalizeTrailingSlash } from "../lib/recycleBinUrls.mjs";
 
 const btnExport = document.getElementById("btnExport");
 const btnChooseColumns = document.getElementById("btnChooseColumns");
@@ -307,6 +308,36 @@ function addQuickLink(ul, label, href, icon) {
   ul.appendChild(li);
 }
 
+/** Same tab: end-user RecycleBin first, then site-collection AdminRecycleBin (?view=5#view=13). */
+function addSecondStageRecycleBinQuickLink(ul, label, tabId, siteBase, secondStageHref, icon) {
+  const firstUrl = normalizeTrailingSlash(siteBase) + "/_layouts/15/RecycleBin.aspx";
+  const li = document.createElement("li");
+  const a = document.createElement("a");
+  a.href = secondStageHref;
+  a.target = "_blank";
+  a.rel = "noopener";
+  a.textContent = label;
+  if (icon) a.setAttribute("data-ql-icon", icon);
+  a.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (tabId == null || !secondStageHref) return;
+    chrome.runtime.sendMessage(
+      {
+        type: "SPOToolkitSecondStageRecycleBin",
+        tabId,
+        firstUrl,
+        secondUrl: secondStageHref,
+      },
+      () => {
+        void chrome.runtime.lastError;
+      }
+    );
+    window.close();
+  });
+  li.appendChild(a);
+  ul.appendChild(li);
+}
+
 function filterQuickLinks() {
   const input = document.getElementById("quicklinksFilter");
   const content = document.getElementById("quicklinksContent");
@@ -347,6 +378,67 @@ function findSiteIdDeep(obj, depth) {
   return "";
 }
 
+function sitePathFromWebAbsoluteUrl(webAbsoluteUrl) {
+  if (!webAbsoluteUrl) return "";
+  try {
+    return new URL(webAbsoluteUrl).pathname.replace(/\/$/, "") || "/";
+  } catch (_) {
+    return "";
+  }
+}
+
+/** Site collection root web absolute URL (second-stage recycle bin lives here, not on subsites). */
+async function getSiteCollectionRootAbsoluteUrl(tabId, webAbsoluteUrl) {
+  const sitePath = sitePathFromWebAbsoluteUrl(webAbsoluteUrl);
+  if (!tabId || !sitePath) return "";
+  return new Promise((resolve) => {
+    try {
+      chrome.tabs.sendMessage(
+        tabId,
+        { action: "rest", method: "GET", path: sitePath + "/_api/site/rootweb?$select=Url" },
+        (res) => {
+          if (chrome.runtime.lastError || !res || !res.ok || !res.data) {
+            resolve("");
+            return;
+          }
+          const d = res.data || {};
+          const url =
+            (typeof d.Url === "string" && d.Url.trim()) ||
+            (typeof d.url === "string" && d.url.trim()) ||
+            "";
+          resolve(url ? url.replace(/\/$/, "") : "");
+        }
+      );
+    } catch (_) {
+      resolve("");
+    }
+  });
+}
+
+/** Prefer _spPageContextInfo.siteAbsoluteUrl from the tab; then REST rootweb; then current web URL. */
+async function resolveSiteCollectionRootUrl(tabId, webAbsoluteUrl) {
+  const fallback = normalizeTrailingSlash(webAbsoluteUrl);
+  if (!tabId) return fallback;
+  const fromPage = await new Promise((resolve) => {
+    try {
+      chrome.tabs.sendMessage(tabId, { action: "getPageContext" }, (res) => {
+        if (chrome.runtime.lastError || !res || !res.ok) {
+          resolve("");
+          return;
+        }
+        const s = (res.siteAbsoluteUrl || "").trim();
+        resolve(s ? normalizeTrailingSlash(s) : "");
+      });
+    } catch (_) {
+      resolve("");
+    }
+  });
+  if (fromPage) return fromPage;
+  const fromRest = await getSiteCollectionRootAbsoluteUrl(tabId, webAbsoluteUrl);
+  if (fromRest) return fromRest;
+  return fallback;
+}
+
 async function getCurrentSiteIdFromPage(tabId, webAbsoluteUrl) {
   if (!tabId) return "";
   const fromContext = await new Promise((resolve) => {
@@ -379,12 +471,7 @@ async function getCurrentSiteIdFromPage(tabId, webAbsoluteUrl) {
   });
   if (fromJson) return fromJson;
 
-  const sitePath = webAbsoluteUrl
-    ? (function () {
-        try { return new URL(webAbsoluteUrl).pathname.replace(/\/$/, "") || "/"; }
-        catch (_) { return ""; }
-      })()
-    : "";
+  const sitePath = sitePathFromWebAbsoluteUrl(webAbsoluteUrl);
   if (!sitePath) return "";
 
   return new Promise((resolve) => {
@@ -441,6 +528,8 @@ async function renderQuickLinks() {
   const host = new URL(tab.url).host;
   const adminHost = host.replace(".sharepoint.com", "-admin.sharepoint.com");
   const siteId = await getCurrentSiteIdFromPage(tab.id, siteBase);
+  const siteCollRoot = await resolveSiteCollectionRootUrl(tab.id, siteBase);
+  const secondStageHref = secondStageRecycleBinUrl(siteCollRoot);
 
   addQuickLink(currentSite, "Site settings", siteBase + "/_layouts/15/settings.aspx", "settings");
   addQuickLink(currentSite, "Site contents", siteBase + "/_layouts/15/viewlsts.aspx", "folder");
@@ -452,6 +541,7 @@ async function renderQuickLinks() {
     "adminHome"
   );
   addQuickLink(currentSite, "Recycle bin", siteBase + "/_layouts/15/RecycleBin.aspx", "trash");
+  addSecondStageRecycleBinQuickLink(currentSite, "Second Stage Recycle Bin", tab.id, siteBase, secondStageHref, "trash");
   addQuickLink(currentSite, "All People", siteBase + "/_layouts/15/people.aspx?MembershipGroupId=0", "users");
   addQuickLink(currentSite, "Storage metrics", siteBase + "/_layouts/15/storman.aspx", "chart");
   addQuickLink(

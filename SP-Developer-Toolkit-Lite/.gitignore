@@ -1,0 +1,16 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.sublime-*
+
+# Build / temp
+node_modules/
+*.log
+*.tmp
+
+# Release build artifacts (zips generated for releases, not committed)
+release/*.zip

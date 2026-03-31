@@ -1,5 +1,5 @@
-// Service worker: View Manager/Formatter, and second-stage recycle bin (must run here so
-// tabs.onUpdated survives after the popup closes).
+// Service worker: second-stage recycle bin sequence must run here so tabs.onUpdated
+// survives after the popup closes (popup listeners are torn down with window.close()).
 
 const RB_WAIT_SESSION_KEY = "__SPO_TOOLKIT_RB_WAIT__";
 
@@ -19,7 +19,6 @@ function clearRecycleBinWaitSession(tabId) {
   );
 }
 
-/** Prime tab session + inject banner script so overlay survives full refresh (document_start handler). */
 function injectRecycleBinWaitOverlay(tabId, done) {
   chrome.scripting.executeScript(
     {
@@ -44,11 +43,6 @@ function injectRecycleBinWaitOverlay(tabId, done) {
   );
 }
 
-/**
- * @param {number} tabId
- * @param {string} firstStageUrl
- * @param {string} secondStageUrl
- */
 function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl) {
   let settled = false;
   let sequenceClosed = false;
@@ -91,10 +85,6 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
     injectRecycleBinWaitOverlay(tabId);
   }
 
-  /**
-   * chrome.tabs.update ignores URL fragments; SharePoint needs #view=13 in-page.
-   * Open ?view=5 first, then location.replace with the full URL from the tab.
-   */
   function applySecondStageUrl(fullUrl) {
     const hashPos = fullUrl.indexOf("#");
     if (hashPos < 0) {
@@ -220,49 +210,15 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === "SPOToolkitSecondStageRecycleBin") {
-    const tabId = message.tabId;
-    const firstUrl = String(message.firstUrl || "");
-    const secondUrl = String(message.secondUrl || "");
-    if (tabId == null || !firstUrl || !secondUrl) {
-      sendResponse({ ok: false, error: "Missing tab or URL" });
-      return false;
-    }
-    openSecondStageRecycleBinSequence(tabId, firstUrl, secondUrl);
-    sendResponse({ ok: true });
+  if (message.type !== "SPOToolkitSecondStageRecycleBin") return;
+  const tabId = message.tabId;
+  const firstUrl = String(message.firstUrl || "");
+  const secondUrl = String(message.secondUrl || "");
+  if (tabId == null || !firstUrl || !secondUrl) {
+    sendResponse({ ok: false, error: "Missing tab or URL" });
     return false;
   }
-  if (message.type === "SPOToolkitOpenViewFormatter") {
-    const previewUrl = String(message.previewUrl || (sender.tab && sender.tab.url) || "");
-    if (!previewUrl || !previewUrl.includes("sharepoint.com")) {
-      sendResponse({ ok: false, error: "Need a SharePoint URL" });
-      return true;
-    }
-    const u = new URL(chrome.runtime.getURL("view-formatter.html"));
-    u.searchParams.set("src", previewUrl);
-    const tid = sender.tab && sender.tab.id;
-    if (tid != null) u.searchParams.set("tabId", String(tid));
-    chrome.tabs.create({ url: u.toString() });
-    sendResponse({ ok: true });
-    return true;
-  }
-  if (message.type !== "SPOToolkitOpenViewManager") return;
-  const tabId = sender.tab && sender.tab.id;
-  if (!tabId) {
-    sendResponse({ ok: false, error: "No tab" });
-    return true;
-  }
-  const lid = String(message.listId || "").replace(/[{}]/g, "").trim();
-  const webUrl = String(message.webUrl || "").replace(/\/$/, "");
-  if (!lid || !webUrl) {
-    sendResponse({ ok: false, error: "Missing list or site" });
-    return true;
-  }
-  const u = new URL(chrome.runtime.getURL("views.html"));
-  u.searchParams.set("tabId", String(tabId));
-  u.searchParams.set("listId", lid);
-  u.searchParams.set("webUrl", webUrl);
-  chrome.tabs.create({ url: u.toString() });
+  openSecondStageRecycleBinSequence(tabId, firstUrl, secondUrl);
   sendResponse({ ok: true });
-  return true;
+  return false;
 });

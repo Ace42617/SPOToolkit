@@ -1247,6 +1247,30 @@ body.reports-settings-visible #reportsPanel { min-height: 260px; }
 #btnOpenViewManager:hover { background: var(--brand-dark); transform: translateY(-1px); }
 #btnOpenViewManager svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
+#btnOpenViewFormatter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px;
+  background: var(--surface);
+  color: var(--brand);
+  border: 1.5px solid var(--brand-mid);
+  border-radius: var(--r-md);
+  font-family: var(--font);
+  font-size: .8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+}
+#btnOpenViewFormatter:hover {
+  background: var(--brand-faint);
+  border-color: var(--brand);
+}
+#btnOpenViewFormatter svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
 /* ═══════════════════════════════════════
    DARK MODE — html.dark-mode
 ═══════════════════════════════════════ */
@@ -1318,6 +1342,14 @@ html.dark-mode #btnExportSelected:hover,
 html.dark-mode #btnOpenViewManager:hover,
 html.dark-mode .btn-primary:hover {
   background: #22c55e;
+}
+html.dark-mode #btnOpenViewFormatter {
+  border-color: rgba(74, 222, 128, .45);
+  color: var(--brand);
+}
+html.dark-mode #btnOpenViewFormatter:hover {
+  background: var(--brand-faint);
+  border-color: var(--brand);
 }
 
 /* ── Dark mode toggle (Early Riser / Night Owl) ─────────────────────────── */
@@ -1657,6 +1689,10 @@ html.dark-mode .dark-toggle-btn .dark-toggle-knob {
     <button id="btnOpenViewManager">
       <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
       Open View Manager
+    </button>
+    <button type="button" id="btnOpenViewFormatter" title="List preview + JSON editor for view formatting">
+      <svg viewBox="0 0 24 24"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/></svg>
+      View formatter
     </button>
   </div>
 </div>

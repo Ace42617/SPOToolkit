@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "SP Developer Toolkit Lite",
+  "version": "1.0.0",
+  "description": "Read-only: export list/library data, run reports, and quick links on SharePoint. No view management or write operations.",
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "permissions": ["activeTab", "scripting", "storage", "history", "webNavigation"],
+  "host_permissions": ["*://*.sharepoint.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.sharepoint.com/*"],
+      "js": ["recycleBinWaitBanner.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["*://*.sharepoint.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["exportCSV.js","getFields.js","getSearchSchema.js","checkListPage.js","getListType.js","getViewsData.js","getPageContext.js","getPageContextJson.js","getSiteLists.js","jszip.min.js","jszip-preload.js","jszip-restore.js","icon.png"],
+      "matches": ["*://*.sharepoint.com/*"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon.png",
+      "32": "icon.png",
+      "48": "icon.png"
+    }
+  }
+}
