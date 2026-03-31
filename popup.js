@@ -109,17 +109,46 @@ loadDarkMode();
 
 // --- Settings (gear: open settings screen; back button: return to main) ---
 const chkListsLauncherEnabled = document.getElementById("chkListsLauncherEnabled");
+const chkUniversalSearchOpenOnLoad = document.getElementById("chkUniversalSearchOpenOnLoad");
+const chkUniversalSearchHotkeyEnabled = document.getElementById("chkUniversalSearchHotkeyEnabled");
+const universalSearchShortcutDisplay = document.getElementById("universalSearchShortcutDisplay");
+
+function refreshUniversalSearchShortcutDisplay() {
+  if (!universalSearchShortcutDisplay || typeof chrome.commands === "undefined" || !chrome.commands.getAll) return;
+  chrome.commands.getAll((cmds) => {
+    const c = cmds.find((x) => x.name === "open-universal-search");
+    universalSearchShortcutDisplay.textContent =
+      c && c.shortcut ? "Current shortcut: " + c.shortcut : "Current shortcut: not set";
+  });
+}
+
 document.getElementById("btnSettingsGear")?.addEventListener("click", () => {
   document.body.classList.add("popup-settings-visible");
+  refreshUniversalSearchShortcutDisplay();
 });
 document.getElementById("btnSettingsBackToMain")?.addEventListener("click", () => {
   document.body.classList.remove("popup-settings-visible");
 });
-chrome.storage.local.get("listsLauncherEnabled", (r) => {
-  if (chkListsLauncherEnabled) chkListsLauncherEnabled.checked = !!r.listsLauncherEnabled;
-});
+chrome.storage.local.get(
+  ["listsLauncherEnabled", "universalSearchOpenOnLoad", "universalSearchHotkeyEnabled"],
+  (r) => {
+    if (chkListsLauncherEnabled) chkListsLauncherEnabled.checked = r.listsLauncherEnabled !== false;
+    if (chkUniversalSearchOpenOnLoad) chkUniversalSearchOpenOnLoad.checked = !!r.universalSearchOpenOnLoad;
+    if (chkUniversalSearchHotkeyEnabled) chkUniversalSearchHotkeyEnabled.checked = r.universalSearchHotkeyEnabled !== false;
+  }
+);
 chkListsLauncherEnabled?.addEventListener("change", () => {
   chrome.storage.local.set({ listsLauncherEnabled: chkListsLauncherEnabled.checked });
+});
+chkUniversalSearchOpenOnLoad?.addEventListener("change", () => {
+  chrome.storage.local.set({ universalSearchOpenOnLoad: chkUniversalSearchOpenOnLoad.checked });
+});
+chkUniversalSearchHotkeyEnabled?.addEventListener("change", () => {
+  chrome.storage.local.set({ universalSearchHotkeyEnabled: chkUniversalSearchHotkeyEnabled.checked });
+});
+
+document.getElementById("btnOpenExtensionShortcuts")?.addEventListener("click", () => {
+  chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
 });
 
 // --- Tabs: Quick links, Page Properties, Reports ---
@@ -162,93 +191,542 @@ document.querySelectorAll(".tab").forEach((tab) => {
   });
 });
 
+// --- Universal Search (Finder-style) ---
+const universalSearchOverlay = document.getElementById("universalSearchOverlay");
+const universalSearchInput = document.getElementById("universalSearchInput");
+const universalSearchResults = document.getElementById("universalSearchResults");
+const btnUniversalSearch = document.getElementById("btnUniversalSearch");
+let universalSearchIndex = [];
+let universalSearchFiltered = [];
+let universalSearchActive = -1;
+
+function openUniversalSearch() {
+  if (!universalSearchOverlay || !universalSearchInput) return;
+  document.body.classList.add("universal-search-open");
+  universalSearchOverlay.classList.add("open");
+  universalSearchOverlay.setAttribute("aria-hidden", "false");
+  universalSearchInput.value = "";
+  refreshUniversalSearchIndex().then(() => {
+    renderUniversalSearchResults("");
+    requestAnimationFrame(() => universalSearchInput.focus());
+  });
+}
+
+function closeUniversalSearch() {
+  if (!universalSearchOverlay || !universalSearchInput) return;
+  universalSearchOverlay.classList.remove("open");
+  universalSearchOverlay.setAttribute("aria-hidden", "true");
+  universalSearchInput.value = "";
+  document.body.classList.remove("universal-search-open");
+}
+
+/** Hotkey sets this flag in the service worker; listen so search opens even if the popup was already open (openPopup does not reload). */
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "local" || !changes.pendingOpenUniversalSearch) return;
+  if (changes.pendingOpenUniversalSearch.newValue !== true) return;
+  chrome.storage.local.remove("pendingOpenUniversalSearch");
+  document.body.classList.remove("popup-settings-visible");
+  requestAnimationFrame(() => openUniversalSearch());
+});
+
+function normalizeSearchText(v) {
+  return String(v || "").toLowerCase().trim();
+}
+
+function normalizeGuidCopyText(value) {
+  const raw = String(value == null ? "" : value).trim();
+  const noBraces = raw.replace(/[{}]/g, "");
+  return /^[0-9a-fA-F-]{36}$/.test(noBraces) ? noBraces : raw;
+}
+
+function isEmptyUniversalSearchPropValue(v) {
+  if (v == null) return true;
+  return String(v).trim() === "";
+}
+
+function addUniversalSearchItem(group, title, meta, keywords, run) {
+  universalSearchIndex.push({ group, title, meta, keywords: normalizeSearchText(keywords), run });
+}
+
+async function refreshUniversalSearchIndex() {
+  universalSearchIndex = [];
+  let activeTab = null;
+  let siteBase = "";
+  let parsedCtx = { webAbsoluteUrl: "", pageListId: "", viewId: "" };
+  let pageCtx = null;
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    activeTab = tabs && tabs[0] ? tabs[0] : null;
+    if (activeTab && activeTab.url && isToolkitSharePointPage(activeTab.url)) {
+      parsedCtx = parseContextFromUrl(activeTab.url);
+      siteBase = (parsedCtx.webAbsoluteUrl || "").replace(/\/$/, "") || new URL(activeTab.url).origin;
+      if (activeTab.id != null) {
+        try {
+          pageCtx = await new Promise((resolve) => {
+            chrome.tabs.sendMessage(activeTab.id, { action: "getPageContext" }, (res) => {
+              if (chrome.runtime.lastError || !res || !res.ok) resolve(null);
+              else resolve(res);
+            });
+          });
+        } catch (_) {
+          pageCtx = null;
+        }
+      }
+    }
+  } catch (_) {}
+  let isListPageForSearch = false;
+  if (activeTab && activeTab.id != null && isToolkitSharePointPage(activeTab?.url)) {
+    try {
+      const checkRes = await new Promise((resolve) => {
+        chrome.tabs.sendMessage(activeTab.id, { action: "checkListPage" }, (res) => {
+          if (chrome.runtime.lastError || !res) resolve({ isListPage: false });
+          else resolve(res);
+        });
+      });
+      isListPageForSearch = !!checkRes.isListPage;
+    } catch (_) {
+      isListPageForSearch = false;
+    }
+  }
+  await waitForRenderQuickLinksIdle();
+  try {
+    await renderQuickLinks();
+  } catch (_) {}
+  // Ensure global index includes freshest page props and columns when available.
+  try {
+    await loadContextInfo();
+  } catch (_) {}
+  try {
+    await loadSearchSchema();
+  } catch (_) {}
+
+  document.querySelectorAll(".tab").forEach((tab) => {
+    if (tab.offsetParent === null) return;
+    const id = tab.dataset.tab || "";
+    const title = (tab.textContent || "").trim();
+    if (!id || !title) return;
+    addUniversalSearchItem(
+      "Tabs",
+      title,
+      "Switch tab",
+      title + " " + id,
+      () => switchToTab(id)
+    );
+  });
+
+  if (activeTab && activeTab.url && isToolkitSharePointPage(activeTab.url)) {
+    const jumpToContextValue = (valueText, fallbackText) => {
+      switchToTab("context");
+      const input = document.getElementById("contextFilterInput");
+      const byValue = document.getElementById("contextFilterByValue");
+      if (byValue) byValue.checked = true;
+      if (input) input.value = String(valueText || fallbackText || "");
+      renderContextList();
+      try {
+        if (valueText) navigator.clipboard.writeText(normalizeGuidCopyText(String(valueText)));
+      } catch (_) {}
+    };
+    const urlPath = (() => {
+      try {
+        return new URL(activeTab.url).pathname || "/";
+      } catch (_) {
+        return "";
+      }
+    })();
+    const listId =
+      (pageCtx && (pageCtx.pageListId || pageCtx.listId || pageCtx.listGuid)) ||
+      parsedCtx.pageListId ||
+      "";
+    const viewId = (pageCtx && (pageCtx.viewId || pageCtx.pageViewId)) || parsedCtx.viewId || "";
+    const webUrl = (pageCtx && pageCtx.webAbsoluteUrl) || parsedCtx.webAbsoluteUrl || "";
+    const siteUrl = (pageCtx && pageCtx.siteAbsoluteUrl) || "";
+    const siteId = (pageCtx && pageCtx.siteId) || "";
+    addUniversalSearchItem(
+      "Current Page",
+      "Page URL",
+      urlPath,
+      "page url current url location " + activeTab.url + " " + urlPath,
+      () => jumpToContextValue(activeTab.url, "url")
+    );
+    if (webUrl) {
+      addUniversalSearchItem("Current Page", "Web URL", webUrl, "web url webabsoluteurl " + webUrl, () => jumpToContextValue(webUrl, "webAbsoluteUrl"));
+    }
+    if (siteUrl) {
+      addUniversalSearchItem("Current Page", "Site URL", siteUrl, "site url siteabsoluteurl " + siteUrl, () => jumpToContextValue(siteUrl, "siteAbsoluteUrl"));
+    }
+    if (listId) {
+      addUniversalSearchItem(
+        "Current Page",
+        "List ID",
+        String(listId),
+        "list id listid pagelistid listguid guid " + listId,
+        () => jumpToContextValue(listId, "listid")
+      );
+    }
+    if (viewId) {
+      addUniversalSearchItem(
+        "Current Page",
+        "View ID",
+        String(viewId),
+        "view id viewid pageviewid guid " + viewId,
+        () => jumpToContextValue(viewId, "viewid")
+      );
+    }
+    if (siteId) {
+      addUniversalSearchItem(
+        "Current Page",
+        "Site ID",
+        String(siteId),
+        "site id siteid guid " + siteId,
+        () => jumpToContextValue(siteId, "siteid")
+      );
+    }
+  }
+
+  const quickLinksContainer = document.getElementById("quicklinksContent");
+  if (quickLinksContainer) {
+    quickLinksContainer.querySelectorAll(".ql-section").forEach((section) => {
+      const sectionLabel = (section.querySelector(".ql-section-label")?.textContent || "").trim();
+      section.querySelectorAll("a[href]").forEach((a) => {
+        const label = (a.textContent || "").trim();
+        const href = a.getAttribute("href") || "";
+        if (!label || !href) return;
+        addUniversalSearchItem(
+          "Quick Links",
+          label,
+          sectionLabel || "Quick link",
+          label + " " + href + " " + sectionLabel,
+          () => {
+            if (
+              /second stage recycle bin/i.test(label) &&
+              /adminrecyclebin\.aspx/i.test(href) &&
+              activeTab &&
+              activeTab.id != null &&
+              siteBase
+            ) {
+              const firstUrl = normalizeTrailingSlash(siteBase) + "/_layouts/15/RecycleBin.aspx";
+              chrome.runtime.sendMessage(
+                {
+                  type: "SPOToolkitSecondStageRecycleBin",
+                  tabId: activeTab.id,
+                  firstUrl,
+                  secondUrl: href,
+                },
+                () => {
+                  void chrome.runtime.lastError;
+                }
+              );
+            } else if (isTenantAdminQuickLinkHref(href)) {
+              chrome.runtime.sendMessage({ type: "SPOToolkitOpenTenantAdminWithWait", url: href }, () => {
+                void chrome.runtime.lastError;
+              });
+            } else {
+              chrome.tabs.create({ url: href });
+            }
+            window.close();
+          }
+        );
+      });
+    });
+  }
+
+  if (contextData && typeof contextData === "object") {
+    Object.entries(contextData).slice(0, 200).forEach(([k, v]) => {
+      if (isEmptyUniversalSearchPropValue(v)) return;
+      const val = String(v);
+      addUniversalSearchItem(
+        "Page Props",
+        k,
+        val.slice(0, 90),
+        k + " " + val,
+        () => {
+          switchToTab("context");
+          const input = document.getElementById("contextFilterInput");
+          if (input) input.value = k;
+          renderContextList();
+        }
+      );
+    });
+  }
+
+  if (Array.isArray(searchSchemaColumns) && searchSchemaColumns.length) {
+    searchSchemaColumns.slice(0, 300).forEach((c) => {
+      const title = c.title || c.internalName || "";
+      const internal = c.internalName || "";
+      const crawled = c.crawledProperty || "";
+      const type = c.type || "";
+      addUniversalSearchItem(
+        "Columns",
+        title,
+        internal || type,
+        title + " " + internal + " " + crawled + " " + type,
+        () => {
+          switchToTab("searchSchema");
+          const input = document.getElementById("searchSchemaFilter");
+          if (input) input.value = title || internal;
+          renderSearchSchemaList();
+        }
+      );
+    });
+  }
+
+  if (isListPageForSearch) {
+    addUniversalSearchItem("Tools", "View Manager", "List & library views", "view manager views manage edit editor view editor", () => {
+      void chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
+        if (!tab?.id || !isToolkitSharePointPage(tab.url)) return;
+        chrome.tabs.create({ url: chrome.runtime.getURL("views.html?tabId=" + tab.id) });
+      });
+    });
+    addUniversalSearchItem("Tools", "View formatter", "JSON editor & list preview", "view formatter json column formatting format", () => {
+      void chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
+        if (!isToolkitSharePointPage(tab?.url)) return;
+        const url = new URL(chrome.runtime.getURL("view-formatter.html"));
+        url.searchParams.set("src", tab.url);
+        if (tab.id != null) url.searchParams.set("tabId", String(tab.id));
+        chrome.tabs.create({ url: url.toString() });
+      });
+    });
+    addUniversalSearchItem("Reports", "Run Export", "Reports", "run export reports", () => {
+      switchToTab("reports");
+      btnExport?.focus();
+    });
+    addUniversalSearchItem("Reports", "Permissions Matrix", "Report type", "permissions matrix", () => {
+      switchToTab("reports");
+      if (reportSelect) reportSelect.value = "permissionsMatrix";
+      toggleReportOptions();
+      btnExport?.focus();
+    });
+    addUniversalSearchItem("Reports", "Path Length Report", "Report type", "path length", () => {
+      switchToTab("reports");
+      if (reportSelect) reportSelect.value = "pathLengths";
+      toggleReportOptions();
+      btnExport?.focus();
+    });
+    addUniversalSearchItem("Reports", "Folder and Item Counts", "Report type", "folder item count", () => {
+      switchToTab("reports");
+      if (reportSelect) reportSelect.value = "folderCount";
+      toggleReportOptions();
+      btnExport?.focus();
+    });
+  }
+}
+
+function renderUniversalSearchResults(queryRaw) {
+  if (!universalSearchResults) return;
+  const query = normalizeSearchText(queryRaw);
+  universalSearchFiltered = query
+    ? universalSearchIndex.filter((it) => it.keywords.includes(query))
+    : universalSearchIndex;
+  universalSearchActive = universalSearchFiltered.length ? 0 : -1;
+
+  if (!universalSearchFiltered.length) {
+    universalSearchResults.innerHTML = '<div class="us-empty">No matches yet.</div>';
+    return;
+  }
+
+  const groups = new Map();
+  universalSearchFiltered.forEach((it) => {
+    if (!groups.has(it.group)) groups.set(it.group, []);
+    groups.get(it.group).push(it);
+  });
+
+  universalSearchResults.innerHTML = "";
+  let flatIndex = 0;
+  groups.forEach((items, group) => {
+    const g = document.createElement("div");
+    g.className = "us-group";
+    const h = document.createElement("div");
+    h.className = "us-group-title";
+    h.textContent = group;
+    g.appendChild(h);
+    items.slice(0, 18).forEach((it) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "us-item" + (flatIndex === universalSearchActive ? " active" : "");
+      btn.dataset.idx = String(flatIndex);
+      btn.innerHTML =
+        '<span class="us-item-title">' + escapeHtml(it.title) + "</span>" +
+        (it.meta ? '<span class="us-item-meta">' + escapeHtml(it.meta) + "</span>" : "");
+      btn.addEventListener("click", () => {
+        it.run();
+        closeUniversalSearch();
+      });
+      g.appendChild(btn);
+      flatIndex += 1;
+    });
+    universalSearchResults.appendChild(g);
+  });
+}
+
+function moveUniversalSearchSelection(dir) {
+  if (!universalSearchFiltered.length) return;
+  const max = universalSearchFiltered.length - 1;
+  universalSearchActive = Math.max(0, Math.min(max, universalSearchActive + dir));
+  const buttons = universalSearchResults ? Array.from(universalSearchResults.querySelectorAll(".us-item")) : [];
+  buttons.forEach((b, idx) => b.classList.toggle("active", idx === universalSearchActive));
+  const activeEl = buttons[universalSearchActive];
+  if (activeEl) activeEl.scrollIntoView({ block: "nearest" });
+}
+
+btnUniversalSearch?.addEventListener("click", openUniversalSearch);
+universalSearchOverlay?.addEventListener("click", (e) => {
+  if (e.target === universalSearchOverlay) closeUniversalSearch();
+});
+universalSearchInput?.addEventListener("input", () => renderUniversalSearchResults(universalSearchInput.value));
+universalSearchInput?.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    e.preventDefault();
+    closeUniversalSearch();
+    return;
+  }
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    moveUniversalSearchSelection(1);
+    return;
+  }
+  if (e.key === "ArrowUp") {
+    e.preventDefault();
+    moveUniversalSearchSelection(-1);
+    return;
+  }
+  if (e.key === "Enter" && universalSearchFiltered[universalSearchActive]) {
+    e.preventDefault();
+    universalSearchFiltered[universalSearchActive].run();
+    closeUniversalSearch();
+  }
+});
+document.addEventListener("keydown", (e) => {
+  const isCmdK = (e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === "k";
+  if (isCmdK) {
+    e.preventDefault();
+    openUniversalSearch();
+    return;
+  }
+  if (e.key === "Escape" && universalSearchOverlay?.classList.contains("open")) {
+    e.preventDefault();
+    closeUniversalSearch();
+  }
+});
+
 const RECENT_SP_KEY = "recentSharePointUrls";
 const RECENT_SP_MAX = 25;
 
-async function addCurrentUrlToRecentSharePoint(url) {
-  if (!url || !url.includes("sharepoint.com")) return;
-  const normalized = url.split("?")[0].replace(/\/$/, "") || url;
-  const key = recentSharePointSiteKey(normalized);
-  const { [RECENT_SP_KEY]: list = [] } = await chrome.storage.local.get(RECENT_SP_KEY);
-  const deduped = [normalized].concat(list.filter((u) => recentSharePointSiteKey(u) !== key));
-  const bySiteKey = new Map();
-  for (const u of deduped) {
-    const k = recentSharePointSiteKey(u);
-    if (!bySiteKey.has(k) || u.length < bySiteKey.get(k).length) bySiteKey.set(k, u);
+/** SharePoint pages the toolkit supports (excludes tenant admin / *-admin.sharepoint.com). */
+function isToolkitSharePointPage(url) {
+  if (!url || typeof url !== "string") return false;
+  if (!url.includes("sharepoint.com")) return false;
+  try {
+    return !new URL(url).hostname.toLowerCase().endsWith("-admin.sharepoint.com");
+  } catch (_) {
+    return true;
   }
-  const next = Array.from(bySiteKey.values()).slice(0, RECENT_SP_MAX);
-  await chrome.storage.local.set({ [RECENT_SP_KEY]: next });
 }
 
-/** Return a stable key for "same site" (origin + /sites/SiteName or /teams/TeamName). */
-function recentSharePointSiteKey(url) {
+/** Dedupe recent list by full page path (not only site root). */
+function recentSharePointPageKey(url) {
   try {
     const u = new URL(url);
     const path = u.pathname.replace(/\/$/, "") || "";
-    const segments = path.split("/").filter(Boolean);
-    const sitesIdx = segments.findIndex((s) => s === "sites" || s === "teams");
-    if (sitesIdx >= 0 && segments[sitesIdx + 1]) {
-      const sitePath = "/" + segments.slice(0, sitesIdx + 2).join("/");
-      return (u.origin + sitePath).toLowerCase();
-    }
-    return (u.origin + (path || "/")).toLowerCase();
+    return (u.origin + path).toLowerCase();
   } catch (_) {
     return (url.split("?")[0].replace(/\/$/, "") || url).toLowerCase();
   }
 }
 
-function recentSharePointOptionLabel(url) {
+function migrateRecentSharePointStoredList(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((item) => {
+      if (typeof item === "string") return { url: item, title: "" };
+      if (item && typeof item.url === "string") return { url: item.url, title: String(item.title || "") };
+      return null;
+    })
+    .filter(Boolean);
+}
+
+function cleanSharePointTabTitle(title) {
+  if (!title) return "";
+  let t = String(title).trim();
+  t = t.replace(/\s+[\-|]\s+SharePoint Online.*$/i, "");
+  t = t.replace(/\s+[\-|]\s+SharePoint.*$/i, "");
+  t = t.replace(/\s+[\-|]\s*Microsoft 365\s*$/i, "");
+  t = t.trim();
+  const parts = t.split(/\s*-\s*/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length) return parts[0];
+  return t;
+}
+
+function friendlyNameFromSharePointUrl(url) {
   try {
     const u = new URL(url);
     const segments = u.pathname.split("/").filter(Boolean);
-    const sitesIdx = segments.findIndex((s) => s === "sites" || s === "teams");
-    const siteName = sitesIdx >= 0 && segments[sitesIdx + 1]
-      ? segments[sitesIdx + 1]
-      : segments[0] || null;
-    if (siteName) {
-      return siteName + " — " + u.hostname;
+    if (segments.length === 0) return "Home";
+    const last = segments[segments.length - 1];
+    if (/^viewlsts\.aspx$/i.test(last)) return "Site contents";
+    if (/^settings\.aspx$/i.test(last)) return "Site settings";
+    if (/^home\.aspx$/i.test(last)) return "Home";
+    if (segments.includes("Forms")) {
+      const prev = segments[segments.length - 2];
+      return (prev && decodeURIComponent(prev)) || "Library";
     }
-    return u.hostname + (segments[0] ? " / " + segments[0] : "");
+    const leaf = decodeURIComponent(last.replace(/\.aspx$/i, ""));
+    return leaf || "Page";
+  } catch (_) {
+    return "SharePoint";
+  }
+}
+
+function formatRecentSharePointEntryLabel(entry) {
+  const url = typeof entry === "string" ? entry : entry.url;
+  let title = typeof entry === "string" ? "" : String(entry.title || "");
+  title = cleanSharePointTabTitle(title);
+  if (!title) title = friendlyNameFromSharePointUrl(url);
+  try {
+    const host = new URL(url).hostname;
+    return title + " - " + host;
   } catch (_) {
     return url;
   }
+}
+
+async function addCurrentUrlToRecentSharePoint(url, pageTitle) {
+  if (!isToolkitSharePointPage(url)) return;
+  const normalized = url.split("?")[0].replace(/\/$/, "") || url;
+  const title = String(pageTitle || "").trim();
+  const { [RECENT_SP_KEY]: list = [] } = await chrome.storage.local.get(RECENT_SP_KEY);
+  const migrated = migrateRecentSharePointStoredList(list);
+  const pageKey = recentSharePointPageKey(normalized);
+  const deduped = [{ url: normalized, title }].concat(
+    migrated.filter((e) => recentSharePointPageKey(e.url) !== pageKey)
+  );
+  const next = deduped.slice(0, RECENT_SP_MAX);
+  await chrome.storage.local.set({ [RECENT_SP_KEY]: next });
 }
 
 async function populateRecentSharePointDropdown() {
   const sel = document.getElementById("recentSharePointSelect");
   if (!sel) return;
   const { [RECENT_SP_KEY]: stored = [] } = await chrome.storage.local.get(RECENT_SP_KEY);
-  let urls = Array.from(stored);
+  let entries = migrateRecentSharePointStoredList(stored).filter((e) => isToolkitSharePointPage(e.url));
   try {
-    const historyItems = await chrome.history.search({ text: "sharepoint.com", maxResults: 40, startTime: 0 });
-    const fromHistory = historyItems
-      .map((h) => h.url)
-      .filter((u) => u && u.includes("sharepoint.com"));
-    const seenKeys = new Set(urls.map(recentSharePointSiteKey));
-    for (const u of fromHistory) {
+    const historyItems = await chrome.history.search({ text: "sharepoint.com", maxResults: 60, startTime: 0 });
+    const seenPageKeys = new Set(entries.map((e) => recentSharePointPageKey(e.url)));
+    for (const h of historyItems) {
+      const u = h.url;
+      if (!u || !isToolkitSharePointPage(u)) continue;
       const n = u.split("?")[0].replace(/\/$/, "") || u;
-      if (!seenKeys.has(recentSharePointSiteKey(n))) {
-        seenKeys.add(recentSharePointSiteKey(n));
-        urls.push(n);
-      }
+      const pk = recentSharePointPageKey(n);
+      if (seenPageKeys.has(pk)) continue;
+      seenPageKeys.add(pk);
+      entries.push({ url: n, title: h.title || "" });
     }
   } catch (_) {}
-  const bySiteKey = new Map();
-  for (const u of urls) {
-    const key = recentSharePointSiteKey(u);
-    if (bySiteKey.has(key)) {
-      const existing = bySiteKey.get(key);
-      if (u.length < existing.length) bySiteKey.set(key, u);
-    } else {
-      bySiteKey.set(key, u);
-    }
-  }
-  urls = Array.from(bySiteKey.values()).slice(0, RECENT_SP_MAX);
-  sel.innerHTML = '<option value="">Choose a site…</option>';
-  urls.forEach((url) => {
+  entries = entries.slice(0, RECENT_SP_MAX);
+  sel.innerHTML = '<option value="">Choose a page…</option>';
+  entries.forEach((entry) => {
     const opt = document.createElement("option");
-    opt.value = url;
-    opt.textContent = recentSharePointOptionLabel(url);
+    opt.value = entry.url;
+    opt.textContent = formatRecentSharePointEntryLabel(entry);
     sel.appendChild(opt);
   });
 }
@@ -268,31 +746,39 @@ async function goToSelectedSharePointSite() {
 
 async function syncPopupToCurrentTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  const onSharePoint = tab?.url?.includes("sharepoint.com");
+  const onToolkitSp = isToolkitSharePointPage(tab?.url);
 
-  if (!onSharePoint) {
+  if (!onToolkitSp) {
     document.body.classList.add("not-on-sharepoint");
     await populateRecentSharePointDropdown();
     return;
   }
 
   document.body.classList.remove("not-on-sharepoint");
-  await addCurrentUrlToRecentSharePoint(tab.url);
+  await addCurrentUrlToRecentSharePoint(tab.url, tab.title || "");
 
   const tabColumns = document.getElementById("tabColumns");
   const tabViewManager = document.getElementById("tabViewManager");
+  const tabReports = document.getElementById("tabReports");
+  let isListPage = false;
   try {
     const response = await chrome.tabs.sendMessage(tab.id, { action: "checkListPage" });
-    const show = response?.isListPage ? "" : "none";
+    isListPage = !!response?.isListPage;
+    const show = isListPage ? "" : "none";
     if (tabColumns) tabColumns.style.display = show;
     if (tabViewManager) tabViewManager.style.display = show;
+    if (tabReports) tabReports.style.display = show;
   } catch (_) {
     if (tabColumns) tabColumns.style.display = "none";
     if (tabViewManager) tabViewManager.style.display = "none";
+    if (tabReports) tabReports.style.display = "none";
   }
 
   const { popupActiveTab } = await chrome.storage.local.get("popupActiveTab");
-  const id = popupActiveTab && TAB_IDS.includes(popupActiveTab) ? popupActiveTab : "quicklinks";
+  let id = popupActiveTab && TAB_IDS.includes(popupActiveTab) ? popupActiveTab : "quicklinks";
+  if ((id === "searchSchema" || id === "viewManager" || id === "reports") && !isListPage) {
+    id = "quicklinks";
+  }
   const tabEl = document.querySelector(".tab[data-tab=\"" + id + "\"]");
   if (tabEl && tabEl.offsetParent !== null) switchToTab(id);
   else switchToTab("quicklinks");
@@ -301,6 +787,17 @@ async function syncPopupToCurrentTab() {
 // Restore last active tab on open; when not on SharePoint, show message + recent sites only
 (async function restorePopupTab() {
   await syncPopupToCurrentTab();
+  try {
+    const r = await chrome.storage.local.get(["universalSearchOpenOnLoad", "pendingOpenUniversalSearch"]);
+    let fromHotkey = false;
+    if (r.pendingOpenUniversalSearch) {
+      fromHotkey = true;
+      chrome.storage.local.remove("pendingOpenUniversalSearch");
+    }
+    if (r.universalSearchOpenOnLoad || fromHotkey) {
+      requestAnimationFrame(() => openUniversalSearch());
+    }
+  } catch (_) {}
 })();
 
 document.getElementById("recentSharePointSelect")?.addEventListener("change", function () {
@@ -324,6 +821,44 @@ function addQuickLink(ul, label, href, icon) {
   const iconAttr = icon ? ` data-ql-icon="${escapeHtml(icon)}"` : "";
   li.innerHTML = `<a href="${escapeHtml(href)}" target="_blank" rel="noopener"${iconAttr}>${escapeHtml(label)}</a>`;
   ul.appendChild(li);
+}
+
+function isQuickLinkTenantAdminHost(href, adminHost) {
+  if (!adminHost) return false;
+  try {
+    return new URL(href).hostname.toLowerCase() === String(adminHost).toLowerCase();
+  } catch (_) {
+    return false;
+  }
+}
+
+/** Tenant *-admin.sharepoint.com links: new tab + loading overlay (background). */
+function addQuickLinkOrTenantAdminWait(ul, label, href, icon, adminHost) {
+  if (!isQuickLinkTenantAdminHost(href, adminHost)) {
+    addQuickLink(ul, label, href, icon);
+    return;
+  }
+  const li = document.createElement("li");
+  const iconAttr = icon ? ` data-ql-icon="${escapeHtml(icon)}"` : "";
+  li.innerHTML = `<a href="${escapeHtml(href)}" target="_blank" rel="noopener"${iconAttr}>${escapeHtml(label)}</a>`;
+  const a = li.querySelector("a");
+  a.addEventListener("click", (e) => {
+    e.preventDefault();
+    chrome.runtime.sendMessage({ type: "SPOToolkitOpenTenantAdminWithWait", url: href }, () => {
+      void chrome.runtime.lastError;
+    });
+  });
+  ul.appendChild(li);
+}
+
+function isTenantAdminQuickLinkHref(href) {
+  try {
+    const u = new URL(href);
+    if (u.protocol !== "https:") return false;
+    return u.hostname.toLowerCase().endsWith("-admin.sharepoint.com");
+  } catch (_) {
+    return false;
+  }
 }
 
 /** Same tab: end-user RecycleBin first, then site-collection AdminRecycleBin (?view=5#view=13). */
@@ -390,6 +925,27 @@ function filterQuickLinks() {
 }
 
 let renderQuickLinksBusy = false;
+
+function waitForRenderQuickLinksIdle(timeoutMs) {
+  const max = timeoutMs == null ? 10000 : timeoutMs;
+  const start = typeof performance !== "undefined" ? performance.now() : Date.now();
+  return new Promise((resolve) => {
+    function tick() {
+      if (!renderQuickLinksBusy) {
+        resolve();
+        return;
+      }
+      const elapsed = (typeof performance !== "undefined" ? performance.now() : Date.now()) - start;
+      if (elapsed >= max) {
+        resolve();
+        return;
+      }
+      setTimeout(tick, 24);
+    }
+    tick();
+  });
+}
+
 async function renderQuickLinks() {
   if (renderQuickLinksBusy) return;
   const hint = document.getElementById("quicklinksHint");
@@ -400,6 +956,7 @@ async function renderQuickLinks() {
   const tenant = document.getElementById("quicklinksTenant");
   if (!content || !currentSite || !currentUser || !modes || !tenant) return;
   renderQuickLinksBusy = true;
+  try {
   currentSite.innerHTML = "";
   currentUser.innerHTML = "";
   modes.innerHTML = "";
@@ -408,16 +965,14 @@ async function renderQuickLinks() {
   try {
     const [t] = await chrome.tabs.query({ active: true, currentWindow: true });
     tab = t;
-    if (!tab?.url?.includes("sharepoint.com")) {
+    if (!isToolkitSharePointPage(tab?.url)) {
       hint.style.display = "block";
       content.style.display = "none";
-      renderQuickLinksBusy = false;
       return;
     }
   } catch (_) {
     hint.style.display = "block";
     content.style.display = "none";
-    renderQuickLinksBusy = false;
     return;
   }
   hint.style.display = "none";
@@ -433,23 +988,25 @@ async function renderQuickLinks() {
   addQuickLink(currentSite, "Site settings", siteBase + "/_layouts/15/settings.aspx", "settings");
   addQuickLink(currentSite, "Site contents", siteBase + "/_layouts/15/viewlsts.aspx", "folder");
   addQuickLink(currentSite, "Site content types", siteBase + "/_layouts/15/SiteAdmin.aspx#/contentTypes", "layers");
-  addQuickLink(
+  addQuickLinkOrTenantAdminWait(
     currentSite,
     "Tenant content types",
     `https://${adminHost}/_layouts/15/online/AdminHome.aspx#/contentTypes`,
-    "adminHome"
+    "adminHome",
+    adminHost
   );
   addQuickLink(currentSite, "Recycle bin", siteBase + "/_layouts/15/RecycleBin.aspx", "trash");
   addSecondStageRecycleBinQuickLink(currentSite, "Second Stage Recycle Bin", tab.id, siteBase, secondStageHref, "trash");
   addQuickLink(currentSite, "All People", siteBase + "/_layouts/15/people.aspx?MembershipGroupId=0", "users");
   addQuickLink(currentSite, "Storage metrics", siteBase + "/_layouts/15/storman.aspx", "chart");
-  addQuickLink(
+  addQuickLinkOrTenantAdminWait(
     currentSite,
     "SharePoint Admin Settings",
     siteId
       ? `https://${adminHost}/_layouts/15/online/AdminHome.aspx#/siteManagement/:/SiteDetails/${siteId}`
       : `https://${adminHost}/_layouts/15/online/AdminHome.aspx#/siteManagement`,
-    "adminHome"
+    "adminHome",
+    adminHost
   );
 
   addQuickLink(currentUser, "Edit user profile", siteBase + "/_layouts/15/me.aspx", "user");
@@ -463,25 +1020,52 @@ async function renderQuickLinks() {
   addQuickLink(modes, "Disable SPFx code", q("disable3PCode"), "shield");
   addQuickLink(modes, "Web Part Maintenance", q("contents=1"), "layers");
 
-  addQuickLink(tenant, "Admin center", `https://${adminHost}`, "shield");
-  addQuickLink(
+  addQuickLinkOrTenantAdminWait(tenant, "Admin center", `https://${adminHost}`, "shield", adminHost);
+  addQuickLinkOrTenantAdminWait(
     tenant,
     "Admin Center Settings",
     siteId
       ? `https://${adminHost}/_layouts/15/online/AdminHome.aspx#/siteManagement/:/SiteDetails/${siteId}/Settings`
       : `https://${adminHost}/_layouts/15/online/AdminHome.aspx#/siteManagement`,
-    "settings"
+    "settings",
+    adminHost
   );
-  addQuickLink(tenant, "Tenant site settings", `https://${adminHost}/_layouts/15/online/tenantsettings.aspx`, "settings");
-  addQuickLink(tenant, "User profiles", `https://${adminHost}/_layouts/15/TenantProfileAdmin/ManageUserProfileServiceApplication.aspx`, "users");
+  addQuickLinkOrTenantAdminWait(
+    tenant,
+    "Tenant site settings",
+    `https://${adminHost}/_layouts/15/online/tenantsettings.aspx`,
+    "settings",
+    adminHost
+  );
+  addQuickLinkOrTenantAdminWait(
+    tenant,
+    "User profiles",
+    `https://${adminHost}/_layouts/15/TenantProfileAdmin/ManageUserProfileServiceApplication.aspx`,
+    "users",
+    adminHost
+  );
   addQuickLink(tenant, "Term store", `https://${host}/_layouts/15/termstoremanager.aspx`, "tag");
-  addQuickLink(tenant, "Search administration", `https://${adminHost}/_layouts/15/searchadmin/TA_SearchAdministration.aspx`, "search");
-  addQuickLink(tenant, "API access", `https://${adminHost}/_layouts/15/online/AdminHome.aspx#/webApiPermissionManagement`, "key");
+  addQuickLinkOrTenantAdminWait(
+    tenant,
+    "Search administration",
+    `https://${adminHost}/_layouts/15/searchadmin/TA_SearchAdministration.aspx`,
+    "search",
+    adminHost
+  );
+  addQuickLinkOrTenantAdminWait(
+    tenant,
+    "API access",
+    `https://${adminHost}/_layouts/15/online/AdminHome.aspx#/webApiPermissionManagement`,
+    "key",
+    adminHost
+  );
   addQuickLink(tenant, "Teams admin", "https://admin.teams.microsoft.com/dashboard", "teams");
   addQuickLink(tenant, "App catalog", `https://${host}/sites/AppCatalog/_layouts/15/appStore.aspx`, "package");
   addQuickLink(tenant, "Classic app catalog", `https://${host}/sites/AppCatalog`, "archive");
 
-  renderQuickLinksBusy = false;
+  } finally {
+    renderQuickLinksBusy = false;
+  }
 }
 
 function normalizeGuidString(raw) {
@@ -654,7 +1238,7 @@ async function loadContextInfo() {
   countEl.textContent = "ContextInfo properties: …";
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !tab.url?.includes("sharepoint.com")) {
+    if (!tab?.id || !isToolkitSharePointPage(tab.url)) {
       countEl.textContent = "ContextInfo properties: 0";
       list.innerHTML = "<p class=\"hint\">Open a SharePoint page, then click Refresh to load page properties.</p>";
       return;
@@ -751,7 +1335,7 @@ function renderContextList() {
     btn.title = "Copy value";
     btn.appendChild(createCopyIconImg());
     btn.addEventListener("click", () => {
-      navigator.clipboard.writeText(valStr).then(() => {
+      navigator.clipboard.writeText(normalizeGuidCopyText(valStr)).then(() => {
         btn.textContent = "";
         btn.className = "copy-btn copied";
         btn.appendChild(createCheckIconImg());
@@ -780,7 +1364,7 @@ document.getElementById("contextFilterByValue").addEventListener("change", () =>
 
 document.getElementById("btnOpenViewManager").addEventListener("click", async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id || !tab.url?.includes("sharepoint.com")) {
+  if (!tab?.id || !isToolkitSharePointPage(tab.url)) {
     alert("Open a SharePoint list or library page first, then open View Manager.");
     return;
   }
@@ -789,7 +1373,7 @@ document.getElementById("btnOpenViewManager").addEventListener("click", async ()
 
 document.getElementById("btnOpenViewFormatter")?.addEventListener("click", async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.url?.includes("sharepoint.com")) {
+  if (!isToolkitSharePointPage(tab?.url)) {
     alert("Open a SharePoint list or library page first, then open View formatter.");
     return;
   }
@@ -814,7 +1398,7 @@ async function loadSearchSchema() {
   if (countEl) countEl.textContent = "Loading…";
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !tab.url?.includes("sharepoint.com")) {
+    if (!tab?.id || !isToolkitSharePointPage(tab.url)) {
       if (countEl) countEl.textContent = "Columns: 0";
       errEl.textContent = "Open a list or library page to load columns.";
       errEl.style.display = "block";
@@ -980,7 +1564,7 @@ btnRefinableConfigure?.addEventListener("click", async () => {
   const propertyName = typeId + num;
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.url?.includes("sharepoint.com")) {
+    if (!isToolkitSharePointPage(tab?.url)) {
       alert("Open a SharePoint site in the current tab first, then click Configure to open the managed property page for that site.");
       return;
     }
@@ -1006,7 +1590,7 @@ async function loadRefinableMappings() {
   refinableMappingsOut.className = "refinable-mappings-out loading";
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !tab.url?.includes("sharepoint.com")) {
+    if (!tab?.id || !isToolkitSharePointPage(tab.url)) {
       refinableMappingsOut.textContent = "Open a SharePoint site in the current tab to load mappings.";
       refinableMappingsOut.className = "refinable-mappings-out error";
       return;
@@ -1052,7 +1636,7 @@ async function loadRefinableMappings() {
 initRefinableProps();
 
 function parseContextFromUrl(pageUrl) {
-  if (!pageUrl || !pageUrl.includes("sharepoint.com")) return { webAbsoluteUrl: "", pageListId: "", viewId: "" };
+  if (!pageUrl || !isToolkitSharePointPage(pageUrl)) return { webAbsoluteUrl: "", pageListId: "", viewId: "" };
   try {
     const u = new URL(pageUrl);
     let webAbsoluteUrl = "";
@@ -1118,7 +1702,7 @@ async function runExport(selectedColumns = null) {
   setPickerStatus("");
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !tab.url?.includes("sharepoint.com")) {
+    if (!tab?.id || !isToolkitSharePointPage(tab.url)) {
       setStatus(tab?.id ? "Open a SharePoint list or library page first." : "No active tab.", "error");
       return;
     }
@@ -1181,7 +1765,7 @@ async function openColumnPicker() {
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !tab.url?.includes("sharepoint.com")) {
+    if (!tab?.id || !isToolkitSharePointPage(tab.url)) {
       setPickerStatus("Open a SharePoint list or library page first.", "error");
       return;
     }
@@ -1230,7 +1814,7 @@ async function updateExportReportLabel() {
   let listOrLibrary = "List";
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !tab.url?.includes("sharepoint.com")) {
+    if (!tab?.id || !isToolkitSharePointPage(tab.url)) {
       optionEl.textContent = "Export " + listOrLibrary + " to " + formatLabel;
       return;
     }

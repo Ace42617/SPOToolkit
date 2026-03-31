@@ -368,26 +368,29 @@ function toggleListsLauncher() {
         addIcon(siteUrl + "/_layouts/15/settings.aspx", "Site settings", "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z\"/>");
         addIcon(siteUrl + "/_layouts/15/user.aspx", "Site permissions", fluentPermissionsKeySvgInner, true);
         const currentListId = ev.data.currentListId && String(ev.data.currentListId).replace(/^\{|\}$/g, "").trim();
+        const onListOrLibraryView = !!(currentListId || currentListTitle) && !onSiteContentsPage;
         if (currentListId) {
           const listGuid = "{" + currentListId.toUpperCase() + "}";
           addIcon(siteUrl + "/_layouts/15/listedit.aspx?List=" + encodeURIComponent(listGuid), "Current list/library settings", "<line x1=\"4\" y1=\"21\" x2=\"4\" y2=\"14\"/><line x1=\"4\" y1=\"10\" x2=\"4\" y2=\"3\"/><line x1=\"12\" y1=\"21\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"3\"/><line x1=\"20\" y1=\"21\" x2=\"20\" y2=\"16\"/><line x1=\"20\" y1=\"12\" x2=\"20\" y2=\"3\"/><line x1=\"1\" y1=\"14\" x2=\"7\" y2=\"14\"/><line x1=\"9\" y1=\"8\" x2=\"15\" y2=\"8\"/><line x1=\"17\" y1=\"16\" x2=\"23\" y2=\"16\"/>");
         }
         addIcon(siteUrl + "/_layouts/15/RecycleBin.aspx", "Recycle bin", "<path fill=\"currentColor\" d=\"M7.03454 3.5C6.13437 3.5 5.4063 4.17543 5.2982 5.02738C5.36232 5.00954 5.4299 5 5.49971 5H18.4997C18.5695 5 18.6371 5.00954 18.7012 5.02738C18.5931 4.17543 17.8651 3.5 16.9649 3.5H7.03454ZM6.85063 19.8306C6.8918 20.2114 7.21327 20.5 7.59629 20.5H16.4031C16.7861 20.5 17.1076 20.2114 17.1488 19.8306L18.5905 6.49456C18.5608 6.49815 18.5304 6.5 18.4997 6.5H5.49971C5.46897 6.5 5.43866 6.49815 5.4089 6.49456L6.85063 19.8306ZM3.80337 5.59932C3.59559 3.67734 5.10136 2 7.03454 2H16.9649C18.8981 2 20.4038 3.67733 20.196 5.59932L18.6401 19.9918C18.5166 21.1342 17.5522 22 16.4031 22H7.59629C6.44725 22 5.48282 21.1342 5.35932 19.9918L3.80337 5.59932ZM11.7919 10.4094C11.8909 10.2614 12.1085 10.2614 12.2075 10.4094L12.8763 11.4092C13.1067 11.7535 13.5725 11.8459 13.9167 11.6156C14.261 11.3852 14.3534 10.9194 14.1231 10.5752L13.4542 9.57538C12.7612 8.53947 11.2382 8.53946 10.5452 9.57538L9.87634 10.5752C9.64602 10.9194 9.7384 11.3852 10.0827 11.6156C10.427 11.8459 10.8928 11.7535 11.1231 11.4092L11.7919 10.4094ZM9.63558 12.5991C9.99077 12.8122 10.1059 13.2729 9.89283 13.6281L9.5287 14.2349C9.32874 14.5682 9.5688 14.9922 9.95745 14.9922H10.7497C11.1639 14.9922 11.4997 15.328 11.4997 15.7422C11.4997 16.1564 11.1639 16.4922 10.7497 16.4922H9.95745C8.40286 16.4922 7.44263 14.7962 8.24246 13.4632L8.60659 12.8563C8.8197 12.5011 9.2804 12.386 9.63558 12.5991ZM14.1087 13.6276C13.8958 13.2723 14.0113 12.8117 14.3666 12.5988C14.722 12.3859 15.1826 12.5014 15.3954 12.8568L15.7594 13.4644C16.558 14.7974 15.5977 16.4922 14.0437 16.4922H13.2497C12.8355 16.4922 12.4997 16.1564 12.4997 15.7422C12.4997 15.328 12.8355 14.9922 13.2497 14.9922H14.0437C14.4322 14.9922 14.6723 14.5685 14.4727 14.2352L14.1087 13.6276Z\"/>", true);
-        const vfA = document.createElement("a");
-        vfA.href = "#";
-        vfA.title = "View formatter — JSON editor and list preview";
-        vfA.setAttribute("aria-label", "View formatter");
-        vfA.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1\"/><path d=\"M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1\"/></svg>";
-        vfA.addEventListener("click", function (ev) {
-          ev.preventDefault();
-          ev.stopPropagation();
-          try {
-            chrome.runtime.sendMessage({ type: "SPOToolkitOpenViewFormatter", previewUrl: window.location.href });
-          } catch (err) {
-            console.warn("SPOToolkit: View formatter", err);
-          }
-        });
-        iconsEl.appendChild(vfA);
+        if (onListOrLibraryView) {
+          const vfA = document.createElement("a");
+          vfA.href = "#";
+          vfA.title = "View formatter — JSON editor and list preview";
+          vfA.setAttribute("aria-label", "View formatter");
+          vfA.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1\"/><path d=\"M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1\"/></svg>";
+          vfA.addEventListener("click", function (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            try {
+              chrome.runtime.sendMessage({ type: "SPOToolkitOpenViewFormatter", previewUrl: window.location.href });
+            } catch (err) {
+              console.warn("SPOToolkit: View formatter", err);
+            }
+          });
+          iconsEl.appendChild(vfA);
+        }
       }
       function formatModified(s) {
         if (!s) return "";
@@ -733,7 +736,7 @@ function initListsLauncher() {
   if (window !== window.top) return;
   destroyListsLauncher();
   chrome.storage.local.get("listsLauncherEnabled", (r) => {
-    if (!r.listsLauncherEnabled) return;
+    if (r.listsLauncherEnabled === false) return;
     if (document.getElementById(LISTS_LAUNCHER_ID)) return;
     initListsLauncherUI();
   });
@@ -807,7 +810,7 @@ function applyListsPanelTheme(panel) {
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (window !== window.top || areaName !== "local") return;
   if (changes.listsLauncherEnabled) {
-    const enabled = !!changes.listsLauncherEnabled.newValue;
+    const enabled = changes.listsLauncherEnabled.newValue !== false;
     if (enabled) requestAnimationFrame(function () { requestAnimationFrame(function () { initListsLauncherUI(); }); });
     else destroyListsLauncher();
     return;

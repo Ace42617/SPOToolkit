@@ -35,16 +35,16 @@
       margin: "20px",
       padding: "32px 36px",
       background: "linear-gradient(165deg, #1e2436 0%, #151a28 100%)",
-      border: "4px solid #d97706",
+      border: "4px solid #0d9488",
       borderRadius: "14px",
       boxShadow:
-        "0 28px 60px rgba(0,0,0,.55), 0 0 0 1px rgba(251,191,36,.25)",
+        "0 28px 60px rgba(0,0,0,.55), 0 0 0 1px rgba(45,212,191,.22)",
       color: "#f1f5f9",
       textAlign: "center",
     });
 
     var iconRow = document.createElement("div");
-    iconRow.textContent = "⛔";
+    iconRow.textContent = "⏳";
     Object.assign(iconRow.style, {
       fontSize: "48px",
       lineHeight: "1",
@@ -58,7 +58,7 @@
       fontSize: "clamp(20px, 4vw, 26px)",
       fontWeight: "800",
       marginBottom: "14px",
-      color: "#fbbf24",
+      color: "#5eead4",
       letterSpacing: "0.02em",
       lineHeight: "1.25",
     });

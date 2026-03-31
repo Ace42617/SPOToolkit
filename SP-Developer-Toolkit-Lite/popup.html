@@ -55,6 +55,11 @@ body {
 body.popup-fade-out {
   animation: popup-fade-out 0.2s ease-in forwards;
 }
+/* Match extension popup max height so Universal Search can use full vertical space */
+body.universal-search-open {
+  min-height: 600px;
+  height: 600px;
+}
 @keyframes popup-fade-in {
   0% { opacity: 0; }
   100% { opacity: 1; }
@@ -138,6 +143,26 @@ body.popup-fade-out {
   color: white;
 }
 .popup-header-settings-btn svg { width: 14px; height: 14px; }
+.popup-header-search-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-sm);
+  background: rgba(255,255,255,.1);
+  color: rgba(255,255,255,.85);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background .15s, color .15s;
+}
+.popup-header-search-btn:hover {
+  background: rgba(255,255,255,.18);
+  color: white;
+}
+.popup-header-search-btn svg { width: 14px; height: 14px; }
 
 .feedback-icon-link {
   display: inline-flex;
@@ -204,6 +229,34 @@ body.popup-settings-visible .popup-settings-screen { display: flex; }
 .popup-settings-screen .form-label { font-size: .75rem; font-weight: 600; color: var(--txt-mid); margin-bottom: 8px; display: block; }
 .popup-settings-screen .checkbox-row { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: .8125rem; color: var(--txt); margin-bottom: 4px; }
 .popup-settings-screen .checkbox-row input { accent-color: var(--brand); }
+.popup-settings-screen .settings-hint {
+  font-size: .7rem;
+  color: var(--txt-soft);
+  line-height: 1.4;
+  margin: 2px 0 6px 22px;
+  max-width: 38ch;
+}
+.popup-settings-screen .settings-inline-link {
+  color: var(--brand);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  display: inline;
+}
+.popup-settings-screen .settings-inline-link:hover {
+  filter: brightness(1.08);
+}
+.popup-settings-screen .settings-shortcut-line {
+  font-size: .72rem;
+  color: var(--txt-mid);
+  margin: 0 0 12px 22px;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
 
 /* ── NOT ON SHAREPOINT PANEL ─────────────────────────── */
 .not-on-sp-panel {
@@ -322,6 +375,25 @@ html.dark-mode .not-on-sp-select option {
   overflow-y: auto;
   flex-direction: column;
   max-height: 508px;
+  /* Bottom fade on scrollport (mask — reliable in extension popups). */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 calc(100% - 2.75rem),
+    rgba(0, 0, 0, 0.65) calc(100% - 1.25rem),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 calc(100% - 2.75rem),
+    rgba(0, 0, 0, 0.65) calc(100% - 1.25rem),
+    transparent 100%
+  );
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
 }
 .tab-content.active { display: flex; }
 
@@ -1172,7 +1244,7 @@ html.dark-mode .popup-header-badge {
   background: rgba(255,255,255,.12);
   border-color: rgba(255,255,255,.15);
 }
-html.dark-mode .toolbar input[type="text"]:focus { background: var(--surface); }
+html.dark-mode .toolbar input[type=text]:focus, html.dark-mode .quicklinks-toolbar input[type=text]:focus { background: var(--surface); }
 html.dark-mode select {
   background-color: var(--surface);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239EA3C8' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
@@ -1300,6 +1372,113 @@ html.dark-mode .dark-toggle-btn .dark-toggle-knob {
   outline: 2px solid white;
   outline-offset: 2px;
 }
+
+/* ── Universal Settings Search (Finder-style) ─────────────────────────── */
+.universal-search-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: none;
+  background: rgba(15, 17, 23, .55);
+  backdrop-filter: blur(2px);
+  align-items: flex-start;
+  justify-content: center;
+  padding: 14px 12px;
+}
+.universal-search-overlay.open { display: flex; }
+.universal-search-dialog {
+  width: min(540px, calc(100% - 8px));
+  max-height: 560px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: 0 14px 34px rgba(0,0,0,.22);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+body.universal-search-open .universal-search-dialog {
+  max-height: none;
+  height: calc(100vh - 28px);
+  min-height: 240px;
+}
+.universal-search-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.universal-search-input-wrap svg {
+  width: 14px;
+  height: 14px;
+  color: var(--txt-soft);
+  flex-shrink: 0;
+}
+#universalSearchInput {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--txt);
+  font-family: var(--font);
+  font-size: .85rem;
+}
+.universal-search-hint {
+  font-size: .67rem;
+  color: var(--txt-soft);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 2px 5px;
+}
+.universal-search-results {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 0 10px;
+}
+.us-group {
+  margin-top: 6px;
+}
+.us-group-title {
+  font-size: .64rem;
+  font-weight: 700;
+  color: var(--txt-soft);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: 6px 12px 4px;
+}
+.us-item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--txt);
+  cursor: pointer;
+  padding: 8px 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.us-item:hover,
+.us-item.active {
+  background: var(--brand-faint);
+}
+.us-item-title {
+  font-size: .8rem;
+  font-weight: 600;
+}
+.us-item-meta {
+  font-size: .68rem;
+  color: var(--txt-soft);
+}
+.us-empty {
+  padding: 16px 12px 10px;
+  font-size: .78rem;
+  color: var(--txt-soft);
+}
 </style>
 </head>
 <body>
@@ -1313,15 +1492,18 @@ html.dark-mode .dark-toggle-btn .dark-toggle-knob {
     <div class="popup-header-title">SP Developer Toolkit Lite</div>
     <div class="popup-header-sub">Read-only • No view management</div>
   </div>
-  <div class="dark-toggle">
-    <button type="button" class="dark-toggle-btn" id="darkModeToggle" title="Early Riser" aria-label="Theme: Early Riser. Click to switch to Night Owl."><span class="dark-toggle-knob"></span></button>
-  </div>
   <a class="feedback-icon-link" href="https://forms.cloud.microsoft/r/HtmARYViZP" target="_blank" rel="noopener noreferrer" title="Send feedback" aria-label="Send feedback">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
   </a>
+  <button type="button" class="popup-header-search-btn" id="btnUniversalSearch" title="Universal Settings Search" aria-label="Open Universal Settings Search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+  </button>
   <button type="button" class="popup-header-settings-btn" id="btnSettingsGear" title="Settings" aria-label="Settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
   </button>
+  <div class="dark-toggle">
+    <button type="button" class="dark-toggle-btn" id="darkModeToggle" title="Early Riser" aria-label="Theme: Early Riser. Click to switch to Night Owl."><span class="dark-toggle-knob"></span></button>
+  </div>
 </div>
 
 <!-- Settings screen (own area, toggled by gear; back button returns to main) -->
@@ -1336,6 +1518,16 @@ html.dark-mode .dark-toggle-btn .dark-toggle-knob {
       <input type="checkbox" id="chkListsLauncherEnabled" />
       <span>Show lists &amp; libraries icon on SharePoint pages</span>
     </label>
+    <label class="checkbox-row">
+      <input type="checkbox" id="chkUniversalSearchOpenOnLoad" />
+      <span>Open Universal Settings Search when the popup opens</span>
+    </label>
+    <label class="checkbox-row">
+      <input type="checkbox" id="chkUniversalSearchHotkeyEnabled" />
+      <span>Enable keyboard shortcut for Universal Settings Search</span>
+    </label>
+    <p class="settings-hint">Set the key combo under Chrome → Extensions → ⋮ → <button type="button" class="settings-inline-link" id="btnOpenExtensionShortcuts">Keyboard shortcuts</button>. Choose “Global” there to open from any page (Chrome opens this popup, then search).</p>
+    <p class="settings-shortcut-line" id="universalSearchShortcutDisplay" aria-live="polite"></p>
     <p class="settings-version" id="settingsVersionPopup"></p>
   </div>
 </div>
@@ -1348,9 +1540,9 @@ html.dark-mode .dark-toggle-btn .dark-toggle-knob {
     Navigate to a SharePoint Online site or select a recently visited site below.
   </div>
   <div class="not-on-sp-recent">
-    <label for="recentSharePointSelect" class="not-on-sp-label">Recently visited SharePoint sites</label>
+    <label for="recentSharePointSelect" class="not-on-sp-label">Recently visited SharePoint pages</label>
     <select id="recentSharePointSelect" class="not-on-sp-select">
-      <option value="">Choose a site…</option>
+      <option value="">Choose a page…</option>
     </select>
   </div>
 </div>
@@ -1361,7 +1553,7 @@ html.dark-mode .dark-toggle-btn .dark-toggle-knob {
   <button class="tab active" data-tab="quicklinks">Quick Links</button>
   <button class="tab" data-tab="context">Page Props</button>
   <button class="tab" id="tabColumns" data-tab="searchSchema">Columns</button>
-  <button class="tab" data-tab="reports">Reports</button>
+  <button class="tab" id="tabReports" data-tab="reports">Reports</button>
 </div>
 
 <!-- ═══ QUICK LINKS ═══ -->
@@ -1514,6 +1706,17 @@ html.dark-mode .dark-toggle-btn .dark-toggle-knob {
 
 </div>
 </div><!-- /#popupMainContent -->
+
+<div id="universalSearchOverlay" class="universal-search-overlay" aria-hidden="true">
+  <div class="universal-search-dialog" role="dialog" aria-modal="true" aria-label="Universal Settings Search">
+    <div class="universal-search-input-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="universalSearchInput" type="text" placeholder="Search settings and toolkit tools..." autocomplete="off" />
+      <span class="universal-search-hint">Esc</span>
+    </div>
+    <div id="universalSearchResults" class="universal-search-results"></div>
+  </div>
+</div>
 
 <script src="sharepoint-facts.js"></script>
 <script type="module" src="popup.js"></script>

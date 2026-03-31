@@ -602,7 +602,7 @@ function initListsLauncher() {
   if (window !== window.top) return;
   destroyListsLauncher();
   chrome.storage.local.get("listsLauncherEnabled", (r) => {
-    if (!r.listsLauncherEnabled) return;
+    if (r.listsLauncherEnabled === false) return;
     if (document.getElementById(LISTS_LAUNCHER_ID)) return;
     initListsLauncherUI();
   });
@@ -676,7 +676,7 @@ function applyListsPanelTheme(panel) {
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (window !== window.top || areaName !== "local") return;
   if (changes.listsLauncherEnabled) {
-    const enabled = !!changes.listsLauncherEnabled.newValue;
+    const enabled = changes.listsLauncherEnabled.newValue !== false;
     if (enabled) requestAnimationFrame(function () { requestAnimationFrame(function () { initListsLauncherUI(); }); });
     else destroyListsLauncher();
     return;

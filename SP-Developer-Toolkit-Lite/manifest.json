@@ -21,6 +21,11 @@
     },
     {
       "matches": ["*://*.sharepoint.com/*"],
+      "js": ["adminCenterWaitBanner.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["*://*.sharepoint.com/*"],
       "js": ["content.js"],
       "run_at": "document_idle"
     }
@@ -37,6 +42,16 @@
       "16": "icon.png",
       "32": "icon.png",
       "48": "icon.png"
+    }
+  },
+  "commands": {
+    "open-universal-search": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Comma",
+        "mac": "Command+Shift+Comma"
+      },
+      "description": "Open Universal Settings Search",
+      "global": true
     }
   }
 }

@@ -2,6 +2,75 @@
 // tabs.onUpdated survives after the popup closes).
 
 const RB_WAIT_SESSION_KEY = "__SPO_TOOLKIT_RB_WAIT__";
+const ADMIN_WAIT_SESSION_KEY = "__SPO_TOOLKIT_ADMIN_WAIT__";
+
+/** @param {string} url */
+function isSharePointTenantAdminUrl(url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:") return false;
+    return u.hostname.toLowerCase().endsWith("-admin.sharepoint.com");
+  } catch (_) {
+    return false;
+  }
+}
+
+/** Prime tab session + inject banner (same pattern as recycle-bin wait). */
+function injectAdminCenterWaitOverlay(tabId, done) {
+  chrome.scripting.executeScript(
+    {
+      target: { tabId },
+      func: (k) => {
+        try {
+          sessionStorage.setItem(k, "1");
+        } catch (e) {}
+      },
+      args: [ADMIN_WAIT_SESSION_KEY],
+    },
+    () => {
+      void chrome.runtime.lastError;
+      chrome.scripting.executeScript(
+        { target: { tabId }, files: ["adminCenterWaitBanner.js"] },
+        () => {
+          void chrome.runtime.lastError;
+          if (typeof done === "function") done();
+        }
+      );
+    }
+  );
+}
+
+/**
+ * Open tenant admin in a new tab and show the wait overlay after the first
+ * navigation commits to *-admin.sharepoint.com (handles login redirect chains).
+ * @param {string} url
+ */
+function openTenantAdminUrlWithWaitOverlay(url) {
+  chrome.tabs.create({ url }, (tab) => {
+    if (chrome.runtime.lastError || tab == null || tab.id == null) return;
+    const tabId = tab.id;
+    let primed = false;
+    let detachTimer = 0;
+
+    function detach() {
+      if (detachTimer) clearTimeout(detachTimer);
+      detachTimer = 0;
+      chrome.webNavigation.onCommitted.removeListener(onCommitted);
+    }
+
+    function onCommitted(details) {
+      if (primed || details.tabId !== tabId || details.frameId !== 0) return;
+      const u = String(details.url || "").toLowerCase();
+      if (u.indexOf("-admin.sharepoint.com") === -1) return;
+      primed = true;
+      detach();
+      injectAdminCenterWaitOverlay(tabId);
+    }
+
+    chrome.webNavigation.onCommitted.addListener(onCommitted);
+    detachTimer = setTimeout(detach, 60000);
+  });
+}
 
 function clearRecycleBinWaitSession(tabId) {
   chrome.scripting.executeScript(
@@ -219,7 +288,31 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
   });
 }
 
+/** Keyboard shortcut (chrome://extensions/shortcuts) — opens action popup, then Universal Search. */
+chrome.commands.onCommand.addListener((command) => {
+  if (command !== "open-universal-search") return;
+  chrome.storage.local.get("universalSearchHotkeyEnabled", (r) => {
+    if (r.universalSearchHotkeyEnabled === false) return;
+    chrome.storage.local.set({ pendingOpenUniversalSearch: true }, () => {
+      void chrome.runtime.lastError;
+      if (typeof chrome.action !== "undefined" && typeof chrome.action.openPopup === "function") {
+        chrome.action.openPopup().catch(() => {});
+      }
+    });
+  });
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "SPOToolkitOpenTenantAdminWithWait") {
+    const url = String(message.url || "");
+    if (!isSharePointTenantAdminUrl(url)) {
+      sendResponse({ ok: false, error: "Invalid admin URL" });
+      return false;
+    }
+    openTenantAdminUrlWithWaitOverlay(url);
+    sendResponse({ ok: true });
+    return false;
+  }
   if (message.type === "SPOToolkitSecondStageRecycleBin") {
     const tabId = message.tabId;
     const firstUrl = String(message.firstUrl || "");

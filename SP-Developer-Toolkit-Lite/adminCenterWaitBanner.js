@@ -1,21 +1,49 @@
-/* global sessionStorage, document */
+/* global sessionStorage, document, window */
 /**
- * Re-applies the recycle-bin wait overlay on every full load while the
- * background sequence has primed sessionStorage (same tab, same origin).
- * Runs at document_start so it beats first paint after refresh/navigate.
+ * Full-screen wait overlay for SharePoint tenant admin pages opened from the
+ * toolkit (new tab). sessionStorage is primed by the background service worker;
+ * this script also runs at document_start so the overlay survives reloads.
  */
 (function () {
-  var KEY = "__SPO_TOOLKIT_RB_WAIT__";
+  var KEY = "__SPO_TOOLKIT_ADMIN_WAIT__";
+  var ROOT_ID = "sp-toolkit-admin-wait-root";
+  var settleMs = 3200;
+  var failsafeMs = 45000;
+
+  function teardown() {
+    try {
+      sessionStorage.removeItem(KEY);
+    } catch (e) {}
+    var n = document.getElementById(ROOT_ID);
+    if (n) n.remove();
+  }
+
+  function scheduleTeardownOnce() {
+    var done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      teardown();
+    }
+    window.setTimeout(finish, failsafeMs);
+    if (document.readyState === "complete") {
+      window.setTimeout(finish, settleMs);
+    } else {
+      window.addEventListener("load", function onLoad() {
+        window.removeEventListener("load", onLoad);
+        window.setTimeout(finish, settleMs);
+      });
+    }
+  }
 
   function mount() {
-    var id = "sp-toolkit-rb-wait-root";
-    if (document.getElementById(id)) return;
+    if (document.getElementById(ROOT_ID)) return;
     var root = document.createElement("div");
-    root.id = id;
+    root.id = ROOT_ID;
     root.setAttribute("role", "alertdialog");
     root.setAttribute("aria-modal", "true");
-    root.setAttribute("aria-labelledby", "sp-toolkit-rb-wait-title");
-    root.setAttribute("aria-describedby", "sp-toolkit-rb-wait-desc");
+    root.setAttribute("aria-labelledby", "sp-toolkit-admin-wait-title");
+    root.setAttribute("aria-describedby", "sp-toolkit-admin-wait-desc");
     Object.assign(root.style, {
       position: "fixed",
       inset: "0",
@@ -44,7 +72,7 @@
     });
 
     var iconRow = document.createElement("div");
-    iconRow.textContent = "⛔";
+    iconRow.textContent = "⏳";
     Object.assign(iconRow.style, {
       fontSize: "48px",
       lineHeight: "1",
@@ -52,7 +80,7 @@
     });
 
     var title = document.createElement("div");
-    title.id = "sp-toolkit-rb-wait-title";
+    title.id = "sp-toolkit-admin-wait-title";
     title.textContent = "Please wait — do not close this tab";
     Object.assign(title.style, {
       fontSize: "clamp(20px, 4vw, 26px)",
@@ -64,9 +92,9 @@
     });
 
     var msg = document.createElement("p");
-    msg.id = "sp-toolkit-rb-wait-desc";
+    msg.id = "sp-toolkit-admin-wait-desc";
     msg.textContent =
-      "Opening the site collection second-stage recycle bin. Do not click, type, refresh, or navigate away until loading finishes.";
+      "Loading the SharePoint admin center. Avoid navigating away until the page has finished opening.";
     Object.assign(msg.style, {
       fontSize: "15px",
       lineHeight: "1.5",
@@ -79,6 +107,7 @@
     card.appendChild(msg);
     root.appendChild(card);
     (document.body || document.documentElement).appendChild(root);
+    scheduleTeardownOnce();
   }
 
   function tryPrime() {
@@ -89,4 +118,3 @@
 
   tryPrime();
 })();
-
