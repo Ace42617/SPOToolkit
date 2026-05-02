@@ -5,6 +5,7 @@ import {
   searchSchemaListMetaFromResponse,
 } from "./lib/popupUi.mjs";
 import { secondStageRecycleBinUrl, normalizeTrailingSlash } from "./lib/recycleBinUrls.mjs";
+import { isSharePointOnlineUrl } from "./lib/sharePointUrl.mjs";
 
 const btnExport = document.getElementById("btnExport");
 const btnChooseColumns = document.getElementById("btnChooseColumns");
@@ -613,13 +614,7 @@ const RECENT_SP_MAX = 25;
 
 /** SharePoint pages the toolkit supports (excludes tenant admin / *-admin.sharepoint.com). */
 function isToolkitSharePointPage(url) {
-  if (!url || typeof url !== "string") return false;
-  if (!url.includes("sharepoint.com")) return false;
-  try {
-    return !new URL(url).hostname.toLowerCase().endsWith("-admin.sharepoint.com");
-  } catch (_) {
-    return true;
-  }
+  return isSharePointOnlineUrl(url, { allowTenantAdmin: false });
 }
 
 /** Dedupe recent list by full page path (not only site root). */
