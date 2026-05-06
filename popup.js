@@ -480,10 +480,12 @@ async function refreshUniversalSearchIndex() {
     addUniversalSearchItem("Tools", "View formatter", "JSON editor & list preview", "view formatter json column formatting format", () => {
       void chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
         if (!isToolkitSharePointPage(tab?.url)) return;
-        const url = new URL(chrome.runtime.getURL("view-formatter.html"));
-        url.searchParams.set("src", tab.url);
-        if (tab.id != null) url.searchParams.set("tabId", String(tab.id));
-        chrome.tabs.create({ url: url.toString() });
+        chrome.runtime.sendMessage(
+          { type: "SPOToolkitOpenViewFormatter", previewUrl: tab.url, tabId: tab.id },
+          () => {
+            void chrome.runtime.lastError;
+          }
+        );
       });
     });
     addUniversalSearchItem("Reports", "Run Export", "Reports", "run export reports", () => {
@@ -1377,10 +1379,16 @@ document.getElementById("btnOpenViewFormatter")?.addEventListener("click", async
     alert("Open a SharePoint list or library page first, then open View formatter.");
     return;
   }
-  const url = new URL(chrome.runtime.getURL("view-formatter.html"));
-  url.searchParams.set("src", tab.url);
-  if (tab.id != null) url.searchParams.set("tabId", String(tab.id));
-  chrome.tabs.create({ url: url.toString() });
+  chrome.runtime.sendMessage(
+    { type: "SPOToolkitOpenViewFormatter", previewUrl: tab.url, tabId: tab.id },
+    (res) => {
+      if (chrome.runtime.lastError) {
+        alert("Could not open View formatter: " + chrome.runtime.lastError.message);
+      } else if (res && res.ok === false) {
+        alert("Could not open View formatter: " + (res.error || "Unknown error"));
+      }
+    }
+  );
 });
 
 // --- Columns tab: list fields via REST; display name links to FldEdit.aspx
