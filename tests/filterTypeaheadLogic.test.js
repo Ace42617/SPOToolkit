@@ -6,14 +6,15 @@ const code = readFileSync(new URL("../filterTypeaheadLogic.js", import.meta.url)
 const sandbox = { module: { exports: {} }, exports: {}, console };
 vm.runInNewContext(code, sandbox, { filename: "filterTypeaheadLogic.js" });
 const { kindsFromTypeAsString, suggest } = sandbox.module.exports;
+const sameRealm = (value) => JSON.parse(JSON.stringify(value));
 
-assert.deepStrictEqual(kindsFromTypeAsString("DateTime"), ["date"]);
-assert.deepStrictEqual(kindsFromTypeAsString("date"), ["date"]);
-assert.deepStrictEqual(kindsFromTypeAsString("User"), ["person"]);
-assert.deepStrictEqual(kindsFromTypeAsString("UserMulti"), ["person"]);
-assert.deepStrictEqual(kindsFromTypeAsString("Text"), []);
-assert.deepStrictEqual(kindsFromTypeAsString("Number"), []);
-assert.deepStrictEqual(kindsFromTypeAsString("Lookup"), []);
+assert.deepStrictEqual(sameRealm(kindsFromTypeAsString("DateTime")), ["date"]);
+assert.deepStrictEqual(sameRealm(kindsFromTypeAsString("date")), ["date"]);
+assert.deepStrictEqual(sameRealm(kindsFromTypeAsString("User")), ["person"]);
+assert.deepStrictEqual(sameRealm(kindsFromTypeAsString("UserMulti")), ["person"]);
+assert.deepStrictEqual(sameRealm(kindsFromTypeAsString("Text")), []);
+assert.deepStrictEqual(sameRealm(kindsFromTypeAsString("Number")), []);
+assert.deepStrictEqual(sameRealm(kindsFromTypeAsString("Lookup")), []);
 
 const d = kindsFromTypeAsString("DateTime");
 const dateEmpty = suggest(d, "");
@@ -26,7 +27,7 @@ const personEmpty = suggest(p, "");
 assert.strictEqual(personEmpty.length, 1);
 assert.strictEqual(personEmpty[0].token, "[Me]");
 
-assert.deepStrictEqual(suggest([], ""), []);
+assert.deepStrictEqual(sameRealm(suggest([], "")), []);
 
 const dateMe = suggest(d, "me");
 assert.ok(dateMe.every((x) => x.token.indexOf("[Me]") < 0), "date column should not suggest [Me]");
