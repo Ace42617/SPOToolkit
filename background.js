@@ -3,6 +3,45 @@
 
 const RB_WAIT_SESSION_KEY = "__SPO_TOOLKIT_RB_WAIT__";
 const ADMIN_WAIT_SESSION_KEY = "__SPO_TOOLKIT_ADMIN_WAIT__";
+const VIEW_FORMATTER_FRAME_RULE_IDS = [101, 102, 103];
+const VIEW_FORMATTER_FRAME_RULE_HOSTS = ["sharepoint.com", "sharepoint.us", "sharepoint.de"];
+
+function buildScopedViewFormatterFrameRules() {
+  const initiator = chrome.runtime && chrome.runtime.id;
+  return VIEW_FORMATTER_FRAME_RULE_HOSTS.map((host, idx) => ({
+    id: VIEW_FORMATTER_FRAME_RULE_IDS[idx],
+    priority: 1,
+    action: {
+      type: "modifyHeaders",
+      responseHeaders: [
+        { header: "x-frame-options", operation: "remove" },
+        { header: "content-security-policy", operation: "remove" },
+        { header: "content-security-policy-report-only", operation: "remove" },
+      ],
+    },
+    condition: {
+      urlFilter: "||" + host + "^",
+      resourceTypes: ["sub_frame"],
+      initiatorDomains: [initiator],
+    },
+  }));
+}
+
+function installScopedViewFormatterFrameRules() {
+  const dnr = chrome.declarativeNetRequest;
+  if (!dnr || typeof dnr.updateDynamicRules !== "function" || !chrome.runtime?.id) return;
+  dnr.updateDynamicRules(
+    {
+      removeRuleIds: VIEW_FORMATTER_FRAME_RULE_IDS,
+      addRules: buildScopedViewFormatterFrameRules(),
+    },
+    () => void chrome.runtime.lastError
+  );
+}
+
+installScopedViewFormatterFrameRules();
+chrome.runtime.onInstalled?.addListener(installScopedViewFormatterFrameRules);
+chrome.runtime.onStartup?.addListener(installScopedViewFormatterFrameRules);
 
 /** @param {string} url */
 function isSharePointTenantAdminUrl(url) {
