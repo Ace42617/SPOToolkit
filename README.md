@@ -43,7 +43,7 @@ The popup shows a short message and a **Recently visited SharePoint sites** drop
 ### Views
 
 - Opens the **View Manager** full page: edit/create views, columns, sort, filter, group; **export column names to CSV**.
-- **View formatter** opens a split page: list/library **preview** (iframe) and a **JSON** workspace (with basic syntax coloring). **Save to view** PATCHes the current list view’s **CustomFormatter** over SharePoint REST (keep the original list tab open; open the formatter from the popup or **{ }** launcher so the extension can reach that tab). A local draft is still cached in the browser for recovery. The extension includes **declarativeNetRequest** rules so many SharePoint views can load inside the iframe; **reload the extension** after installing or updating so those rules apply. If the preview is still blank, use **Open in tab** and arrange windows side by side.
+- **View formatter** opens a split page: list/library **preview** (iframe) and a **JSON** workspace (with basic syntax coloring). **Save to view** PATCHes the current list view’s **CustomFormatter** over SharePoint REST (keep the original list tab open; open the formatter from the popup or **{ }** launcher so the extension can reach that tab). A local draft is still cached in the browser for recovery. The extension installs scoped **declarativeNetRequest** rules so many SharePoint views can load inside the formatter iframe. If the preview is still blank, use **Open in tab** and arrange windows side by side.
 
 ### Refinables
 
@@ -83,7 +83,7 @@ The popup shows a short message and a **Recently visited SharePoint sites** drop
 | Config | `manifest.json` |
 | Popup | `popup.html`, `popup.js` (ES module), `lib/popupUi.mjs` (shared column / quick-links helpers) |
 | Full-page views | `views.html`, `views.js`, `filterTypeaheadLogic.js` |
-| View formatter | `view-formatter.html`, `view-formatter.js`, `getViewFormatContext.js`, `rules/view-formatter-iframe.json` |
+| View formatter | `view-formatter.html`, `view-formatter.js`, `getViewFormatContext.js` |
 | Page bridge | `content.js`, `background.js` |
 | Injected scripts | `exportCSV.js`, `getFields.js`, `getSearchSchema.js`, `getViewsData.js`, `checkListPage.js`, `getListType.js`, `getRefinableMappings.js`, `getPageContext.js`, `getPageContextJson.js`, `getSiteLists.js`, … |
 | ZIP / XLSX | `jszip*.js` |
