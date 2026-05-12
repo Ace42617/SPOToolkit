@@ -110,18 +110,19 @@ describe("View formatter DNR rules", () => {
     );
 
     assert.equal(keepAlive, true);
-    assert.deepEqual(response, { ok: true });
-    assert.deepEqual(calls.create, [{ url: "about:blank" }]);
+    assert.equal(response.ok, true);
+    assert.equal(calls.create.length, 1);
+    assert.equal(calls.create[0].url, "about:blank");
 
     assert.equal(calls.dnr.length, 1);
     const rule = calls.dnr[0].addRules[0];
-    assert.deepEqual(calls.dnr[0].removeRuleIds, [100321]);
+    assert.deepEqual(Array.from(calls.dnr[0].removeRuleIds), [100321]);
     assert.equal(rule.id, 100321);
     assert.equal(rule.condition.urlFilter, "||contoso.sharepoint.com^");
-    assert.deepEqual(rule.condition.resourceTypes, ["sub_frame"]);
-    assert.deepEqual(rule.condition.tabIds, [321]);
+    assert.deepEqual(Array.from(rule.condition.resourceTypes), ["sub_frame"]);
+    assert.deepEqual(Array.from(rule.condition.tabIds), [321]);
     assert.deepEqual(
-      rule.action.responseHeaders.map((h) => h.header),
+      Array.from(rule.action.responseHeaders, (h) => h.header),
       ["x-frame-options", "content-security-policy", "content-security-policy-report-only"]
     );
 
@@ -134,7 +135,7 @@ describe("View formatter DNR rules", () => {
     assert.equal(formatterUrl.searchParams.get("tabId"), "11");
 
     listeners.removed(321);
-    assert.deepEqual(calls.dnr[1], { removeRuleIds: [100321] });
+    assert.deepEqual(Array.from(calls.dnr[1].removeRuleIds), [100321]);
   });
 
   it("rejects lookalike SharePoint hosts before creating a preview tab", () => {
@@ -155,8 +156,8 @@ describe("View formatter DNR rules", () => {
     assert.equal(keepAlive, true);
     assert.equal(response.ok, false);
     assert.equal(response.error, "Need a SharePoint URL");
-    assert.deepEqual(calls.create, []);
-    assert.deepEqual(calls.dnr, []);
-    assert.deepEqual(calls.update, []);
+    assert.equal(calls.create.length, 0);
+    assert.equal(calls.dnr.length, 0);
+    assert.equal(calls.update.length, 0);
   });
 });
