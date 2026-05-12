@@ -3,6 +3,109 @@
 
 const RB_WAIT_SESSION_KEY = "__SPO_TOOLKIT_RB_WAIT__";
 const ADMIN_WAIT_SESSION_KEY = "__SPO_TOOLKIT_ADMIN_WAIT__";
+const VIEW_FORMATTER_DNR_RULE_ID_BASE = 100000;
+const VIEW_FORMATTER_FRAME_HEADERS = [
+  "x-frame-options",
+  "content-security-policy",
+  "content-security-policy-report-only",
+];
+
+/** @param {number} tabId */
+function viewFormatterDnrRuleId(tabId) {
+  return VIEW_FORMATTER_DNR_RULE_ID_BASE + tabId;
+}
+
+/** @param {string} url */
+function getSharePointPreviewHost(url) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    if (u.protocol !== "https:" || !host.endsWith(".sharepoint.com")) return "";
+    return host;
+  } catch (_) {
+    return "";
+  }
+}
+
+/**
+ * X-Frame-Options/CSP stripping is only needed for the formatter's preview iframe.
+ * Keep it scoped to that extension tab instead of weakening all SharePoint iframes.
+ */
+function installViewFormatterFrameRule(tabId, previewHost, done) {
+  if (!chrome.declarativeNetRequest || typeof chrome.declarativeNetRequest.updateSessionRules !== "function") {
+    done(false);
+    return;
+  }
+  const ruleId = viewFormatterDnrRuleId(tabId);
+  chrome.declarativeNetRequest.updateSessionRules(
+    {
+      removeRuleIds: [ruleId],
+      addRules: [
+        {
+          id: ruleId,
+          priority: 1,
+          action: {
+            type: "modifyHeaders",
+            responseHeaders: VIEW_FORMATTER_FRAME_HEADERS.map((header) => ({
+              header,
+              operation: "remove",
+            })),
+          },
+          condition: {
+            urlFilter: "||" + previewHost + "^",
+            resourceTypes: ["sub_frame"],
+            tabIds: [tabId],
+          },
+        },
+      ],
+    },
+    () => {
+      done(!chrome.runtime.lastError);
+    }
+  );
+}
+
+/** @param {number} tabId */
+function removeViewFormatterFrameRule(tabId) {
+  if (!chrome.declarativeNetRequest || typeof chrome.declarativeNetRequest.updateSessionRules !== "function") return;
+  chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [viewFormatterDnrRuleId(tabId)] }, () => {
+    void chrome.runtime.lastError;
+  });
+}
+
+function openViewFormatterTab(previewUrl, sourceTabId, sendResponse) {
+  const previewHost = getSharePointPreviewHost(previewUrl);
+  if (!previewHost) {
+    sendResponse({ ok: false, error: "Need a SharePoint URL" });
+    return;
+  }
+
+  const u = new URL(chrome.runtime.getURL("view-formatter.html"));
+  u.searchParams.set("src", previewUrl);
+  if (sourceTabId != null) u.searchParams.set("tabId", String(sourceTabId));
+
+  chrome.tabs.create({ url: "about:blank" }, (tab) => {
+    if (chrome.runtime.lastError || tab == null || tab.id == null) {
+      sendResponse({ ok: false, error: "Could not open View formatter" });
+      return;
+    }
+    installViewFormatterFrameRule(tab.id, previewHost, (ok) => {
+      if (!ok) {
+        chrome.tabs.remove(tab.id, () => void chrome.runtime.lastError);
+        sendResponse({ ok: false, error: "Could not prepare View formatter preview" });
+        return;
+      }
+      chrome.tabs.update(tab.id, { url: u.toString() }, () => {
+        if (chrome.runtime.lastError) {
+          removeViewFormatterFrameRule(tab.id);
+          sendResponse({ ok: false, error: "Could not load View formatter" });
+          return;
+        }
+        sendResponse({ ok: true });
+      });
+    });
+  });
+}
 
 /** @param {string} url */
 function isSharePointTenantAdminUrl(url) {
@@ -302,6 +405,10 @@ chrome.commands.onCommand.addListener((command) => {
   });
 });
 
+chrome.tabs.onRemoved.addListener((tabId) => {
+  removeViewFormatterFrameRule(tabId);
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "SPOToolkitOpenTenantAdminWithWait") {
     const url = String(message.url || "");
@@ -327,16 +434,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (message.type === "SPOToolkitOpenViewFormatter") {
     const previewUrl = String(message.previewUrl || (sender.tab && sender.tab.url) || "");
-    if (!previewUrl || !previewUrl.includes("sharepoint.com")) {
-      sendResponse({ ok: false, error: "Need a SharePoint URL" });
-      return true;
-    }
-    const u = new URL(chrome.runtime.getURL("view-formatter.html"));
-    u.searchParams.set("src", previewUrl);
-    const tid = sender.tab && sender.tab.id;
-    if (tid != null) u.searchParams.set("tabId", String(tid));
-    chrome.tabs.create({ url: u.toString() });
-    sendResponse({ ok: true });
+    openViewFormatterTab(previewUrl, sender.tab && sender.tab.id, sendResponse);
     return true;
   }
   if (message.type !== "SPOToolkitOpenViewManager") return;

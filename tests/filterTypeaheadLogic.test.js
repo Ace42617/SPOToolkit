@@ -1,14 +1,19 @@
-"use strict";
-const assert = require("assert");
-const { kindsFromTypeAsString, suggest } = require("../filterTypeaheadLogic.js");
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import vm from "node:vm";
 
-assert.deepStrictEqual(kindsFromTypeAsString("DateTime"), ["date"]);
-assert.deepStrictEqual(kindsFromTypeAsString("date"), ["date"]);
-assert.deepStrictEqual(kindsFromTypeAsString("User"), ["person"]);
-assert.deepStrictEqual(kindsFromTypeAsString("UserMulti"), ["person"]);
-assert.deepStrictEqual(kindsFromTypeAsString("Text"), []);
-assert.deepStrictEqual(kindsFromTypeAsString("Number"), []);
-assert.deepStrictEqual(kindsFromTypeAsString("Lookup"), []);
+const moduleShim = { exports: {} };
+const source = fs.readFileSync(new URL("../filterTypeaheadLogic.js", import.meta.url), "utf8");
+vm.runInNewContext(source, { module: moduleShim }, { filename: "filterTypeaheadLogic.js" });
+const { kindsFromTypeAsString, suggest } = moduleShim.exports;
+
+assert.deepEqual(Array.from(kindsFromTypeAsString("DateTime")), ["date"]);
+assert.deepEqual(Array.from(kindsFromTypeAsString("date")), ["date"]);
+assert.deepEqual(Array.from(kindsFromTypeAsString("User")), ["person"]);
+assert.deepEqual(Array.from(kindsFromTypeAsString("UserMulti")), ["person"]);
+assert.deepEqual(Array.from(kindsFromTypeAsString("Text")), []);
+assert.deepEqual(Array.from(kindsFromTypeAsString("Number")), []);
+assert.deepEqual(Array.from(kindsFromTypeAsString("Lookup")), []);
 
 const d = kindsFromTypeAsString("DateTime");
 const dateEmpty = suggest(d, "");
@@ -21,7 +26,7 @@ const personEmpty = suggest(p, "");
 assert.strictEqual(personEmpty.length, 1);
 assert.strictEqual(personEmpty[0].token, "[Me]");
 
-assert.deepStrictEqual(suggest([], ""), []);
+assert.deepEqual(Array.from(suggest([], "")), []);
 
 const dateMe = suggest(d, "me");
 assert.ok(dateMe.every((x) => x.token.indexOf("[Me]") < 0), "date column should not suggest [Me]");
