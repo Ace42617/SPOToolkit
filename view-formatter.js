@@ -356,8 +356,14 @@
   } catch (_) {
     previewUrl = rawSrc;
   }
-  if (previewUrl && /^https:\/\/[^/]*\.sharepoint\.com/i.test(previewUrl) === false) {
-    previewUrl = "";
+  if (previewUrl) {
+    try {
+      const u = new URL(previewUrl);
+      const host = u.hostname.toLowerCase();
+      if (u.protocol !== "https:" || !host.endsWith(".sharepoint.com")) previewUrl = "";
+    } catch (_) {
+      previewUrl = "";
+    }
   }
 
   const tabIdRaw = params.get("tabId") || "";
