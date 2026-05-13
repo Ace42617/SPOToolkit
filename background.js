@@ -3,6 +3,9 @@
 
 const RB_WAIT_SESSION_KEY = "__SPO_TOOLKIT_RB_WAIT__";
 const ADMIN_WAIT_SESSION_KEY = "__SPO_TOOLKIT_ADMIN_WAIT__";
+const VIEW_FORMATTER_TAB_IDS_KEY = "__SPO_TOOLKIT_VIEW_FORMATTER_TABS__";
+const VIEW_FORMATTER_DNR_RULE_IDS = [901, 902, 903];
+const VIEW_FORMATTER_DNR_DOMAINS = ["sharepoint.com", "sharepoint.us", "sharepoint.de"];
 
 /** @param {string} url */
 function isSharePointTenantAdminUrl(url) {
@@ -14,6 +17,150 @@ function isSharePointTenantAdminUrl(url) {
     return false;
   }
 }
+
+/** @param {string} url */
+function isSharePointPreviewUrl(url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:") return false;
+    const host = u.hostname.toLowerCase();
+    return (
+      host === "sharepoint.com" ||
+      host.endsWith(".sharepoint.com") ||
+      host === "sharepoint.us" ||
+      host.endsWith(".sharepoint.us") ||
+      host === "sharepoint.de" ||
+      host.endsWith(".sharepoint.de")
+    );
+  } catch (_) {
+    return false;
+  }
+}
+
+/** @param {string} url */
+function isViewFormatterUrl(url) {
+  return String(url || "").startsWith(chrome.runtime.getURL("view-formatter.html"));
+}
+
+function getStoredViewFormatterTabIds(done) {
+  const storage = chrome.storage && chrome.storage.session;
+  if (!storage) {
+    done([]);
+    return;
+  }
+  storage.get(VIEW_FORMATTER_TAB_IDS_KEY, (r) => {
+    if (chrome.runtime.lastError) {
+      done([]);
+      return;
+    }
+    const ids = Array.isArray(r && r[VIEW_FORMATTER_TAB_IDS_KEY]) ? r[VIEW_FORMATTER_TAB_IDS_KEY] : [];
+    done(ids.filter((id) => Number.isInteger(id) && id > 0));
+  });
+}
+
+function setStoredViewFormatterTabIds(tabIds, done) {
+  const storage = chrome.storage && chrome.storage.session;
+  if (!storage) {
+    if (typeof done === "function") done();
+    return;
+  }
+  storage.set({ [VIEW_FORMATTER_TAB_IDS_KEY]: tabIds }, () => {
+    void chrome.runtime.lastError;
+    if (typeof done === "function") done();
+  });
+}
+
+function buildViewFormatterFrameRules(tabIds) {
+  return VIEW_FORMATTER_DNR_DOMAINS.map((domain, index) => ({
+    id: VIEW_FORMATTER_DNR_RULE_IDS[index],
+    priority: 1,
+    action: {
+      type: "modifyHeaders",
+      responseHeaders: [
+        { header: "x-frame-options", operation: "remove" },
+        { header: "content-security-policy", operation: "remove" },
+        { header: "content-security-policy-report-only", operation: "remove" },
+      ],
+    },
+    condition: {
+      urlFilter: "||" + domain + "^",
+      resourceTypes: ["sub_frame"],
+      tabIds,
+    },
+  }));
+}
+
+function updateViewFormatterFrameRules(tabIds, done) {
+  const dnr = chrome.declarativeNetRequest;
+  if (!dnr || typeof dnr.updateSessionRules !== "function") {
+    if (typeof done === "function") done({ ok: false, error: "Missing declarativeNetRequest support" });
+    return;
+  }
+  const uniqueTabIds = Array.from(new Set(tabIds)).filter((id) => Number.isInteger(id) && id > 0);
+  dnr.updateSessionRules(
+    {
+      removeRuleIds: VIEW_FORMATTER_DNR_RULE_IDS,
+      addRules: uniqueTabIds.length ? buildViewFormatterFrameRules(uniqueTabIds) : [],
+    },
+    () => {
+      const err = chrome.runtime.lastError;
+      if (typeof done === "function") done(err ? { ok: false, error: err.message } : { ok: true });
+    }
+  );
+}
+
+function registerViewFormatterTab(tabId, done) {
+  getStoredViewFormatterTabIds((existing) => {
+    const next = Array.from(new Set(existing.concat([tabId])));
+    setStoredViewFormatterTabIds(next, () => updateViewFormatterFrameRules(next, done));
+  });
+}
+
+function unregisterViewFormatterTab(tabId) {
+  getStoredViewFormatterTabIds((existing) => {
+    const next = existing.filter((id) => id !== tabId);
+    setStoredViewFormatterTabIds(next, () => updateViewFormatterFrameRules(next));
+  });
+}
+
+function openViewFormatterWithScopedFrameRules(previewUrl, sourceTabId, sendResponse) {
+  if (!isSharePointPreviewUrl(previewUrl)) {
+    sendResponse({ ok: false, error: "Need a SharePoint URL" });
+    return;
+  }
+  chrome.tabs.create({ url: chrome.runtime.getURL("view-formatter.html") }, (tab) => {
+    if (chrome.runtime.lastError || tab == null || tab.id == null) {
+      sendResponse({ ok: false, error: chrome.runtime.lastError?.message || "Could not open View formatter" });
+      return;
+    }
+    const formatterTabId = tab.id;
+    registerViewFormatterTab(formatterTabId, (ruleResult) => {
+      if (!ruleResult || !ruleResult.ok) {
+        unregisterViewFormatterTab(formatterTabId);
+        sendResponse({ ok: false, error: (ruleResult && ruleResult.error) || "Could not enable formatter preview" });
+        return;
+      }
+      const u = new URL(chrome.runtime.getURL("view-formatter.html"));
+      u.searchParams.set("src", previewUrl);
+      if (sourceTabId != null) u.searchParams.set("tabId", String(sourceTabId));
+      chrome.tabs.update(formatterTabId, { url: u.toString() }, () => {
+        const err = chrome.runtime.lastError;
+        if (err) unregisterViewFormatterTab(formatterTabId);
+        sendResponse(err ? { ok: false, error: err.message } : { ok: true });
+      });
+    });
+  });
+}
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  unregisterViewFormatterTab(tabId);
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.url && !isViewFormatterUrl(changeInfo.url)) {
+    unregisterViewFormatterTab(tabId);
+  }
+});
 
 /** Prime tab session + inject banner (same pattern as recycle-bin wait). */
 function injectAdminCenterWaitOverlay(tabId, done) {
@@ -327,16 +474,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (message.type === "SPOToolkitOpenViewFormatter") {
     const previewUrl = String(message.previewUrl || (sender.tab && sender.tab.url) || "");
-    if (!previewUrl || !previewUrl.includes("sharepoint.com")) {
-      sendResponse({ ok: false, error: "Need a SharePoint URL" });
-      return true;
-    }
-    const u = new URL(chrome.runtime.getURL("view-formatter.html"));
-    u.searchParams.set("src", previewUrl);
-    const tid = sender.tab && sender.tab.id;
-    if (tid != null) u.searchParams.set("tabId", String(tid));
-    chrome.tabs.create({ url: u.toString() });
-    sendResponse({ ok: true });
+    const messageTabId = Number.isInteger(message.tabId) ? message.tabId : null;
+    const sourceTabId = messageTabId != null ? messageTabId : sender.tab && sender.tab.id;
+    openViewFormatterWithScopedFrameRules(previewUrl, sourceTabId, sendResponse);
     return true;
   }
   if (message.type !== "SPOToolkitOpenViewManager") return;
