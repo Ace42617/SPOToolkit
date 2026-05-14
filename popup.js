@@ -5,6 +5,7 @@ import {
   searchSchemaListMetaFromResponse,
 } from "./lib/popupUi.mjs";
 import { secondStageRecycleBinUrl, normalizeTrailingSlash } from "./lib/recycleBinUrls.mjs";
+import { normalizeSharePointPreviewUrl } from "./lib/viewFormatterSecurity.mjs";
 
 const btnExport = document.getElementById("btnExport");
 const btnChooseColumns = document.getElementById("btnChooseColumns");
@@ -479,11 +480,7 @@ async function refreshUniversalSearchIndex() {
     });
     addUniversalSearchItem("Tools", "View formatter", "JSON editor & list preview", "view formatter json column formatting format", () => {
       void chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
-        if (!isToolkitSharePointPage(tab?.url)) return;
-        const url = new URL(chrome.runtime.getURL("view-formatter.html"));
-        url.searchParams.set("src", tab.url);
-        if (tab.id != null) url.searchParams.set("tabId", String(tab.id));
-        chrome.tabs.create({ url: url.toString() });
+        openViewFormatterForTab(tab, false);
       });
     });
     addUniversalSearchItem("Reports", "Run Export", "Reports", "run export reports", () => {
@@ -613,13 +610,29 @@ const RECENT_SP_MAX = 25;
 
 /** SharePoint pages the toolkit supports (excludes tenant admin / *-admin.sharepoint.com). */
 function isToolkitSharePointPage(url) {
-  if (!url || typeof url !== "string") return false;
-  if (!url.includes("sharepoint.com")) return false;
-  try {
-    return !new URL(url).hostname.toLowerCase().endsWith("-admin.sharepoint.com");
-  } catch (_) {
-    return true;
+  return normalizeSharePointPreviewUrl(url) !== "";
+}
+
+function openViewFormatterForTab(tab, showError) {
+  const previewUrl = normalizeSharePointPreviewUrl(tab?.url);
+  if (!previewUrl) {
+    if (showError) alert("Open a SharePoint list or library page first, then open View formatter.");
+    return;
   }
+
+  chrome.runtime.sendMessage(
+    { type: "SPOToolkitOpenViewFormatter", previewUrl, tabId: tab?.id },
+    (response) => {
+      if (!showError) return;
+      if (chrome.runtime.lastError) {
+        alert(chrome.runtime.lastError.message || "Could not open View formatter.");
+        return;
+      }
+      if (!response || response.ok === false) {
+        alert((response && response.error) || "Could not open View formatter.");
+      }
+    }
+  );
 }
 
 /** Dedupe recent list by full page path (not only site root). */
@@ -1373,14 +1386,7 @@ document.getElementById("btnOpenViewManager").addEventListener("click", async ()
 
 document.getElementById("btnOpenViewFormatter")?.addEventListener("click", async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!isToolkitSharePointPage(tab?.url)) {
-    alert("Open a SharePoint list or library page first, then open View formatter.");
-    return;
-  }
-  const url = new URL(chrome.runtime.getURL("view-formatter.html"));
-  url.searchParams.set("src", tab.url);
-  if (tab.id != null) url.searchParams.set("tabId", String(tab.id));
-  chrome.tabs.create({ url: url.toString() });
+  openViewFormatterForTab(tab, true);
 });
 
 // --- Columns tab: list fields via REST; display name links to FldEdit.aspx

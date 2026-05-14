@@ -9,17 +9,9 @@
     "128": "icon.png"
   },
   "permissions": ["activeTab", "scripting", "storage", "history", "declarativeNetRequest", "webNavigation"],
-  "declarative_net_request": {
-    "rule_resources": [
-      {
-        "id": "view_formatter_iframe",
-        "enabled": true,
-        "path": "rules/view-formatter-iframe.json"
-      }
-    ]
-  },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "host_permissions": ["*://*.sharepoint.com/*"],
   "content_scripts": [

@@ -1,3 +1,5 @@
+import { normalizeSharePointPreviewUrl } from "./lib/viewFormatterSecurity.mjs";
+
 (function () {
   function escHtml(s) {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -349,16 +351,7 @@
   }
 
   const params = new URLSearchParams(window.location.search);
-  const rawSrc = params.get("src") || "";
-  let previewUrl = "";
-  try {
-    previewUrl = decodeURIComponent(rawSrc);
-  } catch (_) {
-    previewUrl = rawSrc;
-  }
-  if (previewUrl && /^https:\/\/[^/]*\.sharepoint\.com/i.test(previewUrl) === false) {
-    previewUrl = "";
-  }
+  const previewUrl = normalizeSharePointPreviewUrl(params.get("src") || "");
 
   const tabIdRaw = params.get("tabId") || "";
   const spTabId = /^\d+$/.test(tabIdRaw) ? parseInt(tabIdRaw, 10) : null;
