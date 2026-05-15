@@ -4,6 +4,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  groupUniversalSearchItems,
   listColumnSettingsUrl,
   searchSchemaListMetaFromResponse,
   searchSchemaColumnMatchesFilter,
@@ -56,5 +57,49 @@ describe("searchSchemaColumnMatchesFilter", () => {
   });
   it("no match", () => {
     assert.equal(searchSchemaColumnMatchesFilter(col, "zzz"), false);
+  });
+});
+
+describe("groupUniversalSearchItems", () => {
+  it("returns rendered items in the same grouped order as the UI", () => {
+    const items = [
+      { group: "Tabs", title: "Overview" },
+      { group: "Links", title: "List settings" },
+      { group: "Tabs", title: "Reports" },
+      { group: "Tools", title: "View Manager" },
+      { group: "Links", title: "Site contents" },
+    ];
+
+    const result = groupUniversalSearchItems(items);
+
+    assert.deepEqual(result.groups.map((g) => [g.group, g.items.map((it) => it.title)]), [
+      ["Tabs", ["Overview", "Reports"]],
+      ["Links", ["List settings", "Site contents"]],
+      ["Tools", ["View Manager"]],
+    ]);
+    assert.deepEqual(result.renderedItems.map((it) => it.title), [
+      "Overview",
+      "Reports",
+      "List settings",
+      "Site contents",
+      "View Manager",
+    ]);
+  });
+
+  it("omits per-group overflow from the keyboard selection model", () => {
+    const items = [
+      { group: "Columns", title: "Column 1" },
+      { group: "Columns", title: "Column 2" },
+      { group: "Columns", title: "Column 3" },
+      { group: "Tabs", title: "Settings" },
+    ];
+
+    const result = groupUniversalSearchItems(items, 2);
+
+    assert.deepEqual(result.groups.map((g) => [g.group, g.items.map((it) => it.title)]), [
+      ["Columns", ["Column 1", "Column 2"]],
+      ["Tabs", ["Settings"]],
+    ]);
+    assert.deepEqual(result.renderedItems.map((it) => it.title), ["Column 1", "Column 2", "Settings"]);
   });
 });
