@@ -1,6 +1,13 @@
-"use strict";
-const assert = require("assert");
-const { kindsFromTypeAsString, suggest } = require("../filterTypeaheadLogic.js");
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const moduleShim = { exports: {} };
+const source = readFileSync(resolve(__dirname, "../filterTypeaheadLogic.js"), "utf8");
+new Function("module", "exports", source)(moduleShim, moduleShim.exports);
+const { kindsFromTypeAsString, suggest } = moduleShim.exports;
 
 assert.deepStrictEqual(kindsFromTypeAsString("DateTime"), ["date"]);
 assert.deepStrictEqual(kindsFromTypeAsString("date"), ["date"]);
