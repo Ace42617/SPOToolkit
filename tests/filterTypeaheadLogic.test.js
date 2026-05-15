@@ -2,15 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import vm from "node:vm";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const moduleShim = { exports: {} };
-vm.runInNewContext(
-  readFileSync(resolve(__dirname, "../filterTypeaheadLogic.js"), "utf8"),
-  { module: moduleShim, exports: moduleShim.exports },
-  { filename: "filterTypeaheadLogic.js" }
-);
+const source = readFileSync(resolve(__dirname, "../filterTypeaheadLogic.js"), "utf8");
+new Function("module", "exports", source)(moduleShim, moduleShim.exports);
 const { kindsFromTypeAsString, suggest } = moduleShim.exports;
 
 assert.deepStrictEqual(kindsFromTypeAsString("DateTime"), ["date"]);
