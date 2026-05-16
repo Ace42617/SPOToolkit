@@ -1,32 +1,56 @@
-"use strict";
-const assert = require("assert");
-const { kindsFromTypeAsString, suggest } = require("../filterTypeaheadLogic.js");
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-assert.deepStrictEqual(kindsFromTypeAsString("DateTime"), ["date"]);
-assert.deepStrictEqual(kindsFromTypeAsString("date"), ["date"]);
-assert.deepStrictEqual(kindsFromTypeAsString("User"), ["person"]);
-assert.deepStrictEqual(kindsFromTypeAsString("UserMulti"), ["person"]);
-assert.deepStrictEqual(kindsFromTypeAsString("Text"), []);
-assert.deepStrictEqual(kindsFromTypeAsString("Number"), []);
-assert.deepStrictEqual(kindsFromTypeAsString("Lookup"), []);
+async function loadCommonJsExport(filePath) {
+  const source = await readFile(filePath, "utf8");
+  const mod = { exports: {} };
+  const load = new Function("module", "exports", source + "\nreturn module.exports;");
+  return load(mod, mod.exports);
+}
 
-const d = kindsFromTypeAsString("DateTime");
-const dateEmpty = suggest(d, "");
-assert.ok(dateEmpty.length > 0);
-assert.ok(dateEmpty.every((x) => x.kind === "date"));
-assert.ok(dateEmpty[0].token.indexOf("[Today]") === 0);
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const { kindsFromTypeAsString, suggest } = await loadCommonJsExport(path.join(repoRoot, "filterTypeaheadLogic.js"));
 
-const p = kindsFromTypeAsString("User");
-const personEmpty = suggest(p, "");
-assert.strictEqual(personEmpty.length, 1);
-assert.strictEqual(personEmpty[0].token, "[Me]");
+describe("filter typeahead logic", () => {
+  it("maps SharePoint field types to suggestion kinds", () => {
+    assert.deepEqual(kindsFromTypeAsString("DateTime"), ["date"]);
+    assert.deepEqual(kindsFromTypeAsString("date"), ["date"]);
+    assert.deepEqual(kindsFromTypeAsString("User"), ["person"]);
+    assert.deepEqual(kindsFromTypeAsString("UserMulti"), ["person"]);
+    assert.deepEqual(kindsFromTypeAsString("Text"), []);
+    assert.deepEqual(kindsFromTypeAsString("Number"), []);
+    assert.deepEqual(kindsFromTypeAsString("Lookup"), []);
+  });
 
-assert.deepStrictEqual(suggest([], ""), []);
+  it("suggests date tokens for date fields", () => {
+    const d = kindsFromTypeAsString("DateTime");
+    const dateEmpty = suggest(d, "");
+    assert.ok(dateEmpty.length > 0);
+    assert.ok(dateEmpty.every((x) => x.kind === "date"));
+    assert.ok(dateEmpty[0].token.indexOf("[Today]") === 0);
+  });
 
-const dateMe = suggest(d, "me");
-assert.ok(dateMe.every((x) => x.token.indexOf("[Me]") < 0), "date column should not suggest [Me]");
+  it("suggests person tokens for person fields", () => {
+    const p = kindsFromTypeAsString("User");
+    const personEmpty = suggest(p, "");
+    assert.equal(personEmpty.length, 1);
+    assert.equal(personEmpty[0].token, "[Me]");
+  });
 
-const personWeek = suggest(p, "week");
-assert.strictEqual(personWeek.length, 0, "person column should not suggest date-only tokens for 'week'");
+  it("does not suggest tokens for unsupported field types", () => {
+    assert.deepEqual(suggest([], ""), []);
+  });
 
-console.log("filterTypeaheadLogic.test.js: OK");
+  it("keeps date and person-only suggestions separated", () => {
+    const d = kindsFromTypeAsString("DateTime");
+    const dateMe = suggest(d, "me");
+    assert.ok(dateMe.every((x) => x.token.indexOf("[Me]") < 0), "date column should not suggest [Me]");
+
+    const p = kindsFromTypeAsString("User");
+    const personWeek = suggest(p, "week");
+    assert.equal(personWeek.length, 0, "person column should not suggest date-only tokens for 'week'");
+  });
+});
