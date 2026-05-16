@@ -3,8 +3,8 @@ import {
   listColumnSettingsUrl,
   searchSchemaColumnMatchesFilter,
   searchSchemaListMetaFromResponse,
-} from "../lib/popupUi.mjs";
-import { secondStageRecycleBinUrl, normalizeTrailingSlash } from "../lib/recycleBinUrls.mjs";
+} from "./lib/popupUi.mjs";
+import { secondStageRecycleBinUrl, normalizeTrailingSlash } from "./lib/recycleBinUrls.mjs";
 
 const btnExport = document.getElementById("btnExport");
 const btnChooseColumns = document.getElementById("btnChooseColumns");
