@@ -4,6 +4,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  groupUniversalSearchItemsForRender,
   listColumnSettingsUrl,
   searchSchemaListMetaFromResponse,
   searchSchemaColumnMatchesFilter,
@@ -56,5 +57,34 @@ describe("searchSchemaColumnMatchesFilter", () => {
   });
   it("no match", () => {
     assert.equal(searchSchemaColumnMatchesFilter(col, "zzz"), false);
+  });
+});
+
+describe("groupUniversalSearchItemsForRender", () => {
+  it("matches grouped render order instead of source order", () => {
+    const tabOne = { group: "Tabs", title: "Quick Links" };
+    const column = { group: "Columns", title: "Title" };
+    const tabTwo = { group: "Tabs", title: "Page Properties" };
+
+    const groups = groupUniversalSearchItemsForRender([tabOne, column, tabTwo]);
+
+    assert.deepEqual(groups.map((g) => g.group), ["Tabs", "Columns"]);
+    assert.deepEqual(groups.flatMap((g) => g.items), [tabOne, tabTwo, column]);
+  });
+
+  it("omits hidden rows beyond the per-group render cap", () => {
+    const items = [
+      { group: "Quick Links", title: "One" },
+      { group: "Quick Links", title: "Two" },
+      { group: "Quick Links", title: "Hidden" },
+      { group: "Tools", title: "Visible tool" },
+    ];
+
+    const groups = groupUniversalSearchItemsForRender(items, 2);
+
+    assert.deepEqual(groups.map((g) => [g.group, g.items.map((it) => it.title)]), [
+      ["Quick Links", ["One", "Two"]],
+      ["Tools", ["Visible tool"]],
+    ]);
   });
 });
