@@ -1,12 +1,8 @@
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
-import { runInNewContext } from "node:vm";
 
 const module = { exports: {} };
-runInNewContext(readFileSync(new URL("../filterTypeaheadLogic.js", import.meta.url), "utf8"), {
-  module,
-  window: {},
-});
+Function("module", "window", readFileSync(new URL("../filterTypeaheadLogic.js", import.meta.url), "utf8"))(module, {});
 const { kindsFromTypeAsString, suggest } = module.exports;
 
 assert.deepStrictEqual(kindsFromTypeAsString("DateTime"), ["date"]);
