@@ -3,6 +3,136 @@
 
 const RB_WAIT_SESSION_KEY = "__SPO_TOOLKIT_RB_WAIT__";
 const ADMIN_WAIT_SESSION_KEY = "__SPO_TOOLKIT_ADMIN_WAIT__";
+const VF_IFRAME_RULE_ID_BASE = 100000;
+const VF_IFRAME_RULE_DOMAINS = ["sharepoint.com", "sharepoint.us", "sharepoint.de"];
+const VF_OPENING_TAB_IDS = new Set();
+
+/** @param {string} url */
+function isSupportedSharePointPreviewUrl(url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:") return false;
+    const host = u.hostname.toLowerCase();
+    return VF_IFRAME_RULE_DOMAINS.some((domain) => host.endsWith("." + domain));
+  } catch (_) {
+    return false;
+  }
+}
+
+/** @param {number} tabId */
+function viewFormatterIframeRuleIds(tabId) {
+  return VF_IFRAME_RULE_DOMAINS.map((_, i) => VF_IFRAME_RULE_ID_BASE + (tabId * 10) + i);
+}
+
+/** @param {number} tabId */
+function viewFormatterIframeRules(tabId) {
+  return VF_IFRAME_RULE_DOMAINS.map((domain, i) => ({
+    id: viewFormatterIframeRuleIds(tabId)[i],
+    priority: 1,
+    action: {
+      type: "modifyHeaders",
+      responseHeaders: [
+        { header: "x-frame-options", operation: "remove" },
+        { header: "content-security-policy", operation: "remove" },
+        { header: "content-security-policy-report-only", operation: "remove" },
+      ],
+    },
+    condition: {
+      urlFilter: "||" + domain + "^",
+      resourceTypes: ["sub_frame"],
+      tabIds: [tabId],
+    },
+  }));
+}
+
+/**
+ * Install frame header exceptions only for the extension tab that hosts the
+ * View Formatter preview. Static DNR rules would apply browser-wide.
+ * @param {number} tabId
+ * @param {(ok: boolean, error?: string) => void} done
+ */
+function installViewFormatterIframeRules(tabId, done) {
+  if (!chrome.declarativeNetRequest || !chrome.declarativeNetRequest.updateSessionRules) {
+    done(false, "declarativeNetRequest is unavailable");
+    return;
+  }
+  chrome.declarativeNetRequest.updateSessionRules(
+    {
+      removeRuleIds: viewFormatterIframeRuleIds(tabId),
+      addRules: viewFormatterIframeRules(tabId),
+    },
+    () => {
+      const err = chrome.runtime.lastError;
+      done(!err, err && err.message ? err.message : undefined);
+    }
+  );
+}
+
+/** @param {number} tabId */
+function removeViewFormatterIframeRules(tabId) {
+  if (!chrome.declarativeNetRequest || !chrome.declarativeNetRequest.updateSessionRules) return;
+  chrome.declarativeNetRequest.updateSessionRules(
+    { removeRuleIds: viewFormatterIframeRuleIds(tabId) },
+    () => void chrome.runtime.lastError
+  );
+}
+
+/** @param {string} url */
+function isViewFormatterExtensionUrl(url) {
+  try {
+    const expected = new URL(chrome.runtime.getURL("view-formatter.html"));
+    const actual = new URL(url);
+    return actual.origin === expected.origin && actual.pathname === expected.pathname;
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * @param {string} previewUrl
+ * @param {number | null} sourceTabId
+ * @param {(response: object) => void} sendResponse
+ */
+function openViewFormatterWithScopedIframeRules(previewUrl, sourceTabId, sendResponse) {
+  if (!isSupportedSharePointPreviewUrl(previewUrl)) {
+    sendResponse({ ok: false, error: "Need a SharePoint URL" });
+    return;
+  }
+
+  const u = new URL(chrome.runtime.getURL("view-formatter.html"));
+  u.searchParams.set("src", previewUrl);
+  if (sourceTabId != null) u.searchParams.set("tabId", String(sourceTabId));
+
+  chrome.tabs.create({ url: "about:blank" }, (tab) => {
+    if (chrome.runtime.lastError || tab == null || tab.id == null) {
+      sendResponse({ ok: false, error: chrome.runtime.lastError?.message || "Could not open View formatter" });
+      return;
+    }
+
+    const formatterTabId = tab.id;
+    VF_OPENING_TAB_IDS.add(formatterTabId);
+    installViewFormatterIframeRules(formatterTabId, (ok, error) => {
+      if (!ok) {
+        VF_OPENING_TAB_IDS.delete(formatterTabId);
+        chrome.tabs.remove(formatterTabId, () => void chrome.runtime.lastError);
+        sendResponse({ ok: false, error: error || "Could not prepare View formatter preview" });
+        return;
+      }
+
+      chrome.tabs.update(formatterTabId, { url: u.toString() }, () => {
+        if (chrome.runtime.lastError) {
+          const message = chrome.runtime.lastError.message || "Could not open View formatter";
+          VF_OPENING_TAB_IDS.delete(formatterTabId);
+          removeViewFormatterIframeRules(formatterTabId);
+          sendResponse({ ok: false, error: message });
+          return;
+        }
+        setTimeout(() => VF_OPENING_TAB_IDS.delete(formatterTabId), 5000);
+        sendResponse({ ok: true, tabId: formatterTabId });
+      });
+    });
+  });
+}
 
 /** @param {string} url */
 function isSharePointTenantAdminUrl(url) {
@@ -302,6 +432,21 @@ chrome.commands.onCommand.addListener((command) => {
   });
 });
 
+chrome.tabs.onRemoved.addListener((tabId) => {
+  VF_OPENING_TAB_IDS.delete(tabId);
+  removeViewFormatterIframeRules(tabId);
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (!changeInfo.url) return;
+  if (isViewFormatterExtensionUrl(changeInfo.url)) {
+    VF_OPENING_TAB_IDS.delete(tabId);
+    return;
+  }
+  if (VF_OPENING_TAB_IDS.has(tabId)) return;
+  removeViewFormatterIframeRules(tabId);
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "SPOToolkitOpenTenantAdminWithWait") {
     const url = String(message.url || "");
@@ -327,16 +472,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (message.type === "SPOToolkitOpenViewFormatter") {
     const previewUrl = String(message.previewUrl || (sender.tab && sender.tab.url) || "");
-    if (!previewUrl || !previewUrl.includes("sharepoint.com")) {
-      sendResponse({ ok: false, error: "Need a SharePoint URL" });
-      return true;
-    }
-    const u = new URL(chrome.runtime.getURL("view-formatter.html"));
-    u.searchParams.set("src", previewUrl);
-    const tid = sender.tab && sender.tab.id;
-    if (tid != null) u.searchParams.set("tabId", String(tid));
-    chrome.tabs.create({ url: u.toString() });
-    sendResponse({ ok: true });
+    const tid = message.tabId != null ? Number(message.tabId) : sender.tab && sender.tab.id;
+    openViewFormatterWithScopedIframeRules(previewUrl, Number.isFinite(tid) ? tid : null, sendResponse);
     return true;
   }
   if (message.type !== "SPOToolkitOpenViewManager") return;

@@ -480,10 +480,7 @@ async function refreshUniversalSearchIndex() {
     addUniversalSearchItem("Tools", "View formatter", "JSON editor & list preview", "view formatter json column formatting format", () => {
       void chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
         if (!isToolkitSharePointPage(tab?.url)) return;
-        const url = new URL(chrome.runtime.getURL("view-formatter.html"));
-        url.searchParams.set("src", tab.url);
-        if (tab.id != null) url.searchParams.set("tabId", String(tab.id));
-        chrome.tabs.create({ url: url.toString() });
+        void openViewFormatterForTab(tab);
       });
     });
     addUniversalSearchItem("Reports", "Run Export", "Reports", "run export reports", () => {
@@ -620,6 +617,25 @@ function isToolkitSharePointPage(url) {
   } catch (_) {
     return true;
   }
+}
+
+function openViewFormatterForTab(tab) {
+  return new Promise((resolve) => {
+    if (!tab || !isToolkitSharePointPage(tab.url)) {
+      resolve({ ok: false, error: "Open a SharePoint list or library page first, then open View formatter." });
+      return;
+    }
+    chrome.runtime.sendMessage(
+      { type: "SPOToolkitOpenViewFormatter", previewUrl: tab.url, tabId: tab.id },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          resolve({ ok: false, error: chrome.runtime.lastError.message || "Could not open View formatter." });
+          return;
+        }
+        resolve(response || { ok: true });
+      }
+    );
+  });
 }
 
 /** Dedupe recent list by full page path (not only site root). */
@@ -1377,10 +1393,10 @@ document.getElementById("btnOpenViewFormatter")?.addEventListener("click", async
     alert("Open a SharePoint list or library page first, then open View formatter.");
     return;
   }
-  const url = new URL(chrome.runtime.getURL("view-formatter.html"));
-  url.searchParams.set("src", tab.url);
-  if (tab.id != null) url.searchParams.set("tabId", String(tab.id));
-  chrome.tabs.create({ url: url.toString() });
+  const response = await openViewFormatterForTab(tab);
+  if (!response || response.ok === false) {
+    alert(response?.error || "Could not open View formatter.");
+  }
 });
 
 // --- Columns tab: list fields via REST; display name links to FldEdit.aspx
