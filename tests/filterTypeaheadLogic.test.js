@@ -1,6 +1,11 @@
 "use strict";
-const assert = require("assert");
-const { kindsFromTypeAsString, suggest } = require("../filterTypeaheadLogic.js");
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+
+const source = await readFile(new URL("../filterTypeaheadLogic.js", import.meta.url), "utf8");
+const module = { exports: {} };
+Function("module", "window", source)(module, {});
+const { kindsFromTypeAsString, suggest } = module.exports;
 
 assert.deepStrictEqual(kindsFromTypeAsString("DateTime"), ["date"]);
 assert.deepStrictEqual(kindsFromTypeAsString("date"), ["date"]);
