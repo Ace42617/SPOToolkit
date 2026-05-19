@@ -11,6 +11,7 @@ New-Item -ItemType Directory -Path $staging | Out-Null
 
 $files = @(
   "manifest.json", "background.js", "content.js",
+  "recycleBinWaitBanner.js", "adminCenterWaitBanner.js",
   "popup.html", "popup.js", "views.html", "views.js",
   "view-formatter.html", "view-formatter.js",
   "sharepoint-facts.js", "filterTypeaheadLogic.js", "icon.png",
