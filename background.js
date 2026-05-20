@@ -2,7 +2,56 @@
 // tabs.onUpdated survives after the popup closes).
 
 const RB_WAIT_SESSION_KEY = "__SPO_TOOLKIT_RB_WAIT__";
+const RB_WAIT_SESSION_TS_KEY = "__SPO_TOOLKIT_RB_WAIT_TS__";
 const ADMIN_WAIT_SESSION_KEY = "__SPO_TOOLKIT_ADMIN_WAIT__";
+const VIEW_FORMATTER_IFRAME_RULE_ID_BASE = 1000000;
+
+function viewFormatterIframeRuleId(tabId) {
+  return VIEW_FORMATTER_IFRAME_RULE_ID_BASE + Number(tabId);
+}
+
+function buildViewFormatterIframeRule(tabId) {
+  return {
+    id: viewFormatterIframeRuleId(tabId),
+    priority: 1,
+    action: {
+      type: "modifyHeaders",
+      responseHeaders: [
+        { header: "x-frame-options", operation: "remove" },
+        { header: "content-security-policy", operation: "remove" },
+        { header: "content-security-policy-report-only", operation: "remove" },
+      ],
+    },
+    condition: {
+      urlFilter: "||sharepoint.com^",
+      resourceTypes: ["sub_frame"],
+      tabIds: [tabId],
+    },
+  };
+}
+
+function installViewFormatterIframeRule(tabId, done) {
+  if (!chrome.declarativeNetRequest || typeof chrome.declarativeNetRequest.updateSessionRules !== "function") {
+    if (typeof done === "function") done(false, "Could not enable SharePoint preview framing for this tab.");
+    return;
+  }
+  const ruleId = viewFormatterIframeRuleId(tabId);
+  chrome.declarativeNetRequest.updateSessionRules(
+    { removeRuleIds: [ruleId], addRules: [buildViewFormatterIframeRule(tabId)] },
+    () => {
+      const err = chrome.runtime.lastError && chrome.runtime.lastError.message;
+      if (typeof done === "function") done(!err, err || "");
+    }
+  );
+}
+
+function removeViewFormatterIframeRule(tabId) {
+  if (!chrome.declarativeNetRequest || typeof chrome.declarativeNetRequest.updateSessionRules !== "function") return;
+  chrome.declarativeNetRequest.updateSessionRules(
+    { removeRuleIds: [viewFormatterIframeRuleId(tabId)] },
+    () => void chrome.runtime.lastError
+  );
+}
 
 /** @param {string} url */
 function isSharePointTenantAdminUrl(url) {
@@ -72,17 +121,52 @@ function openTenantAdminUrlWithWaitOverlay(url) {
   });
 }
 
+function openViewFormatterWithScopedIframeRule(previewUrl, sourceTabId, sendResponse) {
+  const u = new URL(chrome.runtime.getURL("view-formatter.html"));
+  u.searchParams.set("src", previewUrl);
+  if (sourceTabId != null) u.searchParams.set("tabId", String(sourceTabId));
+  const formatterUrl = u.toString();
+
+  chrome.tabs.create({ url: "about:blank" }, (tab) => {
+    const createErr = chrome.runtime.lastError && chrome.runtime.lastError.message;
+    if (createErr || tab == null || tab.id == null) {
+      sendResponse({ ok: false, error: createErr || "Could not open View formatter." });
+      return;
+    }
+
+    const formatterTabId = tab.id;
+    installViewFormatterIframeRule(formatterTabId, (ok, err) => {
+      if (!ok) {
+        chrome.tabs.remove(formatterTabId, () => void chrome.runtime.lastError);
+        sendResponse({ ok: false, error: err || "Could not enable SharePoint preview framing for this tab." });
+        return;
+      }
+
+      chrome.tabs.update(formatterTabId, { url: formatterUrl }, () => {
+        const updateErr = chrome.runtime.lastError && chrome.runtime.lastError.message;
+        if (updateErr) {
+          removeViewFormatterIframeRule(formatterTabId);
+          sendResponse({ ok: false, error: updateErr });
+          return;
+        }
+        sendResponse({ ok: true });
+      });
+    });
+  });
+}
+
 function clearRecycleBinWaitSession(tabId) {
   chrome.scripting.executeScript(
     {
       target: { tabId },
-      func: (k) => {
+      func: (k, tk) => {
         try {
           sessionStorage.removeItem(k);
+          sessionStorage.removeItem(tk);
         } catch (e) {}
         document.getElementById("sp-toolkit-rb-wait-root")?.remove();
       },
-      args: [RB_WAIT_SESSION_KEY],
+      args: [RB_WAIT_SESSION_KEY, RB_WAIT_SESSION_TS_KEY],
     },
     () => void chrome.runtime.lastError
   );
@@ -93,12 +177,13 @@ function injectRecycleBinWaitOverlay(tabId, done) {
   chrome.scripting.executeScript(
     {
       target: { tabId },
-      func: (k) => {
+      func: (k, tk) => {
         try {
           sessionStorage.setItem(k, "1");
+          sessionStorage.setItem(tk, String(Date.now()));
         } catch (e) {}
       },
-      args: [RB_WAIT_SESSION_KEY],
+      args: [RB_WAIT_SESSION_KEY, RB_WAIT_SESSION_TS_KEY],
     },
     () => {
       void chrome.runtime.lastError;
@@ -186,14 +271,15 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
       chrome.scripting.executeScript(
         {
           target: { tabId },
-          func: (u, k) => {
+          func: (u, k, tk) => {
             try {
               sessionStorage.removeItem(k);
+              sessionStorage.removeItem(tk);
             } catch (e) {}
             document.getElementById("sp-toolkit-rb-wait-root")?.remove();
             window.location.replace(u);
           },
-          args: [fullUrl, RB_WAIT_SESSION_KEY],
+          args: [fullUrl, RB_WAIT_SESSION_KEY, RB_WAIT_SESSION_TS_KEY],
         },
         () => {
           void chrome.runtime.lastError;
@@ -302,6 +388,10 @@ chrome.commands.onCommand.addListener((command) => {
   });
 });
 
+chrome.tabs.onRemoved.addListener((tabId) => {
+  removeViewFormatterIframeRule(tabId);
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "SPOToolkitOpenTenantAdminWithWait") {
     const url = String(message.url || "");
@@ -331,12 +421,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ ok: false, error: "Need a SharePoint URL" });
       return true;
     }
-    const u = new URL(chrome.runtime.getURL("view-formatter.html"));
-    u.searchParams.set("src", previewUrl);
     const tid = sender.tab && sender.tab.id;
-    if (tid != null) u.searchParams.set("tabId", String(tid));
-    chrome.tabs.create({ url: u.toString() });
-    sendResponse({ ok: true });
+    openViewFormatterWithScopedIframeRule(previewUrl, tid, sendResponse);
     return true;
   }
   if (message.type !== "SPOToolkitOpenViewManager") return;
