@@ -6,12 +6,38 @@
  */
 (function () {
   var KEY = "__SPO_TOOLKIT_RB_WAIT__";
+  var TS_KEY = "__SPO_TOOLKIT_RB_WAIT_TS__";
+  var ROOT_ID = "sp-toolkit-rb-wait-root";
+  var maxAgeMs = 45000;
+
+  function teardown() {
+    try {
+      sessionStorage.removeItem(KEY);
+      sessionStorage.removeItem(TS_KEY);
+    } catch (e) {}
+    var n = document.getElementById(ROOT_ID);
+    if (n) n.remove();
+  }
+
+  function getFreshTimestamp() {
+    var ts = 0;
+    try {
+      if (sessionStorage.getItem(KEY) !== "1") return 0;
+      ts = parseInt(sessionStorage.getItem(TS_KEY) || "", 10);
+    } catch (e) {
+      return 0;
+    }
+    if (!ts || Date.now() - ts > maxAgeMs) {
+      teardown();
+      return 0;
+    }
+    return ts;
+  }
 
   function mount() {
-    var id = "sp-toolkit-rb-wait-root";
-    if (document.getElementById(id)) return;
+    if (document.getElementById(ROOT_ID)) return;
     var root = document.createElement("div");
-    root.id = id;
+    root.id = ROOT_ID;
     root.setAttribute("role", "alertdialog");
     root.setAttribute("aria-modal", "true");
     root.setAttribute("aria-labelledby", "sp-toolkit-rb-wait-title");
@@ -82,9 +108,10 @@
   }
 
   function tryPrime() {
-    try {
-      if (sessionStorage.getItem(KEY) === "1") mount();
-    } catch (e) {}
+    var ts = getFreshTimestamp();
+    if (!ts) return;
+    mount();
+    window.setTimeout(teardown, Math.max(1000, maxAgeMs - (Date.now() - ts)));
   }
 
   tryPrime();
