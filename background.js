@@ -2,7 +2,9 @@
 // tabs.onUpdated survives after the popup closes).
 
 const RB_WAIT_SESSION_KEY = "__SPO_TOOLKIT_RB_WAIT__";
+const RB_WAIT_STARTED_KEY = "__SPO_TOOLKIT_RB_WAIT_TS__";
 const ADMIN_WAIT_SESSION_KEY = "__SPO_TOOLKIT_ADMIN_WAIT__";
+const activeRecycleBinSequences = new Set();
 
 /** @param {string} url */
 function isSharePointTenantAdminUrl(url) {
@@ -76,13 +78,14 @@ function clearRecycleBinWaitSession(tabId) {
   chrome.scripting.executeScript(
     {
       target: { tabId },
-      func: (k) => {
+      func: (k, tsKey) => {
         try {
           sessionStorage.removeItem(k);
+          sessionStorage.removeItem(tsKey);
         } catch (e) {}
         document.getElementById("sp-toolkit-rb-wait-root")?.remove();
       },
-      args: [RB_WAIT_SESSION_KEY],
+      args: [RB_WAIT_SESSION_KEY, RB_WAIT_STARTED_KEY],
     },
     () => void chrome.runtime.lastError
   );
@@ -93,12 +96,13 @@ function injectRecycleBinWaitOverlay(tabId, done) {
   chrome.scripting.executeScript(
     {
       target: { tabId },
-      func: (k) => {
+      func: (k, tsKey) => {
         try {
           sessionStorage.setItem(k, "1");
+          sessionStorage.setItem(tsKey, String(Date.now()));
         } catch (e) {}
       },
-      args: [RB_WAIT_SESSION_KEY],
+      args: [RB_WAIT_SESSION_KEY, RB_WAIT_STARTED_KEY],
     },
     () => {
       void chrome.runtime.lastError;
@@ -119,6 +123,8 @@ function injectRecycleBinWaitOverlay(tabId, done) {
  * @param {string} secondStageUrl
  */
 function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl) {
+  if (activeRecycleBinSequences.has(tabId)) return false;
+  activeRecycleBinSequences.add(tabId);
   let settled = false;
   let sequenceClosed = false;
   let failsafe = 0;
@@ -130,6 +136,7 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
     if (sequenceClosed) return;
     sequenceClosed = true;
     settled = true;
+    activeRecycleBinSequences.delete(tabId);
     clearRecycleBinWaitSession(tabId);
     chrome.tabs.onUpdated.removeListener(onUpdated);
     chrome.webNavigation.onCommitted.removeListener(onNavCommitted);
@@ -186,14 +193,15 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
       chrome.scripting.executeScript(
         {
           target: { tabId },
-          func: (u, k) => {
+          func: (u, k, tsKey) => {
             try {
               sessionStorage.removeItem(k);
+              sessionStorage.removeItem(tsKey);
             } catch (e) {}
             document.getElementById("sp-toolkit-rb-wait-root")?.remove();
             window.location.replace(u);
           },
-          args: [fullUrl, RB_WAIT_SESSION_KEY],
+          args: [fullUrl, RB_WAIT_SESSION_KEY, RB_WAIT_STARTED_KEY],
         },
         () => {
           void chrome.runtime.lastError;
@@ -249,6 +257,21 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
     applySecondStageUrl(secondStageUrl);
   }
 
+  function proceedIfFirstStageLoaded() {
+    chrome.tabs.get(tabId, (t) => {
+      if (settled || chrome.runtime.lastError || !t?.url || t.status !== "complete") return;
+      let path = "";
+      try {
+        path = new URL(t.url).pathname;
+      } catch (_) {
+        return;
+      }
+      if (/recyclebin\.aspx/i.test(path) && !/adminrecyclebin/i.test(path)) {
+        proceed();
+      }
+    });
+  }
+
   function onUpdated(id, info) {
     if (id !== tabId || info.status !== "complete") return;
     chrome.tabs.get(tabId, (t) => {
@@ -282,10 +305,11 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
       }
       fallback = setTimeout(() => {
         fallback = 0;
-        if (!settled) proceed();
+        if (!settled) proceedIfFirstStageLoaded();
       }, 4500);
     });
   });
+  return true;
 }
 
 /** Keyboard shortcut (chrome://extensions/shortcuts) — opens action popup, then Universal Search. */
@@ -321,7 +345,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ ok: false, error: "Missing tab or URL" });
       return false;
     }
-    openSecondStageRecycleBinSequence(tabId, firstUrl, secondUrl);
+    if (!openSecondStageRecycleBinSequence(tabId, firstUrl, secondUrl)) {
+      sendResponse({ ok: false, error: "Second-stage recycle bin is already opening in this tab" });
+      return false;
+    }
     sendResponse({ ok: true });
     return false;
   }
