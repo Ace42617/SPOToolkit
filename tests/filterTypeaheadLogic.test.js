@@ -1,6 +1,10 @@
-"use strict";
-const assert = require("assert");
-const { kindsFromTypeAsString, suggest } = require("../filterTypeaheadLogic.js");
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+const source = readFileSync(new URL("../filterTypeaheadLogic.js", import.meta.url), "utf8");
+const module = { exports: {} };
+Function("module", "window", source)(module, {});
+const { kindsFromTypeAsString, suggest } = module.exports;
 
 assert.deepStrictEqual(kindsFromTypeAsString("DateTime"), ["date"]);
 assert.deepStrictEqual(kindsFromTypeAsString("date"), ["date"]);
@@ -18,8 +22,8 @@ assert.ok(dateEmpty[0].token.indexOf("[Today]") === 0);
 
 const p = kindsFromTypeAsString("User");
 const personEmpty = suggest(p, "");
-assert.strictEqual(personEmpty.length, 1);
-assert.strictEqual(personEmpty[0].token, "[Me]");
+assert.equal(personEmpty.length, 1);
+assert.equal(personEmpty[0].token, "[Me]");
 
 assert.deepStrictEqual(suggest([], ""), []);
 
@@ -27,6 +31,6 @@ const dateMe = suggest(d, "me");
 assert.ok(dateMe.every((x) => x.token.indexOf("[Me]") < 0), "date column should not suggest [Me]");
 
 const personWeek = suggest(p, "week");
-assert.strictEqual(personWeek.length, 0, "person column should not suggest date-only tokens for 'week'");
+assert.equal(personWeek.length, 0, "person column should not suggest date-only tokens for 'week'");
 
 console.log("filterTypeaheadLogic.test.js: OK");
