@@ -198,6 +198,7 @@ const universalSearchResults = document.getElementById("universalSearchResults")
 const btnUniversalSearch = document.getElementById("btnUniversalSearch");
 let universalSearchIndex = [];
 let universalSearchFiltered = [];
+let universalSearchVisibleItems = [];
 let universalSearchActive = -1;
 
 function openUniversalSearch() {
@@ -480,10 +481,10 @@ async function refreshUniversalSearchIndex() {
     addUniversalSearchItem("Tools", "View formatter", "JSON editor & list preview", "view formatter json column formatting format", () => {
       void chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
         if (!isToolkitSharePointPage(tab?.url)) return;
-        const url = new URL(chrome.runtime.getURL("view-formatter.html"));
-        url.searchParams.set("src", tab.url);
-        if (tab.id != null) url.searchParams.set("tabId", String(tab.id));
-        chrome.tabs.create({ url: url.toString() });
+        chrome.runtime.sendMessage(
+          { type: "SPOToolkitOpenViewFormatter", previewUrl: tab.url, tabId: tab.id },
+          () => void chrome.runtime.lastError
+        );
       });
     });
     addUniversalSearchItem("Reports", "Run Export", "Reports", "run export reports", () => {
@@ -517,6 +518,7 @@ function renderUniversalSearchResults(queryRaw) {
   universalSearchFiltered = query
     ? universalSearchIndex.filter((it) => it.keywords.includes(query))
     : universalSearchIndex;
+  universalSearchVisibleItems = [];
   universalSearchActive = universalSearchFiltered.length ? 0 : -1;
 
   if (!universalSearchFiltered.length) {
@@ -540,10 +542,12 @@ function renderUniversalSearchResults(queryRaw) {
     h.textContent = group;
     g.appendChild(h);
     items.slice(0, 18).forEach((it) => {
+      const itemIndex = universalSearchVisibleItems.length;
+      universalSearchVisibleItems.push(it);
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "us-item" + (flatIndex === universalSearchActive ? " active" : "");
-      btn.dataset.idx = String(flatIndex);
+      btn.className = "us-item" + (itemIndex === universalSearchActive ? " active" : "");
+      btn.dataset.idx = String(itemIndex);
       btn.innerHTML =
         '<span class="us-item-title">' + escapeHtml(it.title) + "</span>" +
         (it.meta ? '<span class="us-item-meta">' + escapeHtml(it.meta) + "</span>" : "");
@@ -559,8 +563,8 @@ function renderUniversalSearchResults(queryRaw) {
 }
 
 function moveUniversalSearchSelection(dir) {
-  if (!universalSearchFiltered.length) return;
-  const max = universalSearchFiltered.length - 1;
+  if (!universalSearchVisibleItems.length) return;
+  const max = universalSearchVisibleItems.length - 1;
   universalSearchActive = Math.max(0, Math.min(max, universalSearchActive + dir));
   const buttons = universalSearchResults ? Array.from(universalSearchResults.querySelectorAll(".us-item")) : [];
   buttons.forEach((b, idx) => b.classList.toggle("active", idx === universalSearchActive));
@@ -589,9 +593,9 @@ universalSearchInput?.addEventListener("keydown", (e) => {
     moveUniversalSearchSelection(-1);
     return;
   }
-  if (e.key === "Enter" && universalSearchFiltered[universalSearchActive]) {
+  if (e.key === "Enter" && universalSearchVisibleItems[universalSearchActive]) {
     e.preventDefault();
-    universalSearchFiltered[universalSearchActive].run();
+    universalSearchVisibleItems[universalSearchActive].run();
     closeUniversalSearch();
   }
 });
@@ -1377,10 +1381,10 @@ document.getElementById("btnOpenViewFormatter")?.addEventListener("click", async
     alert("Open a SharePoint list or library page first, then open View formatter.");
     return;
   }
-  const url = new URL(chrome.runtime.getURL("view-formatter.html"));
-  url.searchParams.set("src", tab.url);
-  if (tab.id != null) url.searchParams.set("tabId", String(tab.id));
-  chrome.tabs.create({ url: url.toString() });
+  chrome.runtime.sendMessage(
+    { type: "SPOToolkitOpenViewFormatter", previewUrl: tab.url, tabId: tab.id },
+    () => void chrome.runtime.lastError
+  );
 });
 
 // --- Columns tab: list fields via REST; display name links to FldEdit.aspx

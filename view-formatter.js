@@ -396,6 +396,48 @@
     }
   }
 
+  function comparablePageUrl(url) {
+    try {
+      const u = new URL(url);
+      u.hash = "";
+      u.pathname = u.pathname.replace(/\/$/, "") || "/";
+      return u.toString();
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function assertSourceTabStillMatches(ctx) {
+    const openedUrl = comparablePageUrl(previewUrl);
+    const currentUrl = comparablePageUrl(ctx && ctx.pageUrl);
+    if (openedUrl && currentUrl && openedUrl !== currentUrl) {
+      throw new Error("The SharePoint tab has navigated since View formatter opened. Reopen View formatter from the view you want to save.");
+    }
+  }
+
+  function ensureViewFormatterFrameRules() {
+    return new Promise(function (resolve) {
+      if (!chrome.tabs || !chrome.tabs.getCurrent || !chrome.runtime || !chrome.runtime.sendMessage) {
+        resolve(false);
+        return;
+      }
+      try {
+        chrome.tabs.getCurrent(function (tab) {
+          const tabId = tab && tab.id;
+          if (tabId == null || chrome.runtime.lastError) {
+            resolve(false);
+            return;
+          }
+          chrome.runtime.sendMessage({ type: "SPOToolkitEnableViewFormatterFrameRules", tabId: tabId }, function (res) {
+            resolve(!chrome.runtime.lastError && !!(res && res.ok));
+          });
+        });
+      } catch (_) {
+        resolve(false);
+      }
+    });
+  }
+
   function sendToSpTab(message) {
     return new Promise(function (resolve, reject) {
       if (spTabId == null) {
@@ -535,7 +577,10 @@
 
   if (previewUrl && frame) {
     try {
-      frame.src = previewUrl;
+      ensureViewFormatterFrameRules().then(function (ok) {
+        if (!ok) showBanner("Preview protections could not be scoped to this formatter tab; the preview may be blocked by SharePoint.");
+        frame.src = previewUrl;
+      });
     } catch (_) {
       showBanner("Could not set preview URL.");
     }
@@ -683,26 +728,13 @@
       try {
         const ctx = await sendToSpTab({ action: "getViewFormatContext" });
         if (!ctx || !ctx.ok) throw new Error((ctx && ctx.error) || "Could not read list from the SharePoint tab.");
+        assertSourceTabStillMatches(ctx);
         const listId = ctx.listId;
-        let viewId = normGuid(ctx.viewId);
+        const viewId = normGuid(ctx.viewId);
         const sitePath = ctx.sitePath || "/";
         if (!viewId) {
-          const defPath =
-            sitePath +
-            "/_api/web/lists(guid'" +
-            listId.replace(/'/g, "''") +
-            "')/DefaultView?$select=Id";
-          const defRes = await sendToSpTab({ action: "rest", method: "GET", path: defPath });
-          if (!defRes || !defRes.ok) {
-            throw new Error(
-              restErrorMessage(defRes && defRes.error) ||
-                "Could not resolve view id. Open the list view you want to format, or use a URL that includes View=."
-            );
-          }
-          const d = defRes.data || {};
-          viewId = normGuid(d.Id || d.id);
+          throw new Error("Could not determine the current view id. Open the exact list view you want to format, or use a URL that includes View=.");
         }
-        if (!viewId) throw new Error("Could not determine view id.");
         const patchPath =
           sitePath +
           "/_api/web/lists(guid'" +

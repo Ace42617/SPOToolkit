@@ -83,7 +83,7 @@ The popup shows a short message and a **Recently visited SharePoint sites** drop
 | Config | `manifest.json` |
 | Popup | `popup.html`, `popup.js` (ES module), `lib/popupUi.mjs` (shared column / quick-links helpers) |
 | Full-page views | `views.html`, `views.js`, `filterTypeaheadLogic.js` |
-| View formatter | `view-formatter.html`, `view-formatter.js`, `getViewFormatContext.js`, `rules/view-formatter-iframe.json` |
+| View formatter | `view-formatter.html`, `view-formatter.js`, `getViewFormatContext.js` |
 | Page bridge | `content.js`, `background.js` |
 | Injected scripts | `exportCSV.js`, `getFields.js`, `getSearchSchema.js`, `getViewsData.js`, `checkListPage.js`, `getListType.js`, `getRefinableMappings.js`, `getPageContext.js`, `getPageContextJson.js`, `getSiteLists.js`, … |
 | ZIP / XLSX | `jszip*.js` |

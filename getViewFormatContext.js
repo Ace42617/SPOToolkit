@@ -28,6 +28,7 @@
       listId: listId,
       viewId: viewId,
       webAbsoluteUrl: webAbsoluteUrl,
+      pageUrl: window.location.href,
     },
     "*"
   );

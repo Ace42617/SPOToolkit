@@ -947,7 +947,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         try {
           sitePath = new URL(webAbsoluteUrl).pathname.replace(/\/$/, "") || "/";
         } catch (_) {}
-        return { ok: true, listId, viewId, sitePath };
+        return { ok: true, listId, viewId, sitePath, pageUrl: data.pageUrl || "" };
       },
       sendResponse,
       { timeoutMs: 6000, errorPayload: { ok: false, error: "Timeout reading page context." } }

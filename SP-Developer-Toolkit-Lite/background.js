@@ -2,6 +2,7 @@
 // survives after the popup closes (popup listeners are torn down with window.close()).
 
 const RB_WAIT_SESSION_KEY = "__SPO_TOOLKIT_RB_WAIT__";
+const RB_WAIT_SESSION_TS_KEY = "__SPO_TOOLKIT_RB_WAIT_TS__";
 const ADMIN_WAIT_SESSION_KEY = "__SPO_TOOLKIT_ADMIN_WAIT__";
 
 /** @param {string} url */
@@ -70,13 +71,14 @@ function clearRecycleBinWaitSession(tabId) {
   chrome.scripting.executeScript(
     {
       target: { tabId },
-      func: (k) => {
+      func: (k, tk) => {
         try {
           sessionStorage.removeItem(k);
+          sessionStorage.removeItem(tk);
         } catch (e) {}
         document.getElementById("sp-toolkit-rb-wait-root")?.remove();
       },
-      args: [RB_WAIT_SESSION_KEY],
+      args: [RB_WAIT_SESSION_KEY, RB_WAIT_SESSION_TS_KEY],
     },
     () => void chrome.runtime.lastError
   );
@@ -86,12 +88,13 @@ function injectRecycleBinWaitOverlay(tabId, done) {
   chrome.scripting.executeScript(
     {
       target: { tabId },
-      func: (k) => {
+      func: (k, tk) => {
         try {
           sessionStorage.setItem(k, "1");
+          sessionStorage.setItem(tk, String(Date.now()));
         } catch (e) {}
       },
-      args: [RB_WAIT_SESSION_KEY],
+      args: [RB_WAIT_SESSION_KEY, RB_WAIT_SESSION_TS_KEY],
     },
     () => {
       void chrome.runtime.lastError;
@@ -113,6 +116,11 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
   let fallback = 0;
   /** @type {null | (() => void)} */
   let teardownAdminHashWait = null;
+
+  function armFailsafe(ms) {
+    if (failsafe) clearTimeout(failsafe);
+    failsafe = setTimeout(() => shutdownRecycleBinSequence(), ms);
+  }
 
   function shutdownRecycleBinSequence() {
     if (sequenceClosed) return;
@@ -152,7 +160,7 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
     const hashPos = fullUrl.indexOf("#");
     if (hashPos < 0) {
       injectRecycleBinWaitOverlay(tabId, () => {
-        chrome.tabs.update(tabId, { url: fullUrl });
+        chrome.tabs.update(tabId, { url: fullUrl }, () => shutdownRecycleBinSequence());
       });
       return;
     }
@@ -222,7 +230,7 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
       }, 6000);
 
       chrome.tabs.update(tabId, { url: withoutHash }, () => {
-        if (chrome.runtime.lastError) endHashWait();
+        if (chrome.runtime.lastError) shutdownRecycleBinSequence();
       });
     });
   }
@@ -230,7 +238,18 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
   function proceed() {
     if (settled) return;
     endFirstStageOnly();
+    armFailsafe(30000);
     applySecondStageUrl(secondStageUrl);
+  }
+
+  function proceedIfFirstStageLoaded() {
+    chrome.tabs.get(tabId, (t) => {
+      if (settled || chrome.runtime.lastError || !t?.url || t.status !== "complete") return;
+      try {
+        const path = new URL(t.url).pathname;
+        if (/recyclebin\.aspx/i.test(path) && !/adminrecyclebin/i.test(path)) proceed();
+      } catch (_) {}
+    });
   }
 
   function onUpdated(id, info) {
@@ -257,7 +276,7 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
 
   injectRecycleBinWaitOverlay(tabId, () => {
     chrome.webNavigation.onCommitted.addListener(onNavCommitted);
-    failsafe = setTimeout(() => shutdownRecycleBinSequence(), 20000);
+    armFailsafe(60000);
     chrome.tabs.onUpdated.addListener(onUpdated);
     chrome.tabs.update(tabId, { url: firstStageUrl }, () => {
       if (chrome.runtime.lastError) {
@@ -266,7 +285,7 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
       }
       fallback = setTimeout(() => {
         fallback = 0;
-        if (!settled) proceed();
+        if (!settled) proceedIfFirstStageLoaded();
       }, 4500);
     });
   });
