@@ -2,6 +2,7 @@
 // tabs.onUpdated survives after the popup closes).
 
 const RB_WAIT_SESSION_KEY = "__SPO_TOOLKIT_RB_WAIT__";
+const RB_WAIT_SESSION_TS_KEY = "__SPO_TOOLKIT_RB_WAIT_TS__";
 const ADMIN_WAIT_SESSION_KEY = "__SPO_TOOLKIT_ADMIN_WAIT__";
 
 /** @param {string} url */
@@ -76,13 +77,14 @@ function clearRecycleBinWaitSession(tabId) {
   chrome.scripting.executeScript(
     {
       target: { tabId },
-      func: (k) => {
+      func: (k, tsKey) => {
         try {
           sessionStorage.removeItem(k);
+          sessionStorage.removeItem(tsKey);
         } catch (e) {}
         document.getElementById("sp-toolkit-rb-wait-root")?.remove();
       },
-      args: [RB_WAIT_SESSION_KEY],
+      args: [RB_WAIT_SESSION_KEY, RB_WAIT_SESSION_TS_KEY],
     },
     () => void chrome.runtime.lastError
   );
@@ -93,12 +95,13 @@ function injectRecycleBinWaitOverlay(tabId, done) {
   chrome.scripting.executeScript(
     {
       target: { tabId },
-      func: (k) => {
+      func: (k, tsKey) => {
         try {
           sessionStorage.setItem(k, "1");
+          sessionStorage.setItem(tsKey, String(Date.now()));
         } catch (e) {}
       },
-      args: [RB_WAIT_SESSION_KEY],
+      args: [RB_WAIT_SESSION_KEY, RB_WAIT_SESSION_TS_KEY],
     },
     () => {
       void chrome.runtime.lastError;
@@ -175,10 +178,11 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
     const withoutHash = fullUrl.slice(0, hashPos);
     let hashWaitDone = false;
     let hashWaitTimer = 0;
+    let pendingInjectTimer = 0;
     let injected = false;
 
     function injectFullUrl() {
-      if (injected) return;
+      if (sequenceClosed || injected) return;
       injected = true;
       try {
         chrome.webNavigation.onCommitted.removeListener(onNavCommitted);
@@ -186,14 +190,15 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
       chrome.scripting.executeScript(
         {
           target: { tabId },
-          func: (u, k) => {
+          func: (u, k, tsKey) => {
             try {
               sessionStorage.removeItem(k);
+              sessionStorage.removeItem(tsKey);
             } catch (e) {}
             document.getElementById("sp-toolkit-rb-wait-root")?.remove();
             window.location.replace(u);
           },
-          args: [fullUrl, RB_WAIT_SESSION_KEY],
+          args: [fullUrl, RB_WAIT_SESSION_KEY, RB_WAIT_SESSION_TS_KEY],
         },
         () => {
           void chrome.runtime.lastError;
@@ -203,6 +208,8 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
     }
 
     function endHashWait() {
+      if (pendingInjectTimer) clearTimeout(pendingInjectTimer);
+      pendingInjectTimer = 0;
       if (hashWaitDone) return;
       hashWaitDone = true;
       chrome.tabs.onUpdated.removeListener(onAdminLoaded);
@@ -222,7 +229,11 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
         }
         endHashWait();
         injectRecycleBinWaitOverlay(tabId, () => {
-          setTimeout(injectFullUrl, 250);
+          if (sequenceClosed) return;
+          pendingInjectTimer = setTimeout(() => {
+            pendingInjectTimer = 0;
+            injectFullUrl();
+          }, 250);
         });
       });
     }

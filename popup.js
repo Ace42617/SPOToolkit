@@ -1,5 +1,6 @@
 import {
   applyQuicklinksFilter,
+  displayedUniversalSearchItems,
   listColumnSettingsUrl,
   searchSchemaColumnMatchesFilter,
   searchSchemaListMetaFromResponse,
@@ -198,6 +199,7 @@ const universalSearchResults = document.getElementById("universalSearchResults")
 const btnUniversalSearch = document.getElementById("btnUniversalSearch");
 let universalSearchIndex = [];
 let universalSearchFiltered = [];
+let universalSearchDisplayed = [];
 let universalSearchActive = -1;
 
 function openUniversalSearch() {
@@ -517,15 +519,16 @@ function renderUniversalSearchResults(queryRaw) {
   universalSearchFiltered = query
     ? universalSearchIndex.filter((it) => it.keywords.includes(query))
     : universalSearchIndex;
-  universalSearchActive = universalSearchFiltered.length ? 0 : -1;
+  universalSearchDisplayed = displayedUniversalSearchItems(universalSearchFiltered);
+  universalSearchActive = universalSearchDisplayed.length ? 0 : -1;
 
-  if (!universalSearchFiltered.length) {
+  if (!universalSearchDisplayed.length) {
     universalSearchResults.innerHTML = '<div class="us-empty">No matches yet.</div>';
     return;
   }
 
   const groups = new Map();
-  universalSearchFiltered.forEach((it) => {
+  universalSearchDisplayed.forEach((it) => {
     if (!groups.has(it.group)) groups.set(it.group, []);
     groups.get(it.group).push(it);
   });
@@ -539,7 +542,7 @@ function renderUniversalSearchResults(queryRaw) {
     h.className = "us-group-title";
     h.textContent = group;
     g.appendChild(h);
-    items.slice(0, 18).forEach((it) => {
+    items.forEach((it) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "us-item" + (flatIndex === universalSearchActive ? " active" : "");
@@ -559,8 +562,8 @@ function renderUniversalSearchResults(queryRaw) {
 }
 
 function moveUniversalSearchSelection(dir) {
-  if (!universalSearchFiltered.length) return;
-  const max = universalSearchFiltered.length - 1;
+  if (!universalSearchDisplayed.length) return;
+  const max = universalSearchDisplayed.length - 1;
   universalSearchActive = Math.max(0, Math.min(max, universalSearchActive + dir));
   const buttons = universalSearchResults ? Array.from(universalSearchResults.querySelectorAll(".us-item")) : [];
   buttons.forEach((b, idx) => b.classList.toggle("active", idx === universalSearchActive));
@@ -589,9 +592,9 @@ universalSearchInput?.addEventListener("keydown", (e) => {
     moveUniversalSearchSelection(-1);
     return;
   }
-  if (e.key === "Enter" && universalSearchFiltered[universalSearchActive]) {
+  if (e.key === "Enter" && universalSearchDisplayed[universalSearchActive]) {
     e.preventDefault();
-    universalSearchFiltered[universalSearchActive].run();
+    universalSearchDisplayed[universalSearchActive].run();
     closeUniversalSearch();
   }
 });
