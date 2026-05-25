@@ -4,6 +4,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  displayedUniversalSearchItems,
   listColumnSettingsUrl,
   searchSchemaListMetaFromResponse,
   searchSchemaColumnMatchesFilter,
@@ -56,5 +57,22 @@ describe("searchSchemaColumnMatchesFilter", () => {
   });
   it("no match", () => {
     assert.equal(searchSchemaColumnMatchesFilter(col, "zzz"), false);
+  });
+});
+
+describe("displayedUniversalSearchItems", () => {
+  it("returns only the rendered per-group items in display order", () => {
+    const items = [
+      { group: "Tools", title: "tool-1" },
+      { group: "Tools", title: "tool-2" },
+      { group: "Tools", title: "tool-3" },
+      { group: "Columns", title: "column-1" },
+      { group: "Columns", title: "column-2" },
+    ];
+
+    assert.deepEqual(
+      displayedUniversalSearchItems(items, 2).map((item) => item.title),
+      ["tool-1", "tool-2", "column-1", "column-2"]
+    );
   });
 });

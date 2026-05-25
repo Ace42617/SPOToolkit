@@ -1,4 +1,4 @@
-/* global sessionStorage, document */
+/* global sessionStorage, document, setTimeout */
 /**
  * Re-applies the recycle-bin wait overlay on every full load while the
  * background sequence has primed sessionStorage (same tab, same origin).
@@ -6,6 +6,39 @@
  */
 (function () {
   var KEY = "__SPO_TOOLKIT_RB_WAIT__";
+  var TS_KEY = "__SPO_TOOLKIT_RB_WAIT_TS__";
+  var MAX_WAIT_MS = 60000;
+
+  function clearWait() {
+    try {
+      sessionStorage.removeItem(KEY);
+      sessionStorage.removeItem(TS_KEY);
+    } catch (e) {}
+    document.getElementById("sp-toolkit-rb-wait-root")?.remove();
+  }
+
+  function markerAgeMs() {
+    var raw = "0";
+    try {
+      raw = sessionStorage.getItem(TS_KEY) || "0";
+    } catch (e) {}
+    var ts = Number(raw);
+    if (!Number.isFinite(ts) || ts <= 0) return MAX_WAIT_MS + 1;
+    return Date.now() - ts;
+  }
+
+  function isActiveWait() {
+    try {
+      if (sessionStorage.getItem(KEY) !== "1") return false;
+    } catch (e) {
+      return false;
+    }
+    if (markerAgeMs() > MAX_WAIT_MS) {
+      clearWait();
+      return false;
+    }
+    return true;
+  }
 
   function mount() {
     var id = "sp-toolkit-rb-wait-root";
@@ -79,12 +112,11 @@
     card.appendChild(msg);
     root.appendChild(card);
     (document.body || document.documentElement).appendChild(root);
+    setTimeout(clearWait, Math.max(0, MAX_WAIT_MS - markerAgeMs()));
   }
 
   function tryPrime() {
-    try {
-      if (sessionStorage.getItem(KEY) === "1") mount();
-    } catch (e) {}
+    if (isActiveWait()) mount();
   }
 
   tryPrime();
