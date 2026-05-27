@@ -2,6 +2,7 @@
 // survives after the popup closes (popup listeners are torn down with window.close()).
 
 const RB_WAIT_SESSION_KEY = "__SPO_TOOLKIT_RB_WAIT__";
+const RB_WAIT_SESSION_TS_KEY = "__SPO_TOOLKIT_RB_WAIT_TS__";
 const ADMIN_WAIT_SESSION_KEY = "__SPO_TOOLKIT_ADMIN_WAIT__";
 
 /** @param {string} url */
@@ -70,13 +71,14 @@ function clearRecycleBinWaitSession(tabId) {
   chrome.scripting.executeScript(
     {
       target: { tabId },
-      func: (k) => {
+      func: (k, tk) => {
         try {
           sessionStorage.removeItem(k);
+          sessionStorage.removeItem(tk);
         } catch (e) {}
         document.getElementById("sp-toolkit-rb-wait-root")?.remove();
       },
-      args: [RB_WAIT_SESSION_KEY],
+      args: [RB_WAIT_SESSION_KEY, RB_WAIT_SESSION_TS_KEY],
     },
     () => void chrome.runtime.lastError
   );
@@ -86,12 +88,13 @@ function injectRecycleBinWaitOverlay(tabId, done) {
   chrome.scripting.executeScript(
     {
       target: { tabId },
-      func: (k) => {
+      func: (k, tk) => {
         try {
           sessionStorage.setItem(k, "1");
+          sessionStorage.setItem(tk, String(Date.now()));
         } catch (e) {}
       },
-      args: [RB_WAIT_SESSION_KEY],
+      args: [RB_WAIT_SESSION_KEY, RB_WAIT_SESSION_TS_KEY],
     },
     () => {
       void chrome.runtime.lastError;
@@ -170,14 +173,15 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
       chrome.scripting.executeScript(
         {
           target: { tabId },
-          func: (u, k) => {
+          func: (u, k, tk) => {
             try {
               sessionStorage.removeItem(k);
+              sessionStorage.removeItem(tk);
             } catch (e) {}
             document.getElementById("sp-toolkit-rb-wait-root")?.remove();
             window.location.replace(u);
           },
-          args: [fullUrl, RB_WAIT_SESSION_KEY],
+          args: [fullUrl, RB_WAIT_SESSION_KEY, RB_WAIT_SESSION_TS_KEY],
         },
         () => {
           void chrome.runtime.lastError;
