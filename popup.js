@@ -198,6 +198,7 @@ const universalSearchResults = document.getElementById("universalSearchResults")
 const btnUniversalSearch = document.getElementById("btnUniversalSearch");
 let universalSearchIndex = [];
 let universalSearchFiltered = [];
+let universalSearchRendered = [];
 let universalSearchActive = -1;
 
 function openUniversalSearch() {
@@ -517,6 +518,7 @@ function renderUniversalSearchResults(queryRaw) {
   universalSearchFiltered = query
     ? universalSearchIndex.filter((it) => it.keywords.includes(query))
     : universalSearchIndex;
+  universalSearchRendered = [];
   universalSearchActive = universalSearchFiltered.length ? 0 : -1;
 
   if (!universalSearchFiltered.length) {
@@ -531,7 +533,6 @@ function renderUniversalSearchResults(queryRaw) {
   });
 
   universalSearchResults.innerHTML = "";
-  let flatIndex = 0;
   groups.forEach((items, group) => {
     const g = document.createElement("div");
     g.className = "us-group";
@@ -540,10 +541,12 @@ function renderUniversalSearchResults(queryRaw) {
     h.textContent = group;
     g.appendChild(h);
     items.slice(0, 18).forEach((it) => {
+      const renderedIndex = universalSearchRendered.length;
+      universalSearchRendered.push(it);
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "us-item" + (flatIndex === universalSearchActive ? " active" : "");
-      btn.dataset.idx = String(flatIndex);
+      btn.className = "us-item" + (renderedIndex === universalSearchActive ? " active" : "");
+      btn.dataset.idx = String(renderedIndex);
       btn.innerHTML =
         '<span class="us-item-title">' + escapeHtml(it.title) + "</span>" +
         (it.meta ? '<span class="us-item-meta">' + escapeHtml(it.meta) + "</span>" : "");
@@ -552,15 +555,14 @@ function renderUniversalSearchResults(queryRaw) {
         closeUniversalSearch();
       });
       g.appendChild(btn);
-      flatIndex += 1;
     });
     universalSearchResults.appendChild(g);
   });
 }
 
 function moveUniversalSearchSelection(dir) {
-  if (!universalSearchFiltered.length) return;
-  const max = universalSearchFiltered.length - 1;
+  if (!universalSearchRendered.length) return;
+  const max = universalSearchRendered.length - 1;
   universalSearchActive = Math.max(0, Math.min(max, universalSearchActive + dir));
   const buttons = universalSearchResults ? Array.from(universalSearchResults.querySelectorAll(".us-item")) : [];
   buttons.forEach((b, idx) => b.classList.toggle("active", idx === universalSearchActive));
@@ -589,9 +591,9 @@ universalSearchInput?.addEventListener("keydown", (e) => {
     moveUniversalSearchSelection(-1);
     return;
   }
-  if (e.key === "Enter" && universalSearchFiltered[universalSearchActive]) {
+  if (e.key === "Enter" && universalSearchRendered[universalSearchActive]) {
     e.preventDefault();
-    universalSearchFiltered[universalSearchActive].run();
+    universalSearchRendered[universalSearchActive].run();
     closeUniversalSearch();
   }
 });
