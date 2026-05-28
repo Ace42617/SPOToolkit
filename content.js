@@ -5,17 +5,26 @@ const SCRIPT_TIMEOUT = 15000;
 /** JSON script node read by getViewsData.js (page context). */
 const SP_VIEWS_PARAMS_SCRIPT_ID = "sp-views-params";
 
+function getSpViewsParamsScriptId(requestId) {
+  return requestId ? SP_VIEWS_PARAMS_SCRIPT_ID + "-" + requestId : SP_VIEWS_PARAMS_SCRIPT_ID;
+}
+
+function createSpViewsRequestId() {
+  return "views-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+}
+
 /** Injects/replaces #sp-views-params for View Manager REST (listId, optional viewId, webAbsoluteUrl). */
-function attachSpViewsParamsScript(message) {
+function attachSpViewsParamsScript(message, requestId) {
   const payload = {
+    requestId: requestId || null,
     viewId: message.viewId || null,
     listId: message.listId || null,
     webAbsoluteUrl: message.webAbsoluteUrl || null,
   };
-  let el = document.getElementById(SP_VIEWS_PARAMS_SCRIPT_ID);
+  let el = document.getElementById(getSpViewsParamsScriptId(requestId));
   if (el) el.remove();
   el = document.createElement("script");
-  el.id = SP_VIEWS_PARAMS_SCRIPT_ID;
+  el.id = getSpViewsParamsScriptId(requestId);
   el.type = "application/json";
   el.textContent = JSON.stringify(payload);
   (document.head || document.documentElement).appendChild(el);
@@ -855,15 +864,19 @@ function injectAndWait(scriptName, messageType, parseData, sendResponse, options
     done = true;
     clearTimeout(tid);
     window.removeEventListener("message", listener);
+    try {
+      if (options.afterFinish) options.afterFinish();
+    } catch (_) {}
     sendResponse(payload);
   }
   const listener = (ev) => {
     if (!ev.data || ev.data.__spcsv !== true || ev.data.type !== messageType) return;
+    if (options.matchesResponse && !options.matchesResponse(ev.data)) return;
     finish(parseData(ev.data));
   };
   if (options.beforeInject) options.beforeInject();
   const script = document.createElement("script");
-  script.src = chrome.runtime.getURL(scriptName);
+  script.src = chrome.runtime.getURL(scriptName) + (options.urlSuffix || "");
   script.onload = () => script.remove();
   script.onerror = () => finish(errorPayload);
   window.addEventListener("message", listener);
@@ -1088,6 +1101,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.action === "getViewsData") {
+    const requestId = createSpViewsRequestId();
     injectAndWait(
       "getViewsData.js",
       "SPCSVViewsDataResult",
@@ -1095,7 +1109,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       sendResponse,
       {
         beforeInject() {
-          attachSpViewsParamsScript(message);
+          attachSpViewsParamsScript(message, requestId);
+        },
+        urlSuffix: "?spcsvRequestId=" + encodeURIComponent(requestId),
+        matchesResponse(data) {
+          return data.requestId === requestId;
+        },
+        afterFinish() {
+          const el = document.getElementById(getSpViewsParamsScriptId(requestId));
+          if (el) el.remove();
         },
         errorPayload: { ok: false, error: "Timeout loading views data" }
       }

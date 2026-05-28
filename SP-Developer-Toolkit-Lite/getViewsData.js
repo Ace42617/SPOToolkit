@@ -3,6 +3,40 @@
 (function () {
   var ACCEPT_NOMETADATA = "application/json;odata=nometadata";
   var RESULT_TYPE = "SPCSVViewsDataResult";
+  var PARAMS_SCRIPT_ID = "sp-views-params";
+  var activeRequestId = getCurrentRequestId();
+
+  function getCurrentRequestId() {
+    try {
+      var script = document.currentScript;
+      var src = script && script.src ? String(script.src) : "";
+      if (!src) return "";
+      return new URL(src, window.location.href).searchParams.get("spcsvRequestId") || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function getParamsScriptId(requestId) {
+    return requestId ? PARAMS_SCRIPT_ID + "-" + requestId : PARAMS_SCRIPT_ID;
+  }
+
+  function formatFetchError(response, json) {
+    var status = response && response.status ? "HTTP " + response.status : "Request failed";
+    var err = json && json.error;
+    var msg = "";
+    if (typeof err === "string") msg = err;
+    else if (err && typeof err.message === "string") msg = err.message;
+    else if (err && err.message && typeof err.message.value === "string") msg = err.message.value;
+    return msg ? status + ": " + msg : status;
+  }
+
+  function parseCheckedJson(response) {
+    return response.json().then(function (json) {
+      if (response.ok === false || (json && json.error)) throw new Error(formatFetchError(response, json));
+      return json;
+    });
+  }
 
   function normalizeWebUrl(url) {
     return String(url || "").replace(/\/$/, "");
@@ -99,7 +133,7 @@
       if (!url) return Promise.resolve(accum);
       return fetchImpl(url, { credentials: "include", headers: { Accept: acc } })
         .then(function (r) {
-          return r.json();
+          return parseCheckedJson(r);
         })
         .then(function (j) {
           var batch = j.value || (j.d && j.d.results) || [];
@@ -114,7 +148,7 @@
   function fetchJson(fetchImpl, url, accept) {
     var acc = accept != null ? accept : ACCEPT_NOMETADATA;
     return fetchImpl(url, { credentials: "include", headers: { Accept: acc } }).then(function (r) {
-      return r.json();
+      return parseCheckedJson(r);
     });
   }
 
@@ -228,12 +262,16 @@
   }
 
   function sendResult(data) {
-    window.postMessage(Object.assign({ __spcsv: true, type: RESULT_TYPE }, data), "*");
+    var result = Object.assign({ __spcsv: true, type: RESULT_TYPE }, data);
+    if (activeRequestId) result.requestId = activeRequestId;
+    window.postMessage(result, "*");
   }
 
   async function run() {
-    var el = document.getElementById("sp-views-params");
+    var el = document.getElementById(getParamsScriptId(activeRequestId));
+    if (!el && activeRequestId) el = document.getElementById(PARAMS_SCRIPT_ID);
     var params = parseInjectParams(el && el.textContent);
+    if (!activeRequestId && params.requestId) activeRequestId = String(params.requestId);
     var pageContext = window._spPageContextInfo || {};
     var accept = ACCEPT_NOMETADATA;
     var siteUrl = resolveSiteUrl(params.webAbsoluteUrl, pageContext);
@@ -299,15 +337,10 @@
   }
 
   run().catch(function (e) {
-    window.postMessage(
-      {
-        __spcsv: true,
-        type: RESULT_TYPE,
-        error: (e && e.message) || String(e),
-        views: [],
-        fields: [],
-      },
-      "*"
-    );
+    sendResult({
+      error: (e && e.message) || String(e),
+      views: [],
+      fields: [],
+    });
   });
 })();

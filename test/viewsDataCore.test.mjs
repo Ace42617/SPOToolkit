@@ -14,6 +14,7 @@ import {
   mapFieldRowToModel,
   rawFieldsToModels,
   fetchODataAllPages,
+  fetchJson,
   resolveListContext,
   viewFieldsResponseToNames,
   parseViewQueryParts,
@@ -103,6 +104,39 @@ describe("fetchODataAllPages", () => {
     assert.equal(rows[0].Title, "A");
     assert.equal(rows[1].Title, "B");
     assert.equal(urls.length, 2);
+  });
+
+  it("throws instead of truncating when a later page fails", async () => {
+    const fetchImpl = async (url) => {
+      if (url.includes("page=1")) {
+        return {
+          ok: true,
+          json: async () => ({
+            value: [{ Id: "a", Title: "A" }],
+            "@odata.nextLink": "https://x/page=2",
+          }),
+        };
+      }
+      return {
+        ok: false,
+        status: 429,
+        json: async () => ({ error: { message: "throttled" } }),
+      };
+    };
+    await assert.rejects(
+      () => fetchODataAllPages(fetchImpl, "https://x/page=1", ACCEPT_NOMETADATA),
+      /HTTP 429: throttled/
+    );
+  });
+});
+
+describe("fetchJson", () => {
+  it("throws on OData error bodies even when HTTP succeeds", async () => {
+    const fetchImpl = async () => ({
+      ok: true,
+      json: async () => ({ error: { message: { value: "Access denied" } } }),
+    });
+    await assert.rejects(() => fetchJson(fetchImpl, "https://x", ACCEPT_NOMETADATA), /Access denied/);
   });
 });
 

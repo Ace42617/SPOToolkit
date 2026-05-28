@@ -86,7 +86,10 @@
   let views = [];
   let fields = [];
   let selectedViewId = null;
+  let loadedViewId = null;
   let viewDetails = null;
+  let viewDetailsLoadSeq = 0;
+  let viewDetailsLoading = false;
   let columnOrder = [];
   let inViewSet = new Set();
   let sortLevels = [];
@@ -929,6 +932,12 @@
 
   async function loadViewDetails(viewId) {
     if (!viewId) return;
+    const loadSeq = ++viewDetailsLoadSeq;
+    loadedViewId = null;
+    setViewDetailsLoading(true);
+    const isCurrentLoad = function () {
+      return loadSeq === viewDetailsLoadSeq && selectedViewId === viewId;
+    };
     try {
       const res = await sendToTab({
         action: "getViewsData",
@@ -936,21 +945,24 @@
         listId: forcedViewManagerListId || undefined,
         webAbsoluteUrl: contextWebAbsoluteUrl || undefined
       });
+      if (!isCurrentLoad()) return;
       if (!res || res.error || !res.viewDetails) {
+        setViewDetailsLoading(false);
         showSaveStatus(res && res.error ? res.error : "Failed to load view details.", true);
         return;
       }
-      viewDetails = res.viewDetails;
-      const viewFields = viewDetails.viewFields || [];
-      inViewSet = new Set(viewFields);
+      const nextViewDetails = res.viewDetails;
+      const viewFields = nextViewDetails.viewFields || [];
+      const nextInViewSet = new Set(viewFields);
       const otherFields = (fields || []).filter(function (f) { return viewFields.indexOf(f.internalName) < 0; });
       otherFields.sort(function (a, b) { return (a.title || "").localeCompare(b.title || ""); });
-      columnOrder = viewFields.slice();
-      otherFields.forEach(function (f) { columnOrder.push(f.internalName); });
-      sortLevels = viewDetails.orderBy ? [{ field: viewDetails.orderBy.field, ascending: viewDetails.orderBy.ascending }] : [];
-      const parsedFq = parseViewQueryToFilterRows(viewDetails.viewQuery || "");
+      const nextColumnOrder = viewFields.slice();
+      otherFields.forEach(function (f) { nextColumnOrder.push(f.internalName); });
+      const nextSortLevels = nextViewDetails.orderBy ? [{ field: nextViewDetails.orderBy.field, ascending: nextViewDetails.orderBy.ascending }] : [];
+      const parsedFq = parseViewQueryToFilterRows(nextViewDetails.viewQuery || "");
+      let nextFilters;
       if (parsedFq && parsedFq.length) {
-        filters = parsedFq.map(function (row) {
+        nextFilters = parsedFq.map(function (row) {
           let val = row.value || "";
           if (isBooleanFieldName(row.field)) val = booleanFilterRawToDisplay(val);
           const o = { field: row.field, op: row.op, value: val };
@@ -958,7 +970,7 @@
           return o;
         });
       } else {
-        filters = (viewDetails.filters || []).map(function (f, idx) {
+        nextFilters = (nextViewDetails.filters || []).map(function (f, idx) {
           let val = f.value || "";
           if (isBooleanFieldName(f.field)) val = booleanFilterRawToDisplay(val);
           const o = { field: f.field, op: f.op, value: val };
@@ -966,40 +978,60 @@
           return o;
         });
       }
-      normalizeFilterJoins(filters);
-      groupByColumn = viewDetails.groupBy || "";
-      groupExpand = true;
-      document.getElementById("viewName").value = viewDetails.viewTitle || "";
+      normalizeFilterJoins(nextFilters);
+      const nextGroupByColumn = nextViewDetails.groupBy || "";
+      let nextRowLimit = "100";
+      let nextScope = "2";
       const viewMetaPath = sitePath + "/_api/web/lists(guid'" + listId.replace(/'/g, "''") + "')/views(guid'" + viewId.replace(/'/g, "''") + "')?$select=RowLimit,Scope";
       const metaRes = await rest("GET", viewMetaPath);
-      if (metaRes && metaRes.ok && metaRes.data) {
-        const rl = (metaRes.data.RowLimit != null ? metaRes.data.RowLimit : metaRes.data.rowLimit);
-        if (rl != null) {
-          const rlStr = String(rl);
-          const rlEl = document.getElementById("viewRowLimit");
-          if (rlEl.querySelector('option[value="' + rlStr + '"]')) rlEl.value = rlStr;
-        }
-        const sc = metaRes.data.Scope != null ? metaRes.data.Scope : metaRes.data.scope;
-        const scopeEl = document.getElementById("viewScope");
-        if (scopeEl) {
-          if (sc === 1 || sc === "1") scopeEl.value = "1";
-          else if (sc === 2 || sc === "2") scopeEl.value = "2";
-          else scopeEl.value = "2";
-        }
+      if (!isCurrentLoad()) return;
+      if (!metaRes || !metaRes.ok || !metaRes.data) {
+        setViewDetailsLoading(false);
+        showSaveStatus(metaRes && metaRes.error ? String(metaRes.error) : "Failed to load view metadata.", true);
+        return;
       }
+      const rl = (metaRes.data.RowLimit != null ? metaRes.data.RowLimit : metaRes.data.rowLimit);
+      if (rl != null) nextRowLimit = String(rl);
+      const sc = metaRes.data.Scope != null ? metaRes.data.Scope : metaRes.data.scope;
+      if (sc === 1 || sc === "1") nextScope = "1";
+      else if (sc === 2 || sc === "2") nextScope = "2";
+
+      viewDetails = nextViewDetails;
+      inViewSet = nextInViewSet;
+      columnOrder = nextColumnOrder;
+      sortLevels = nextSortLevels;
+      filters = nextFilters;
+      groupByColumn = nextGroupByColumn;
+      groupExpand = true;
+      document.getElementById("viewName").value = nextViewDetails.viewTitle || "";
       const rlEl = document.getElementById("viewRowLimit");
-      if (!rlEl.value) rlEl.value = "100";
+      if (rlEl.querySelector('option[value="' + nextRowLimit + '"]')) {
+        rlEl.value = nextRowLimit;
+      } else {
+        rlEl.value = "100";
+      }
+      const scopeEl = document.getElementById("viewScope");
+      if (scopeEl) {
+        scopeEl.value = nextScope;
+      }
       renderColumnList();
       renderSortLevels();
       renderFilterConditions();
       renderGroupBy();
       updateSetDefaultVisibility();
+      loadedViewId = viewId;
+      setViewDetailsLoading(false);
     } catch (e) {
+      if (!isCurrentLoad()) return;
+      loadedViewId = null;
+      setViewDetailsLoading(false);
       showSaveStatus(e && e.message ? e.message : "Failed to load view.", true);
     }
   }
 
   function setNewViewDefaults() {
+    loadedViewId = null;
+    setViewDetailsLoading(false);
     viewDetails = null;
     inViewSet = new Set();
     const sorted = (fields || []).slice().sort(function (a, b) { return (a.title || "").localeCompare(b.title || ""); });
@@ -1052,9 +1084,11 @@
   function onViewSelectChange() {
     const val = document.getElementById("viewSelect").value;
     selectedViewId = val || null;
+    loadedViewId = null;
     updateViewIdDisplay();
     updatePersonalViewVisibility();
     if (!val) {
+      viewDetailsLoadSeq++;
       setNewViewDefaults();
       updateSetDefaultVisibility();
       return;
@@ -1445,6 +1479,12 @@
     el.style.display = msg ? "block" : "none";
   }
 
+  function setViewDetailsLoading(isLoading) {
+    viewDetailsLoading = !!isLoading;
+    const btn = document.getElementById("btnSave");
+    if (btn) btn.disabled = !!isLoading;
+  }
+
   function getOrderedViewColumns() {
     return columnOrder.filter(function (n) { return inViewSet.has(n); });
   }
@@ -1467,12 +1507,16 @@
       showSaveStatus("Enter a view name.", true);
       return;
     }
-    if (getOrderedViewColumns().length === 0) {
-      showSaveStatus("Select at least one column.", true);
-      return;
-    }
     if (!listId) {
       showSaveStatus("No list context. Refresh context.", true);
+      return;
+    }
+    if (selectedViewId && (viewDetailsLoading || loadedViewId !== selectedViewId)) {
+      showSaveStatus("Wait for the selected view to finish loading before saving.", true);
+      return;
+    }
+    if (getOrderedViewColumns().length === 0) {
+      showSaveStatus("Select at least one column.", true);
       return;
     }
 
@@ -1514,6 +1558,7 @@
       showSaveStatus("View saved successfully.", false);
       document.getElementById("btnSave").disabled = false;
       selectedViewId = viewId;
+      loadedViewId = viewId;
       document.getElementById("viewSelect").value = viewId;
       updateViewIdDisplay();
       updatePersonalViewVisibility();
@@ -1534,6 +1579,9 @@
       if (!res || !res.ok) throw new Error(res && res.error ? String(res.error) : "Delete failed");
       showSaveStatus("View deleted.", false);
       selectedViewId = null;
+      loadedViewId = null;
+      viewDetailsLoadSeq++;
+      setViewDetailsLoading(false);
       document.getElementById("viewSelect").value = "";
       setNewViewDefaults();
       loadContext().then(function () { loadListEditorData(); });
@@ -1545,6 +1593,9 @@
   function duplicateView() {
     if (!selectedViewId && !viewDetails) return;
     selectedViewId = null;
+    loadedViewId = null;
+    viewDetailsLoadSeq++;
+    setViewDetailsLoading(false);
     document.getElementById("viewSelect").value = "";
     document.getElementById("viewName").value = (document.getElementById("viewName").value || "").trim() + " (copy)";
     document.getElementById("btnDelete").classList.add("hide");
