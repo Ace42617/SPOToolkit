@@ -3,6 +3,8 @@
 (function () {
   var ACCEPT_NOMETADATA = "application/json;odata=nometadata";
   var RESULT_TYPE = "SPCSVViewsDataResult";
+  var DEFAULT_PARAMS_ID = "sp-views-params";
+  var currentRequestId = "";
 
   function normalizeWebUrl(url) {
     return String(url || "").replace(/\/$/, "");
@@ -228,12 +230,17 @@
   }
 
   function sendResult(data) {
-    window.postMessage(Object.assign({ __spcsv: true, type: RESULT_TYPE }, data), "*");
+    var payload = Object.assign({ __spcsv: true, type: RESULT_TYPE }, data);
+    if (currentRequestId) payload.requestId = currentRequestId;
+    window.postMessage(payload, "*");
   }
 
   async function run() {
-    var el = document.getElementById("sp-views-params");
+    var scriptEl = document.currentScript;
+    var paramsId = (scriptEl && scriptEl.getAttribute("data-sp-views-params-id")) || DEFAULT_PARAMS_ID;
+    var el = document.getElementById(paramsId) || document.getElementById(DEFAULT_PARAMS_ID);
     var params = parseInjectParams(el && el.textContent);
+    currentRequestId = params.requestId || "";
     var pageContext = window._spPageContextInfo || {};
     var accept = ACCEPT_NOMETADATA;
     var siteUrl = resolveSiteUrl(params.webAbsoluteUrl, pageContext);

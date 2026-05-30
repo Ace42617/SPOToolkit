@@ -86,6 +86,9 @@
   let views = [];
   let fields = [];
   let selectedViewId = null;
+  let viewDetailsLoadSeq = 0;
+  let viewDetailsLoadedForId = null;
+  let viewDetailsLoadingForId = null;
   let viewDetails = null;
   let columnOrder = [];
   let inViewSet = new Set();
@@ -929,6 +932,9 @@
 
   async function loadViewDetails(viewId) {
     if (!viewId) return;
+    const loadSeq = ++viewDetailsLoadSeq;
+    viewDetailsLoadedForId = null;
+    viewDetailsLoadingForId = viewId;
     try {
       const res = await sendToTab({
         action: "getViewsData",
@@ -936,7 +942,9 @@
         listId: forcedViewManagerListId || undefined,
         webAbsoluteUrl: contextWebAbsoluteUrl || undefined
       });
+      if (loadSeq !== viewDetailsLoadSeq || selectedViewId !== viewId) return;
       if (!res || res.error || !res.viewDetails) {
+        viewDetailsLoadingForId = null;
         showSaveStatus(res && res.error ? res.error : "Failed to load view details.", true);
         return;
       }
@@ -972,6 +980,7 @@
       document.getElementById("viewName").value = viewDetails.viewTitle || "";
       const viewMetaPath = sitePath + "/_api/web/lists(guid'" + listId.replace(/'/g, "''") + "')/views(guid'" + viewId.replace(/'/g, "''") + "')?$select=RowLimit,Scope";
       const metaRes = await rest("GET", viewMetaPath);
+      if (loadSeq !== viewDetailsLoadSeq || selectedViewId !== viewId) return;
       if (metaRes && metaRes.ok && metaRes.data) {
         const rl = (metaRes.data.RowLimit != null ? metaRes.data.RowLimit : metaRes.data.rowLimit);
         if (rl != null) {
@@ -994,12 +1003,19 @@
       renderFilterConditions();
       renderGroupBy();
       updateSetDefaultVisibility();
+      viewDetailsLoadedForId = viewId;
+      viewDetailsLoadingForId = null;
     } catch (e) {
+      if (loadSeq !== viewDetailsLoadSeq || selectedViewId !== viewId) return;
+      viewDetailsLoadingForId = null;
       showSaveStatus(e && e.message ? e.message : "Failed to load view.", true);
     }
   }
 
   function setNewViewDefaults() {
+    viewDetailsLoadSeq++;
+    viewDetailsLoadedForId = null;
+    viewDetailsLoadingForId = null;
     viewDetails = null;
     inViewSet = new Set();
     const sorted = (fields || []).slice().sort(function (a, b) { return (a.title || "").localeCompare(b.title || ""); });
@@ -1473,6 +1489,13 @@
     }
     if (!listId) {
       showSaveStatus("No list context. Refresh context.", true);
+      return;
+    }
+    if (selectedViewId && viewDetailsLoadedForId !== selectedViewId) {
+      const msg = viewDetailsLoadingForId === selectedViewId
+        ? "Wait for view details to finish loading before saving."
+        : "Reload the selected view before saving.";
+      showSaveStatus(msg, true);
       return;
     }
 

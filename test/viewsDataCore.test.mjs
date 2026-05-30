@@ -201,6 +201,25 @@ describe("runGetViewsDataPipeline", () => {
     assert.equal(sent[0].error, undefined);
     assert.equal(sent[0].listId, "zzz");
   });
+
+  it("echoes requestId for correlated injected requests", async () => {
+    const sent = [];
+    const fetchImpl = async (url) => {
+      if (url.includes("/lists(guid'list-a')?$select=Title")) return { json: async () => ({ Title: "Docs" }) };
+      if (url.includes("/views?$select")) return { json: async () => ({ value: [{ Id: "{view-a}", Title: "All" }] }) };
+      if (url.includes("/fields?$select")) return { json: async () => ({ value: [] }) };
+      return { json: async () => ({}) };
+    };
+    await runGetViewsDataPipeline({
+      send: (x) => sent.push(x),
+      params: { listId: "list-a", webAbsoluteUrl: "https://tenant/sites/docs", requestId: "req-123" },
+      pageContext: {},
+      fetchImpl,
+    });
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].requestId, "req-123");
+    assert.equal(sent[0].listId, "list-a");
+  });
 });
 
 describe("mergeStubFieldsForView", () => {
