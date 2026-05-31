@@ -2,7 +2,9 @@
 // tabs.onUpdated survives after the popup closes).
 
 const RB_WAIT_SESSION_KEY = "__SPO_TOOLKIT_RB_WAIT__";
+const RB_WAIT_SESSION_TS_KEY = "__SPO_TOOLKIT_RB_WAIT_TS__";
 const ADMIN_WAIT_SESSION_KEY = "__SPO_TOOLKIT_ADMIN_WAIT__";
+const activeRecycleBinSequences = new Map();
 
 /** @param {string} url */
 function isSharePointTenantAdminUrl(url) {
@@ -60,8 +62,7 @@ function openTenantAdminUrlWithWaitOverlay(url) {
 
     function onCommitted(details) {
       if (primed || details.tabId !== tabId || details.frameId !== 0) return;
-      const u = String(details.url || "").toLowerCase();
-      if (u.indexOf("-admin.sharepoint.com") === -1) return;
+      if (!isSharePointTenantAdminUrl(details.url || "")) return;
       primed = true;
       detach();
       injectAdminCenterWaitOverlay(tabId);
@@ -76,13 +77,14 @@ function clearRecycleBinWaitSession(tabId) {
   chrome.scripting.executeScript(
     {
       target: { tabId },
-      func: (k) => {
+      func: (k, ts) => {
         try {
           sessionStorage.removeItem(k);
+          sessionStorage.removeItem(ts);
         } catch (e) {}
         document.getElementById("sp-toolkit-rb-wait-root")?.remove();
       },
-      args: [RB_WAIT_SESSION_KEY],
+      args: [RB_WAIT_SESSION_KEY, RB_WAIT_SESSION_TS_KEY],
     },
     () => void chrome.runtime.lastError
   );
@@ -93,12 +95,13 @@ function injectRecycleBinWaitOverlay(tabId, done) {
   chrome.scripting.executeScript(
     {
       target: { tabId },
-      func: (k) => {
+      func: (k, ts) => {
         try {
           sessionStorage.setItem(k, "1");
+          sessionStorage.setItem(ts, String(Date.now()));
         } catch (e) {}
       },
-      args: [RB_WAIT_SESSION_KEY],
+      args: [RB_WAIT_SESSION_KEY, RB_WAIT_SESSION_TS_KEY],
     },
     () => {
       void chrome.runtime.lastError;
@@ -119,6 +122,8 @@ function injectRecycleBinWaitOverlay(tabId, done) {
  * @param {string} secondStageUrl
  */
 function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl) {
+  if (activeRecycleBinSequences.has(tabId)) return false;
+  activeRecycleBinSequences.set(tabId, true);
   let settled = false;
   let sequenceClosed = false;
   let failsafe = 0;
@@ -129,6 +134,7 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
   function shutdownRecycleBinSequence() {
     if (sequenceClosed) return;
     sequenceClosed = true;
+    activeRecycleBinSequences.delete(tabId);
     settled = true;
     clearRecycleBinWaitSession(tabId);
     chrome.tabs.onUpdated.removeListener(onUpdated);
@@ -186,14 +192,15 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
       chrome.scripting.executeScript(
         {
           target: { tabId },
-          func: (u, k) => {
+          func: (u, k, ts) => {
             try {
               sessionStorage.removeItem(k);
+              sessionStorage.removeItem(ts);
             } catch (e) {}
             document.getElementById("sp-toolkit-rb-wait-root")?.remove();
             window.location.replace(u);
           },
-          args: [fullUrl, RB_WAIT_SESSION_KEY],
+          args: [fullUrl, RB_WAIT_SESSION_KEY, RB_WAIT_SESSION_TS_KEY],
         },
         () => {
           void chrome.runtime.lastError;
@@ -286,6 +293,7 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
       }, 4500);
     });
   });
+  return true;
 }
 
 /** Keyboard shortcut (chrome://extensions/shortcuts) — opens action popup, then Universal Search. */
@@ -321,8 +329,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ ok: false, error: "Missing tab or URL" });
       return false;
     }
-    openSecondStageRecycleBinSequence(tabId, firstUrl, secondUrl);
-    sendResponse({ ok: true });
+    const started = openSecondStageRecycleBinSequence(tabId, firstUrl, secondUrl);
+    sendResponse(started ? { ok: true } : { ok: false, error: "Recycle bin sequence already running for this tab" });
     return false;
   }
   if (message.type === "SPOToolkitOpenViewFormatter") {

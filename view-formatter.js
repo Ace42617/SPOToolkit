@@ -396,6 +396,17 @@
     }
   }
 
+  function comparableSharePointUrl(url) {
+    try {
+      const u = new URL(url);
+      if (!/\.sharepoint\.com$/i.test(u.hostname)) return "";
+      u.hash = "";
+      return u.origin.toLowerCase() + u.pathname.replace(/\/$/, "").toLowerCase() + u.search;
+    } catch (_) {
+      return "";
+    }
+  }
+
   function sendToSpTab(message) {
     return new Promise(function (resolve, reject) {
       if (spTabId == null) {
@@ -683,26 +694,17 @@
       try {
         const ctx = await sendToSpTab({ action: "getViewFormatContext" });
         if (!ctx || !ctx.ok) throw new Error((ctx && ctx.error) || "Could not read list from the SharePoint tab.");
+        const expectedPage = comparableSharePointUrl(previewUrl);
+        const actualPage = comparableSharePointUrl(ctx.pageUrl || "");
+        if (expectedPage && actualPage && expectedPage !== actualPage) {
+          throw new Error("Source SharePoint tab has navigated. Reopen View formatter from the view you want to update.");
+        }
         const listId = ctx.listId;
-        let viewId = normGuid(ctx.viewId);
+        const viewId = normGuid(ctx.viewId);
         const sitePath = ctx.sitePath || "/";
         if (!viewId) {
-          const defPath =
-            sitePath +
-            "/_api/web/lists(guid'" +
-            listId.replace(/'/g, "''") +
-            "')/DefaultView?$select=Id";
-          const defRes = await sendToSpTab({ action: "rest", method: "GET", path: defPath });
-          if (!defRes || !defRes.ok) {
-            throw new Error(
-              restErrorMessage(defRes && defRes.error) ||
-                "Could not resolve view id. Open the list view you want to format, or use a URL that includes View=."
-            );
-          }
-          const d = defRes.data || {};
-          viewId = normGuid(d.Id || d.id);
+          throw new Error("Could not determine view id. Open the list view you want to format, or use a URL that includes View=.");
         }
-        if (!viewId) throw new Error("Could not determine view id.");
         const patchPath =
           sitePath +
           "/_api/web/lists(guid'" +
