@@ -937,6 +937,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         const listId = normGuid(data.listId);
         const viewId = normGuid(data.viewId);
         const webAbsoluteUrl = String(data.webAbsoluteUrl || "").replace(/\/$/, "");
+        const pageUrl = String(data.pageUrl || "");
         if (!listId || !webAbsoluteUrl) {
           return {
             ok: false,
@@ -947,7 +948,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         try {
           sitePath = new URL(webAbsoluteUrl).pathname.replace(/\/$/, "") || "/";
         } catch (_) {}
-        return { ok: true, listId, viewId, sitePath };
+        return { ok: true, listId, viewId, sitePath, pageUrl };
       },
       sendResponse,
       { timeoutMs: 6000, errorPayload: { ok: false, error: "Timeout reading page context." } }

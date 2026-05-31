@@ -1,4 +1,4 @@
-/* global sessionStorage, document */
+/* global sessionStorage, document, window */
 /**
  * Re-applies the recycle-bin wait overlay on every full load while the
  * background sequence has primed sessionStorage (same tab, same origin).
@@ -6,12 +6,35 @@
  */
 (function () {
   var KEY = "__SPO_TOOLKIT_RB_WAIT__";
+  var TS_KEY = "__SPO_TOOLKIT_RB_WAIT_TS__";
+  var ROOT_ID = "sp-toolkit-rb-wait-root";
+  var maxAgeMs = 45000;
 
-  function mount() {
-    var id = "sp-toolkit-rb-wait-root";
-    if (document.getElementById(id)) return;
+  function teardown() {
+    try {
+      sessionStorage.removeItem(KEY);
+      sessionStorage.removeItem(TS_KEY);
+    } catch (e) {}
+    var n = document.getElementById(ROOT_ID);
+    if (n) n.remove();
+  }
+
+  function remainingWaitMs() {
+    try {
+      if (sessionStorage.getItem(KEY) !== "1") return 0;
+      var ts = parseInt(sessionStorage.getItem(TS_KEY) || "", 10);
+      if (!ts || isNaN(ts)) return 0;
+      var remaining = maxAgeMs - (Date.now() - ts);
+      return remaining > 0 ? remaining : 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  function mount(remainingMs) {
+    if (document.getElementById(ROOT_ID)) return;
     var root = document.createElement("div");
-    root.id = id;
+    root.id = ROOT_ID;
     root.setAttribute("role", "alertdialog");
     root.setAttribute("aria-modal", "true");
     root.setAttribute("aria-labelledby", "sp-toolkit-rb-wait-title");
@@ -79,12 +102,13 @@
     card.appendChild(msg);
     root.appendChild(card);
     (document.body || document.documentElement).appendChild(root);
+    window.setTimeout(teardown, Math.max(1000, remainingMs || 0));
   }
 
   function tryPrime() {
-    try {
-      if (sessionStorage.getItem(KEY) === "1") mount();
-    } catch (e) {}
+    var remaining = remainingWaitMs();
+    if (remaining > 0) mount(remaining);
+    else teardown();
   }
 
   tryPrime();
