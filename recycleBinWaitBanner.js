@@ -1,4 +1,4 @@
-/* global sessionStorage, document */
+/* global sessionStorage, document, window */
 /**
  * Re-applies the recycle-bin wait overlay on every full load while the
  * background sequence has primed sessionStorage (same tab, same origin).
@@ -6,12 +6,52 @@
  */
 (function () {
   var KEY = "__SPO_TOOLKIT_RB_WAIT__";
+  var TS_KEY = "__SPO_TOOLKIT_RB_WAIT_TS__";
+  var ROOT_ID = "sp-toolkit-rb-wait-root";
+  var MAX_AGE_MS = 45000;
+
+  function teardown() {
+    try {
+      sessionStorage.removeItem(KEY);
+      sessionStorage.removeItem(TS_KEY);
+    } catch (e) {}
+    var n = document.getElementById(ROOT_ID);
+    if (n) n.remove();
+  }
+
+  function isFreshPrime() {
+    var raw = "";
+    try {
+      if (sessionStorage.getItem(KEY) !== "1") return false;
+      raw = sessionStorage.getItem(TS_KEY) || "";
+    } catch (e) {
+      return false;
+    }
+    var ts = Number(raw);
+    if (!raw || !isFinite(ts) || Date.now() - ts > MAX_AGE_MS) {
+      teardown();
+      return false;
+    }
+    return true;
+  }
+
+  function scheduleTeardownOnce() {
+    var raw = "";
+    try {
+      raw = sessionStorage.getItem(TS_KEY) || "";
+    } catch (e) {}
+    var ts = Number(raw);
+    var delay = !raw || !isFinite(ts) ? 0 : Math.max(0, MAX_AGE_MS - (Date.now() - ts));
+    window.setTimeout(teardown, delay);
+  }
 
   function mount() {
-    var id = "sp-toolkit-rb-wait-root";
-    if (document.getElementById(id)) return;
+    if (document.getElementById(ROOT_ID)) {
+      scheduleTeardownOnce();
+      return;
+    }
     var root = document.createElement("div");
-    root.id = id;
+    root.id = ROOT_ID;
     root.setAttribute("role", "alertdialog");
     root.setAttribute("aria-modal", "true");
     root.setAttribute("aria-labelledby", "sp-toolkit-rb-wait-title");
@@ -79,12 +119,11 @@
     card.appendChild(msg);
     root.appendChild(card);
     (document.body || document.documentElement).appendChild(root);
+    scheduleTeardownOnce();
   }
 
   function tryPrime() {
-    try {
-      if (sessionStorage.getItem(KEY) === "1") mount();
-    } catch (e) {}
+    if (isFreshPrime()) mount();
   }
 
   tryPrime();
