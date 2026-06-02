@@ -92,6 +92,21 @@
     return fields;
   }
 
+  function responseJsonOrThrow(response, url) {
+    if (response && response.ok === false) {
+      var status = response.status ? " " + response.status : "";
+      var fail = function (detail) {
+        var trimmed = detail ? ": " + String(detail).slice(0, 300) : "";
+        throw new Error("SharePoint request failed" + status + " for " + url + trimmed);
+      };
+      if (typeof response.text === "function") {
+        return response.text().then(fail, function () { fail(""); });
+      }
+      fail("");
+    }
+    return response.json();
+  }
+
   function fetchODataAllPages(fetchImpl, startUrl, accept) {
     var acc = accept != null ? accept : ACCEPT_NOMETADATA;
     var accum = [];
@@ -99,7 +114,7 @@
       if (!url) return Promise.resolve(accum);
       return fetchImpl(url, { credentials: "include", headers: { Accept: acc } })
         .then(function (r) {
-          return r.json();
+          return responseJsonOrThrow(r, url);
         })
         .then(function (j) {
           var batch = j.value || (j.d && j.d.results) || [];
@@ -114,7 +129,7 @@
   function fetchJson(fetchImpl, url, accept) {
     var acc = accept != null ? accept : ACCEPT_NOMETADATA;
     return fetchImpl(url, { credentials: "include", headers: { Accept: acc } }).then(function (r) {
-      return r.json();
+      return responseJsonOrThrow(r, url);
     });
   }
 

@@ -1449,16 +1449,52 @@
     return columnOrder.filter(function (n) { return inViewSet.has(n); });
   }
 
+  function formatRestError(prefix, res) {
+    let detail = res && res.error;
+    if (detail && typeof detail !== "string") {
+      try { detail = JSON.stringify(detail); } catch (_) { detail = String(detail); }
+    }
+    const status = res && res.status ? " (" + res.status + ")" : "";
+    return prefix + status + (detail ? ": " + detail : "");
+  }
+
+  function escapeODataString(s) {
+    return String(s || "").replace(/'/g, "''");
+  }
+
+  async function requireViewFieldOk(label, promise) {
+    const res = await promise;
+    if (!res || !res.ok) throw new Error(formatRestError(label, res));
+    return res;
+  }
+
   async function applyViewFields(viewId) {
+    const core = window.SPOToolkitViewFieldsCore;
+    if (!core) throw new Error("View field helper did not load. Refresh View Manager and try again.");
     const ordered = getOrderedViewColumns();
     const vfBase = sitePath + "/_api/web/lists(guid'" + listId.replace(/'/g, "''") + "')/views(guid'" + viewId.replace(/'/g, "''") + "')/ViewFields";
-    const rm = await rest("POST", vfBase + "/RemoveAllViewFields");
-    if (!rm.ok && rm.status !== 404 && rm.status !== 501) throw new Error(rm.error || "RemoveAllViewFields failed");
-    for (let i = 0; i < ordered.length; i++) {
-      const name = String(ordered[i]).replace(/'/g, "''");
-      const r = await rest("POST", vfBase + "/addviewfield('" + name + "')");
-      if (!r.ok) throw new Error(r.error || "Add field failed");
-    }
+    const currentRes = await requireViewFieldOk("Read current view fields failed", rest("GET", vfBase));
+    const plan = core.buildViewFieldUpdatePlan(core.viewFieldsResponseToNames(currentRes.data), ordered);
+    await core.applyViewFieldUpdatePlan(plan, {
+      add: async function (name) {
+        await requireViewFieldOk(
+          "Add field '" + name + "' failed",
+          rest("POST", vfBase + "/addviewfield('" + escapeODataString(name) + "')")
+        );
+      },
+      remove: async function (name) {
+        await requireViewFieldOk(
+          "Remove field '" + name + "' failed",
+          rest("POST", vfBase + "/removeviewfield('" + escapeODataString(name) + "')")
+        );
+      },
+      move: async function (name, index) {
+        await requireViewFieldOk(
+          "Move field '" + name + "' failed",
+          rest("POST", vfBase + "/moveViewFieldTo", { field: String(name), index: index })
+        );
+      }
+    });
   }
 
   async function saveView() {

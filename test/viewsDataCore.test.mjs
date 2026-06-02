@@ -104,6 +104,20 @@ describe("fetchODataAllPages", () => {
     assert.equal(rows[1].Title, "B");
     assert.equal(urls.length, 2);
   });
+
+  it("throws instead of returning empty rows on non-2xx responses", async () => {
+    const fetchImpl = async () => ({
+      ok: false,
+      status: 503,
+      text: async () => "SharePoint throttled the request",
+      json: async () => ({ value: [] }),
+    });
+
+    await assert.rejects(
+      () => fetchODataAllPages(fetchImpl, "https://x/page=1", ACCEPT_NOMETADATA),
+      /SharePoint request failed 503.*throttled/
+    );
+  });
 });
 
 describe("resolveListContext", () => {
@@ -200,6 +214,35 @@ describe("runGetViewsDataPipeline", () => {
     });
     assert.equal(sent[0].error, undefined);
     assert.equal(sent[0].listId, "zzz");
+  });
+
+  it("sends an error when views or fields paging returns an HTTP failure", async () => {
+    const sent = [];
+    const fetchImpl = async (url) => {
+      if (url.includes("/lists(guid'zzz')?$select=Title")) return { json: async () => ({ Title: "Lib" }) };
+      if (url.includes("/views?$select")) return { json: async () => ({ value: [{ Id: "{v1}", Title: "All" }] }) };
+      if (url.includes("/fields?$select")) {
+        return {
+          ok: false,
+          status: 429,
+          text: async () => "Too many requests",
+          json: async () => ({ value: [] }),
+        };
+      }
+      return { json: async () => ({}) };
+    };
+
+    await runGetViewsDataPipeline({
+      send: (x) => sent.push(x),
+      params: { listId: "zzz", webAbsoluteUrl: "https://correct-site/sites/hr" },
+      pageContext: {},
+      fetchImpl,
+    });
+
+    assert.equal(sent.length, 1);
+    assert.match(sent[0].error, /SharePoint request failed 429.*Too many requests/);
+    assert.deepEqual(sent[0].views, []);
+    assert.deepEqual(sent[0].fields, []);
   });
 });
 
