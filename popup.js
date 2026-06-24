@@ -4,6 +4,7 @@ import {
   searchSchemaColumnMatchesFilter,
   searchSchemaListMetaFromResponse,
 } from "./lib/popupUi.mjs";
+import { mountColumnCreator } from "./lib/columnCreatorPanel.mjs";
 import { secondStageRecycleBinUrl, normalizeTrailingSlash } from "./lib/recycleBinUrls.mjs";
 
 const btnExport = document.getElementById("btnExport");
@@ -101,15 +102,30 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     } else {
       setStatus(message.message || "Export failed.", "error");
     }
+    refreshExportProgressConsole();
     sendResponse({});
     return true;
   }
 });
+if (chrome.storage && chrome.storage.onChanged) {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "session" && changes.spcsvExportProgress) {
+      refreshExportProgressConsole(changes.spcsvExportProgress.newValue);
+      if (changes.spcsvExportProgress.newValue && changes.spcsvExportProgress.newValue.active) {
+        startExportProgressPolling();
+      } else {
+        stopExportProgressPolling();
+      }
+    }
+  });
+}
 loadDarkMode();
 
 // --- Settings (gear: open settings screen; back button: return to main) ---
 const chkListsLauncherEnabled = document.getElementById("chkListsLauncherEnabled");
 const chkUniversalSearchOpenOnLoad = document.getElementById("chkUniversalSearchOpenOnLoad");
+const chkCompassUniversalSearchOpenOnLoad = document.getElementById("chkCompassUniversalSearchOpenOnLoad");
+const chkCompassRememberActiveTab = document.getElementById("chkCompassRememberActiveTab");
 const chkUniversalSearchHotkeyEnabled = document.getElementById("chkUniversalSearchHotkeyEnabled");
 const universalSearchShortcutDisplay = document.getElementById("universalSearchShortcutDisplay");
 
@@ -130,10 +146,12 @@ document.getElementById("btnSettingsBackToMain")?.addEventListener("click", () =
   document.body.classList.remove("popup-settings-visible");
 });
 chrome.storage.local.get(
-  ["listsLauncherEnabled", "universalSearchOpenOnLoad", "universalSearchHotkeyEnabled"],
+  ["listsLauncherEnabled", "universalSearchOpenOnLoad", "compassUniversalSearchOpenOnLoad", "compassRememberActiveTab", "universalSearchHotkeyEnabled"],
   (r) => {
     if (chkListsLauncherEnabled) chkListsLauncherEnabled.checked = r.listsLauncherEnabled !== false;
     if (chkUniversalSearchOpenOnLoad) chkUniversalSearchOpenOnLoad.checked = !!r.universalSearchOpenOnLoad;
+    if (chkCompassUniversalSearchOpenOnLoad) chkCompassUniversalSearchOpenOnLoad.checked = !!r.compassUniversalSearchOpenOnLoad;
+    if (chkCompassRememberActiveTab) chkCompassRememberActiveTab.checked = r.compassRememberActiveTab !== false;
     if (chkUniversalSearchHotkeyEnabled) chkUniversalSearchHotkeyEnabled.checked = r.universalSearchHotkeyEnabled !== false;
   }
 );
@@ -143,6 +161,12 @@ chkListsLauncherEnabled?.addEventListener("change", () => {
 chkUniversalSearchOpenOnLoad?.addEventListener("change", () => {
   chrome.storage.local.set({ universalSearchOpenOnLoad: chkUniversalSearchOpenOnLoad.checked });
 });
+chkCompassUniversalSearchOpenOnLoad?.addEventListener("change", () => {
+  chrome.storage.local.set({ compassUniversalSearchOpenOnLoad: chkCompassUniversalSearchOpenOnLoad.checked });
+});
+chkCompassRememberActiveTab?.addEventListener("change", () => {
+  chrome.storage.local.set({ compassRememberActiveTab: chkCompassRememberActiveTab.checked });
+});
 chkUniversalSearchHotkeyEnabled?.addEventListener("change", () => {
   chrome.storage.local.set({ universalSearchHotkeyEnabled: chkUniversalSearchHotkeyEnabled.checked });
 });
@@ -151,8 +175,8 @@ document.getElementById("btnOpenExtensionShortcuts")?.addEventListener("click", 
   chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
 });
 
-// --- Tabs: Quick links, Page Properties, Reports ---
-const TAB_IDS = ["quicklinks", "context", "searchSchema", "reports", "refinableProps", "viewManager"];
+// --- Tabs: Quick links, Page Props, Columns, Reports, Refinables, Views, Site Contents ---
+const TAB_IDS = ["quicklinks", "context", "searchSchema", "reports", "refinableProps", "viewManager", "siteContents"];
 function updateTabIndicator() {
   const bar = document.querySelector(".tab-bar");
   const indicator = bar && bar.querySelector(".tab-indicator");
@@ -163,7 +187,7 @@ function updateTabIndicator() {
 }
 function switchToTab(id) {
   const tabEl = document.querySelector(".tab[data-tab=\"" + id + "\"]");
-  if (!tabEl || tabEl.offsetParent === null) return;
+  if (!tabEl || tabEl.offsetParent === null || tabEl.disabled) return;
   document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach((c) => c.classList.remove("active"));
   tabEl.classList.add("active");
@@ -178,9 +202,65 @@ function switchToTab(id) {
   else if (id === "reports") {
     updateExportReportLabel();
     toggleReportOptions();
+    loadMatrixPrefs();
+    refreshExportProgressConsole();
   }
   else if (id === "refinableProps") initRefinableProps();
+  else if (id === "siteContents") prepareSiteContentsTab();
 }
+
+async function prepareSiteContentsTab() {
+  const status = document.getElementById("siteContentsPanelStatus");
+  const classic = document.getElementById("siteContentsClassicLink");
+  if (status) status.textContent = "";
+  try {
+    const [t] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!t?.url || !isToolkitSharePointPage(t.url)) {
+      if (status) status.textContent = "Switch to a SharePoint Online tab to use Site Contents.";
+      if (classic) {
+        classic.style.pointerEvents = "none";
+        classic.style.opacity = "0.45";
+        classic.href = "#";
+      }
+      return;
+    }
+    const ctx = parseContextFromUrl(t.url);
+    const siteBase = (ctx.webAbsoluteUrl || "").replace(/\/$/, "") || new URL(t.url).origin;
+    if (classic) {
+      classic.href = siteBase + "/_layouts/15/viewlsts.aspx";
+      classic.style.pointerEvents = "";
+      classic.style.opacity = "";
+    }
+  } catch (_) {
+    if (status) status.textContent = "Could not read the active tab.";
+  }
+}
+
+document.getElementById("btnOpenSiteContentsPanel")?.addEventListener("click", async () => {
+  const status = document.getElementById("siteContentsPanelStatus");
+  if (status) status.textContent = "";
+  const [t] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!t?.id) {
+    if (status) status.textContent = "No active tab.";
+    return;
+  }
+  if (!isToolkitSharePointPage(t.url)) {
+    if (status) status.textContent = "Open a SharePoint Online page and try again.";
+    return;
+  }
+  try {
+    const res = await chrome.tabs.sendMessage(t.id, { type: "SPOToolkitOpenSiteContentsPanel" });
+    if (res && res.ok) {
+      if (status) status.textContent = "Panel opened on this page — use the compass icon area if you do not see it.";
+    } else if (res && res.error === "disabled") {
+      if (status) status.textContent = "Turn on “Show lists & libraries icon on SharePoint pages” in Settings (gear), then try again.";
+    } else {
+      if (status) status.textContent = (res && res.error) || "Could not open the panel. Refresh the SharePoint tab and try again.";
+    }
+  } catch (_) {
+    if (status) status.textContent = "Could not reach this page — refresh the SharePoint tab and try again.";
+  }
+});
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
     const id = tab.dataset.tab;
@@ -744,8 +824,25 @@ async function goToSelectedSharePointSite() {
   } catch (_) {}
 }
 
+async function resolvePopupContextTab(activeTab) {
+  if (!activeTab) return activeTab;
+  try {
+    const u = activeTab.url ? new URL(activeTab.url) : null;
+    const runtimeRoot = chrome.runtime.getURL("");
+    if (!u || u.href.indexOf(runtimeRoot) !== 0) return activeTab;
+    const isToolkitPage = /\/(view-formatter|views)\.html$/i.test(u.pathname || "");
+    if (!isToolkitPage) return activeTab;
+    const fromTabId = parseInt(u.searchParams.get("tabId") || "", 10);
+    if (!Number.isInteger(fromTabId)) return activeTab;
+    const originalTab = await chrome.tabs.get(fromTabId);
+    if (originalTab && originalTab.id != null) return originalTab;
+  } catch (_) {}
+  return activeTab;
+}
+
 async function syncPopupToCurrentTab() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = await resolvePopupContextTab(activeTab);
   const onToolkitSp = isToolkitSharePointPage(tab?.url);
 
   if (!onToolkitSp) {
@@ -761,17 +858,21 @@ async function syncPopupToCurrentTab() {
   const tabViewManager = document.getElementById("tabViewManager");
   const tabReports = document.getElementById("tabReports");
   let isListPage = false;
+  const listTabHint = "Open a list or library view to use this tab.";
+  function applyListOnlyTabs(enabled) {
+    [tabColumns, tabViewManager, tabReports].forEach((el) => {
+      if (!el) return;
+      el.style.removeProperty("display");
+      el.disabled = !enabled;
+      el.title = enabled ? "" : listTabHint;
+    });
+  }
   try {
     const response = await chrome.tabs.sendMessage(tab.id, { action: "checkListPage" });
     isListPage = !!response?.isListPage;
-    const show = isListPage ? "" : "none";
-    if (tabColumns) tabColumns.style.display = show;
-    if (tabViewManager) tabViewManager.style.display = show;
-    if (tabReports) tabReports.style.display = show;
+    applyListOnlyTabs(isListPage);
   } catch (_) {
-    if (tabColumns) tabColumns.style.display = "none";
-    if (tabViewManager) tabViewManager.style.display = "none";
-    if (tabReports) tabReports.style.display = "none";
+    applyListOnlyTabs(false);
   }
 
   const { popupActiveTab } = await chrome.storage.local.get("popupActiveTab");
@@ -986,7 +1087,6 @@ async function renderQuickLinks() {
   const secondStageHref = secondStageRecycleBinUrl(siteCollRoot);
 
   addQuickLink(currentSite, "Site settings", siteBase + "/_layouts/15/settings.aspx", "settings");
-  addQuickLink(currentSite, "Site contents", siteBase + "/_layouts/15/viewlsts.aspx", "folder");
   addQuickLink(currentSite, "Site content types", siteBase + "/_layouts/15/SiteAdmin.aspx#/contentTypes", "layers");
   addQuickLinkOrTenantAdminWait(
     currentSite,
@@ -1236,6 +1336,7 @@ async function loadContextInfo() {
   const countEl = document.getElementById("contextCount");
   list.innerHTML = "";
   countEl.textContent = "ContextInfo properties: …";
+  list.innerHTML = '<div class="panel-loading">Loading page properties…</div>';
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id || !isToolkitSharePointPage(tab.url)) {
@@ -1386,6 +1487,24 @@ document.getElementById("btnOpenViewFormatter")?.addEventListener("click", async
 // --- Columns tab: list fields via REST; display name links to FldEdit.aspx
 let searchSchemaColumns = [];
 let searchSchemaListMeta = { siteUrl: "", listId: "" };
+let columnCreatorMounted = false;
+
+function ensureColumnCreator(hasList) {
+  const host = document.getElementById("columnCreatorHost");
+  if (!host || columnCreatorMounted) return;
+  columnCreatorMounted = true;
+  const toggleBtn = document.getElementById("btnOpenColumnCreator");
+  mountColumnCreator(host, {
+    hasList,
+    toggleBtn: toggleBtn || undefined,
+    invoke: async (msg) => {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id) return { ok: false, error: "No active tab." };
+      return chrome.tabs.sendMessage(tab.id, msg);
+    },
+    onCreated: () => loadSearchSchema(),
+  });
+}
 
 async function loadSearchSchema() {
   const countEl = document.getElementById("searchSchemaCount");
@@ -1393,15 +1512,16 @@ async function loadSearchSchema() {
   const errEl = document.getElementById("searchSchemaError");
   if (!listEl || !errEl) return;
   errEl.style.display = "none";
-  listEl.innerHTML = "";
+  listEl.innerHTML = '<div class="panel-loading">Loading…</div>';
   searchSchemaListMeta = { siteUrl: "", listId: "" };
-  if (countEl) countEl.textContent = "Loading…";
+  if (countEl) countEl.textContent = "Columns: …";
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id || !isToolkitSharePointPage(tab.url)) {
       if (countEl) countEl.textContent = "Columns: 0";
       errEl.textContent = "Open a list or library page to load columns.";
       errEl.style.display = "block";
+      ensureColumnCreator(false);
       return;
     }
     const response = await chrome.tabs.sendMessage(tab.id, { action: "getSearchSchema" });
@@ -1414,6 +1534,7 @@ async function loadSearchSchema() {
     }
     searchSchemaColumns = response.columns || [];
     searchSchemaListMeta = searchSchemaListMetaFromResponse(response);
+    ensureColumnCreator(!!searchSchemaListMeta.listId);
     renderSearchSchemaList();
   } catch (e) {
     searchSchemaColumns = [];
@@ -1454,7 +1575,6 @@ function renderSearchSchemaList() {
   });
 }
 
-document.getElementById("btnRefreshSearchSchema").addEventListener("click", () => loadSearchSchema());
 document.getElementById("searchSchemaFilter").addEventListener("input", () => renderSearchSchemaList());
 
 async function getPageSize() {
@@ -1718,8 +1838,14 @@ async function runExport(selectedColumns = null) {
       const includeVersions = getIncludeVersions();
       const pageLimit = await getPageSize();
       const reportType = reportSelect && reportSelect.value ? reportSelect.value : null;
-      const exportFormat = (formatSelect && formatSelect.value) ? formatSelect.value : "xlsx";
-      const chkMatrixWholeSite = document.getElementById("chkMatrixWholeSite");
+      const exportFormat = reportType === "permissionsMatrix" ? "xlsx" : ((formatSelect && formatSelect.value) ? formatSelect.value : "xlsx");
+      const chkMatrixIncludeSubsites = document.getElementById("chkMatrixIncludeSubsites");
+      const chkMatrixExpandGroups = document.getElementById("chkMatrixExpandGroups");
+      const chkMatrixIncludeAllInherited = document.getElementById("chkMatrixIncludeAllInherited");
+      const chkMatrixIncludeFolderSharingLinks = document.getElementById("chkMatrixIncludeFolderSharingLinks");
+      const matrixMaxItems = document.getElementById("matrixMaxItems");
+      const matrixPageSize = document.getElementById("matrixPageSize");
+      const matrixPrefs = saveMatrixPrefs();
       const msg = {
         action: "runExportCSV",
         siteUrl,
@@ -1731,7 +1857,14 @@ async function runExport(selectedColumns = null) {
         selectedColumns: selectedColumns && selectedColumns.length > 0 ? selectedColumns : null,
         report: reportType,
         format: exportFormat,
-        permissionsMatrixWholeSite: !!(chkMatrixWholeSite && chkMatrixWholeSite.checked)
+        matrixIncludeSubsites: chkMatrixIncludeSubsites ? chkMatrixIncludeSubsites.checked : true,
+        matrixExpandGroups: !!(chkMatrixExpandGroups && chkMatrixExpandGroups.checked),
+        matrixIncludeAllInherited: !!(chkMatrixIncludeAllInherited && chkMatrixIncludeAllInherited.checked),
+        matrixIncludeFolderSharingLinks: !!(chkMatrixIncludeFolderSharingLinks && chkMatrixIncludeFolderSharingLinks.checked),
+        matrixSharingLinkFetchAll: !!(document.getElementById("chkMatrixSharingLinkFetchAll") && document.getElementById("chkMatrixSharingLinkFetchAll").checked),
+        matrixMaxListItems: matrixMaxItems ? parseInt(matrixMaxItems.value, 10) || 2000 : matrixPrefs.maxListItems,
+        matrixListItemPageSize: matrixPageSize ? parseInt(matrixPageSize.value, 10) || 5000 : matrixPrefs.listItemPageSize,
+        matrixSelectedPaths: getSelectedMatrixSitePaths()
       };
       response = await chrome.tabs.sendMessage(tab.id, msg);
     } catch (sendErr) {
@@ -1744,9 +1877,11 @@ async function runExport(selectedColumns = null) {
 
     const statusMessage = (response?.message != null && response.message !== "")
       ? response.message
-      : (response?.ok ? "Export started. Watch the progress bar at the top of the page for status." : (response?.error || "Export failed."));
+      : (response?.ok ? "Export started. Watch the progress console below." : (response?.error || "Export failed."));
     setStatus(statusMessage, response?.ok ? "info" : "error");
     if (response?.ok) {
+      refreshExportProgressConsole();
+      startExportProgressPolling();
       mainPanel.classList.remove("hidden");
       pickerPanel.classList.remove("visible");
     }
@@ -1794,14 +1929,335 @@ function closeColumnPicker() {
 function toggleReportOptions() {
   if (!reportSelect || !reportOptions) return;
   const value = reportSelect.value;
-  const showPanel = value === "exportCSV" || value === "folderCount" || value === "pathLengths" || value === "permissionsMatrix";
-  reportOptions.style.display = showPanel ? "block" : "none";
-  const matrixWholeSiteRow = document.getElementById("matrixWholeSiteRow");
-  if (matrixWholeSiteRow) matrixWholeSiteRow.style.display = value === "permissionsMatrix" ? "" : "none";
   const exportOptionsRow = document.getElementById("exportOptionsRow");
-  if (exportOptionsRow) exportOptionsRow.style.display = value === "exportCSV" ? "" : "none";
-  if (btnChooseColumns) btnChooseColumns.style.display = value === "exportCSV" ? "" : "none";
+  const matrixWholeSiteRow = document.getElementById("matrixWholeSiteRow");
+  const matrixOptionsPanel = document.getElementById("matrixOptionsPanel");
+  const showExportFormat = value === "exportCSV";
+  const showMatrixSites = value === "permissionsMatrix";
+  reportOptions.style.display = showExportFormat || showMatrixSites ? "flex" : "none";
+  if (matrixWholeSiteRow) matrixWholeSiteRow.style.display = showMatrixSites ? "" : "none";
+  if (matrixOptionsPanel) matrixOptionsPanel.classList.toggle("visible", showMatrixSites);
+  if (exportOptionsRow) exportOptionsRow.style.display = showExportFormat ? "" : "none";
+  if (btnChooseColumns) btnChooseColumns.style.display = showExportFormat ? "" : "none";
 }
+
+const MATRIX_PREFS_KEY = "matrixExportPrefs";
+
+function normalizeMatrixSiteKey(siteUrl) {
+  if (!siteUrl) return "";
+  try {
+    const u = new URL(String(siteUrl).replace(/\/$/, ""));
+    return (u.origin + u.pathname.replace(/\/$/, "")).toLowerCase();
+  } catch (_) {
+    return String(siteUrl).replace(/\/$/, "").toLowerCase();
+  }
+}
+
+async function loadMatrixPrefs() {
+  const p = await new Promise((resolve) => chrome.storage.local.get([MATRIX_PREFS_KEY], (r) => resolve(r[MATRIX_PREFS_KEY] || {})));
+  const chkSubs = document.getElementById("chkMatrixIncludeSubsites");
+  const chkExp = document.getElementById("chkMatrixExpandGroups");
+  const chkAll = document.getElementById("chkMatrixIncludeAllInherited");
+  const maxItems = document.getElementById("matrixMaxItems");
+  const pageSize = document.getElementById("matrixPageSize");
+  if (chkSubs && p.includeSubsites != null) chkSubs.checked = !!p.includeSubsites;
+  if (chkExp && p.expandGroups != null) chkExp.checked = !!p.expandGroups;
+  if (chkAll && p.includeAllInherited != null) chkAll.checked = !!p.includeAllInherited;
+  const chkFolder = document.getElementById("chkMatrixIncludeFolderSharingLinks");
+  const chkSharingFetchAll = document.getElementById("chkMatrixSharingLinkFetchAll");
+  if (chkFolder && p.includeFolderSharingLinks != null) chkFolder.checked = !!p.includeFolderSharingLinks;
+  if (chkSharingFetchAll && p.sharingLinkFetchAll != null) chkSharingFetchAll.checked = !!p.sharingLinkFetchAll;
+  if (maxItems && p.maxListItems != null) maxItems.value = String(p.maxListItems);
+  if (pageSize && p.listItemPageSize != null) pageSize.value = String(p.listItemPageSize);
+
+  let siteKey = "";
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.url && isToolkitSharePointPage(tab.url)) {
+      const ctx = parseContextFromUrl(tab.url);
+      siteKey = normalizeMatrixSiteKey(ctx.webAbsoluteUrl || "");
+    }
+  } catch (_) {}
+  window.__matrixSiteKey = siteKey;
+
+  const list = document.getElementById("matrixSitesList");
+  if (siteKey && p.siteKey === siteKey && Array.isArray(p.selectedPaths) && p.selectedPaths.length) {
+    renderMatrixSitesList(p.sitePlan || [], p.selectedPaths);
+  } else if (list) {
+    list.innerHTML = '<span class="form-hint">Click Load sites for this site.</span>';
+    window.__matrixSitePlan = [];
+  }
+}
+
+function saveMatrixPrefs(extra) {
+  const chkSubs = document.getElementById("chkMatrixIncludeSubsites");
+  const chkExp = document.getElementById("chkMatrixExpandGroups");
+  const chkAll = document.getElementById("chkMatrixIncludeAllInherited");
+  const maxItems = document.getElementById("matrixMaxItems");
+  const pageSize = document.getElementById("matrixPageSize");
+  const prefs = Object.assign({
+    siteKey: (extra && extra.siteKey) || window.__matrixSiteKey || "",
+    includeSubsites: chkSubs ? chkSubs.checked : true,
+    expandGroups: !!(chkExp && chkExp.checked),
+    includeAllInherited: !!(chkAll && chkAll.checked),
+    includeFolderSharingLinks: !!(document.getElementById("chkMatrixIncludeFolderSharingLinks") && document.getElementById("chkMatrixIncludeFolderSharingLinks").checked),
+    sharingLinkFetchAll: !!(document.getElementById("chkMatrixSharingLinkFetchAll") && document.getElementById("chkMatrixSharingLinkFetchAll").checked),
+    maxListItems: maxItems ? parseInt(maxItems.value, 10) || 2000 : 2000,
+    listItemPageSize: pageSize ? parseInt(pageSize.value, 10) || 5000 : 5000,
+    selectedPaths: getSelectedMatrixSitePaths(),
+    sitePlan: window.__matrixSitePlan || []
+  }, extra || {});
+  chrome.storage.local.set({ [MATRIX_PREFS_KEY]: prefs });
+  return prefs;
+}
+
+function getSelectedMatrixSitePaths() {
+  const list = document.getElementById("matrixSitesList");
+  if (!list) return [];
+  return Array.from(list.querySelectorAll("input[type=checkbox]:checked")).map((cb) => cb.dataset.path).filter(Boolean);
+}
+
+function renderMatrixSitesList(plan, selectedPaths) {
+  const list = document.getElementById("matrixSitesList");
+  if (!list) return;
+  window.__matrixSitePlan = plan || [];
+  const sel = new Set((selectedPaths || plan.map((e) => e.path)).map((p) => String(p).toLowerCase()));
+  if (!plan.length) {
+    list.innerHTML = '<span class="form-hint">No sites loaded.</span>';
+    return;
+  }
+  list.innerHTML = "";
+  plan.forEach((entry) => {
+    const path = entry.path || "";
+    const id = "mx-site-" + path.replace(/[^a-zA-Z0-9]/g, "_");
+    const div = document.createElement("div");
+    div.className = "matrix-site-item";
+    div.innerHTML =
+      '<input type="checkbox" id="' + id + '" data-path="' + path.replace(/"/g, "&quot;") + '" ' +
+      (sel.has(path.toLowerCase()) ? "checked" : "") + ' />' +
+      '<label for="' + id + '"><strong>' + (entry.title || path) + '</strong>' +
+      '<div class="matrix-site-meta">' + path + " · " + (entry.listCount || 0) + " lists · " + (entry.itemCount || 0) + " items</div></label>";
+    list.appendChild(div);
+  });
+}
+
+async function loadMatrixScanPlan() {
+  const list = document.getElementById("matrixSitesList");
+  const chkSubs = document.getElementById("chkMatrixIncludeSubsites");
+  if (list) list.innerHTML = '<div class="panel-loading">Loading site inventory…</div>';
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id || !isToolkitSharePointPage(tab.url)) {
+      if (list) list.innerHTML = '<span class="form-hint">Open a SharePoint site page first.</span>';
+      return;
+    }
+    const ctx = parseContextFromUrl(tab.url);
+    const siteUrl = (ctx.webAbsoluteUrl || "").replace(/\/$/, "");
+    window.__matrixSiteKey = normalizeMatrixSiteKey(siteUrl);
+    const res = await chrome.tabs.sendMessage(tab.id, {
+      action: "getMatrixScanPlan",
+      siteUrl,
+      includeSubsites: chkSubs ? chkSubs.checked : true
+    });
+    if (!res || !res.ok) {
+      if (list) list.innerHTML = '<span class="form-hint">' + ((res && res.error) || "Failed to load sites.") + "</span>";
+      return;
+    }
+    renderMatrixSitesList(res.plan || [], (res.plan || []).map((e) => e.path));
+    saveMatrixPrefs({ sitePlan: res.plan || [], siteKey: window.__matrixSiteKey });
+  } catch (e) {
+    if (list) list.innerHTML = '<span class="form-hint">Error: ' + e.message + "</span>";
+  }
+}
+
+let exportProgressPollTimer = null;
+let exportProgressDismissTimer = null;
+const POPUP_EXPORT_DISMISS_MS = 5000;
+const POPUP_EXPORT_STALE_MS = 25000;
+let popupExportStartedAt = 0;
+let popupExportElapsedTimer = null;
+
+function cleanPopupExportHeadline(msg) {
+  return String(msg || "").replace(/\s*\(still working…\)+/gi, "").trim();
+}
+
+function formatPopupExportElapsed(ms) {
+  const sec = Math.max(0, Math.floor(ms / 1000));
+  if (sec < 3600) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return m > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${sec}s`;
+  }
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return `${h}h ${m}m`;
+}
+
+function stopPopupExportElapsedTimer() {
+  if (!popupExportElapsedTimer) return;
+  clearInterval(popupExportElapsedTimer);
+  popupExportElapsedTimer = null;
+}
+
+function startPopupExportElapsedTimer(startedAt) {
+  stopPopupExportElapsedTimer();
+  popupExportStartedAt = startedAt || Date.now();
+  popupExportElapsedTimer = setInterval(() => {
+    const elapsedEl = document.getElementById("exportProgressElapsed");
+    if (!elapsedEl) return;
+    elapsedEl.textContent = formatPopupExportElapsed(Date.now() - popupExportStartedAt);
+  }, 1000);
+}
+
+function refreshExportProgressConsole(state) {
+  const consoleEl = document.getElementById("exportProgressConsole");
+  const barWrap = consoleEl && consoleEl.querySelector(".export-progress-bar-wrap");
+  const bar = document.getElementById("exportProgressBar");
+  const msgEl = document.getElementById("exportProgressMessage");
+  const elapsedEl = document.getElementById("exportProgressElapsed");
+  const pctEl = document.getElementById("exportProgressPct");
+  const logEl = document.getElementById("exportProgressLog");
+  if (!consoleEl) return;
+
+  function hideExportConsole() {
+    consoleEl.classList.add("hidden");
+    consoleEl.classList.remove("export-progress-active");
+    stopPopupExportElapsedTimer();
+    const downloadMain = document.getElementById("downloadMain");
+    if (downloadMain) downloadMain.classList.remove("reports-export-active");
+  }
+
+  function clearPopupExportDismissTimer() {
+    if (!exportProgressDismissTimer) return;
+    clearTimeout(exportProgressDismissTimer);
+    exportProgressDismissTimer = null;
+  }
+
+  function schedulePopupExportDismiss() {
+    clearPopupExportDismissTimer();
+    exportProgressDismissTimer = setTimeout(() => {
+      exportProgressDismissTimer = null;
+      try {
+        chrome.runtime.sendMessage({ type: "SPCSVExportProgressClear" }, () => hideExportConsole());
+      } catch (_) {
+        hideExportConsole();
+      }
+    }, POPUP_EXPORT_DISMISS_MS);
+  }
+
+  function isStalePopupExportCompletion(data) {
+    if (!data || data.active) return false;
+    if (!data.finishedAt) return true;
+    return Date.now() - data.finishedAt > POPUP_EXPORT_DISMISS_MS;
+  }
+
+  function apply(data) {
+    const downloadMain = document.getElementById("downloadMain");
+    if (downloadMain) {
+      downloadMain.classList.toggle("reports-export-active", !!(data && data.active));
+    }
+    if (isStalePopupExportCompletion(data)) {
+      clearPopupExportDismissTimer();
+      try {
+        chrome.runtime.sendMessage({ type: "SPCSVExportProgressClear" });
+      } catch (_) {}
+      hideExportConsole();
+      return;
+    }
+    if (!data || (!data.active && !(data.log && data.log.length))) {
+      clearPopupExportDismissTimer();
+      hideExportConsole();
+      return;
+    }
+    consoleEl.classList.remove("hidden");
+    consoleEl.classList.toggle("export-progress-active", !!data.active);
+    if (data.active) {
+      clearPopupExportDismissTimer();
+      if (!popupExportElapsedTimer) startPopupExportElapsedTimer(data.startedAt || popupExportStartedAt || Date.now());
+      startExportProgressPolling();
+      try { chrome.runtime.sendMessage({ type: "SPCSVExportEnsureWorker" }); } catch (_) {}
+    } else {
+      stopPopupExportElapsedTimer();
+      stopExportProgressPolling();
+      schedulePopupExportDismiss();
+    }
+    const pct = data.percent != null ? Math.max(0, Math.min(100, data.percent)) : (data.active ? null : 100);
+    if (bar) bar.style.width = (pct != null ? pct : 8) + "%";
+    if (pctEl) pctEl.textContent = pct != null ? pct + "%" : (data.active ? "…" : "");
+    const headline = cleanPopupExportHeadline(data.message || (data.active ? "Export running…" : (data.success ? "Export complete" : "Export finished")));
+    const lastTouch = Math.max(data.updatedAt || 0, data.pulseAt || 0);
+    const staleHeadline = data.active && lastTouch && Date.now() - lastTouch > POPUP_EXPORT_STALE_MS
+      ? headline + " (no recent updates…)"
+      : headline;
+    if (msgEl) {
+      msgEl.textContent = staleHeadline;
+      msgEl.className = "export-progress-message" + (data.active ? "" : (data.success ? " ok" : " err"));
+    }
+    if (elapsedEl) {
+      const start = data.startedAt || popupExportStartedAt;
+      if (data.active && start) {
+        elapsedEl.textContent = formatPopupExportElapsed(Date.now() - start);
+        elapsedEl.style.display = "";
+      } else if (!data.active && start) {
+        elapsedEl.textContent = formatPopupExportElapsed((data.finishedAt || Date.now()) - start);
+        elapsedEl.style.display = "";
+      } else {
+        elapsedEl.textContent = "";
+        elapsedEl.style.display = "none";
+      }
+    }
+    if (logEl && Array.isArray(data.log)) {
+      logEl.textContent = data.log.map((line) => {
+        const d = line.t ? new Date(line.t) : null;
+        const ts = d ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
+        const msg = String(line.msg || "").replace(/\s*\(still working…\)+/gi, "").trim();
+        return (ts ? "[" + ts + "] " : "") + msg;
+      }).join("\n");
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          logEl.scrollTop = logEl.scrollHeight;
+        });
+      });
+    }
+  }
+  if (state) {
+    apply(state);
+    return;
+  }
+  chrome.runtime.sendMessage({ type: "SPCSVExportProgressGet" }, (data) => {
+    if (chrome.runtime.lastError) return;
+    apply(data);
+  });
+}
+
+function startExportProgressPolling() {
+  if (exportProgressPollTimer) return;
+  exportProgressPollTimer = setInterval(() => refreshExportProgressConsole(), 800);
+}
+function stopExportProgressPolling() {
+  if (!exportProgressPollTimer) return;
+  clearInterval(exportProgressPollTimer);
+  exportProgressPollTimer = null;
+}
+
+document.getElementById("exportProgressCancel")?.addEventListener("click", () => {
+  try {
+    chrome.runtime.sendMessage({ type: "SPCSVExportCancel" }, () => refreshExportProgressConsole());
+  } catch (_) {}
+});
+
+document.getElementById("btnMatrixLoadSites")?.addEventListener("click", () => loadMatrixScanPlan());
+document.getElementById("btnMatrixSitesAll")?.addEventListener("click", () => {
+  document.querySelectorAll("#matrixSitesList input[type=checkbox]").forEach((cb) => { cb.checked = true; });
+  saveMatrixPrefs();
+});
+document.getElementById("btnMatrixSitesNone")?.addEventListener("click", () => {
+  document.querySelectorAll("#matrixSitesList input[type=checkbox]").forEach((cb) => { cb.checked = false; });
+  saveMatrixPrefs();
+});
+["chkMatrixIncludeSubsites", "chkMatrixExpandGroups", "chkMatrixIncludeAllInherited", "chkMatrixIncludeFolderSharingLinks", "chkMatrixSharingLinkFetchAll", "matrixMaxItems", "matrixPageSize"].forEach((id) => {
+  document.getElementById(id)?.addEventListener("change", () => saveMatrixPrefs());
+});
 if (reportSelect) reportSelect.addEventListener("change", toggleReportOptions);
 
 /** Updates the "Export List/Library to Excel/CSV" option text and syncs format select to default. */
@@ -1944,6 +2400,7 @@ btnSettingsBack.addEventListener("click", () => {
   document.body.classList.remove("reports-settings-visible");
   savePageSize();
   saveDefaultExportFormat();
+  saveMatrixPrefs();
   updateExportReportLabel();
 });
 

@@ -1,0 +1,72 @@
+{
+  "manifest_version": 3,
+  "name": "SPO Dev Toolkit (Experimental — tabbed panel)",
+  "version": "0.1.0",
+  "description": "Experimental build: Site Contents panel uses a tab row for lists, subsites, and former toolbar shortcuts (opens in new tab).",
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "permissions": ["activeTab", "scripting", "storage", "history", "declarativeNetRequest", "webNavigation"],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "view_formatter_iframe",
+        "enabled": true,
+        "path": "rules/view-formatter-iframe.json"
+      }
+    ]
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "host_permissions": ["*://*.sharepoint.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["*://*.sharepoint.com/*"],
+      "js": ["recycleBinWaitBanner.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["*://*.sharepoint.com/*"],
+      "js": ["adminCenterWaitBanner.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["*://*.sharepoint.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://*.sharepoint.com/*"],
+      "js": ["view-formatter-iframe-bridge.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["exportCSV.js","getFields.js","getSearchSchema.js","checkListPage.js","getListType.js","getRefinableMappings.js","getViewsData.js","getPageContext.js","getPageContextJson.js","getViewFormatContext.js","getSiteLists.js","jszip.min.js","jszip-preload.js","jszip-restore.js","icon.png"],
+      "matches": ["*://*.sharepoint.com/*"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon.png",
+      "32": "icon.png",
+      "48": "icon.png"
+    }
+  },
+  "commands": {
+    "open-universal-search": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Comma",
+        "mac": "Command+Shift+Comma"
+      },
+      "description": "Open Universal Settings Search",
+      "global": true
+    }
+  }
+}

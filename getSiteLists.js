@@ -34,53 +34,52 @@
     } catch (_) { return ""; }
   }
   var tenantName = tenantFromHost();
-  fetch(webUrl, { credentials: "include", headers: { Accept: accept } })
-    .then(function (r) { return r.json(); })
-    .then(function (webJson) {
+  function mapListsJson(j) {
+    var results = (j.value != null ? j.value : (j.d && j.d.results) != null ? j.d.results : (j.d && j.d) != null ? j.d : []);
+    if (!Array.isArray(results)) results = [];
+    var base = location.origin;
+    return results.map(function (item) {
+      var title = item.Title || item.title || "";
+      var viewUrl = item.DefaultViewUrl || item.defaultViewUrl || "";
+      if (viewUrl && viewUrl.indexOf("http") !== 0) viewUrl = base + (viewUrl.indexOf("/") === 0 ? viewUrl : "/" + viewUrl);
+      var baseTemplate = item.BaseTemplate != null ? item.BaseTemplate : item.baseTemplate;
+      var isLibrary = (baseTemplate === 101 || baseTemplate === 109 || baseTemplate === 119);
+      var typeLabel = typeLabels[baseTemplate] || "List";
+      var itemCount = item.ItemCount != null ? item.ItemCount : (item.itemCount != null ? item.itemCount : 0);
+      var modified = item.LastItemModifiedDate || item.lastItemModifiedDate || "";
+      return { id: item.Id, title: title, viewUrl: viewUrl || "", isLibrary: isLibrary, typeLabel: typeLabel, itemCount: itemCount, modified: modified };
+    }).filter(function (item) { return item.viewUrl; });
+  }
+  function postListsResult(lists, webTitle) {
+    window.postMessage({
+      __spcsv: true,
+      type: "SPCSVSiteListsResult",
+      lists: lists,
+      siteUrl: siteUrl,
+      currentListId: currentListId || null,
+      tenantName: tenantName,
+      siteName: webTitle || ""
+    }, "*");
+  }
+  Promise.all([
+    fetch(webUrl, { credentials: "include", headers: { Accept: accept } }).then(function (r) { return r.json(); }).catch(function () { return {}; }),
+    fetch(listsUrl, { credentials: "include", headers: { Accept: accept } }).then(function (r) { return r.json(); })
+  ])
+    .then(function (pair) {
+      var webJson = pair[0] || {};
+      var listsJson = pair[1] || {};
       var webTitle = (webJson.Title != null ? webJson.Title : (webJson.d && webJson.d.Title)) || "";
-      return fetch(listsUrl, { credentials: "include", headers: { Accept: accept } })
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
-          var results = (j.value != null ? j.value : (j.d && j.d.results) != null ? j.d.results : (j.d && j.d) != null ? j.d : []);
-          if (!Array.isArray(results)) results = [];
-          var base = location.origin;
-          var lists = results.map(function (item) {
-            var title = item.Title || item.title || "";
-            var viewUrl = item.DefaultViewUrl || item.defaultViewUrl || "";
-            if (viewUrl && viewUrl.indexOf("http") !== 0) viewUrl = base + (viewUrl.indexOf("/") === 0 ? viewUrl : "/" + viewUrl);
-            var baseTemplate = item.BaseTemplate != null ? item.BaseTemplate : item.baseTemplate;
-            var isLibrary = (baseTemplate === 101 || baseTemplate === 109 || baseTemplate === 119);
-            var typeLabel = typeLabels[baseTemplate] || "List";
-            var itemCount = item.ItemCount != null ? item.ItemCount : (item.itemCount != null ? item.itemCount : 0);
-            var modified = item.LastItemModifiedDate || item.lastItemModifiedDate || "";
-            return { id: item.Id, title: title, viewUrl: viewUrl || "", isLibrary: isLibrary, typeLabel: typeLabel, itemCount: itemCount, modified: modified };
-          }).filter(function (item) { return item.viewUrl; });
-          window.postMessage({ __spcsv: true, type: "SPCSVSiteListsResult", lists: lists, siteUrl: siteUrl, currentListId: currentListId || null, tenantName: tenantName, siteName: webTitle }, "*");
-        });
-    })
-    .catch(function () {
-      return fetch(listsUrl, { credentials: "include", headers: { Accept: accept } })
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
-          var results = (j.value != null ? j.value : (j.d && j.d.results) != null ? j.d.results : (j.d && j.d) != null ? j.d : []);
-          if (!Array.isArray(results)) results = [];
-          var base = location.origin;
-          var lists = results.map(function (item) {
-            var title = item.Title || item.title || "";
-            var viewUrl = item.DefaultViewUrl || item.defaultViewUrl || "";
-            if (viewUrl && viewUrl.indexOf("http") !== 0) viewUrl = base + (viewUrl.indexOf("/") === 0 ? viewUrl : "/" + viewUrl);
-            var baseTemplate = item.BaseTemplate != null ? item.BaseTemplate : item.baseTemplate;
-            var isLibrary = (baseTemplate === 101 || baseTemplate === 109 || baseTemplate === 119);
-            var typeLabel = typeLabels[baseTemplate] || "List";
-            var itemCount = item.ItemCount != null ? item.ItemCount : (item.itemCount != null ? item.itemCount : 0);
-            var modified = item.LastItemModifiedDate || item.lastItemModifiedDate || "";
-            return { id: item.Id, title: title, viewUrl: viewUrl || "", isLibrary: isLibrary, typeLabel: typeLabel, itemCount: itemCount, modified: modified };
-          }).filter(function (item) { return item.viewUrl; });
-          window.postMessage({ __spcsv: true, type: "SPCSVSiteListsResult", lists: lists, siteUrl: siteUrl, currentListId: currentListId || null, tenantName: tenantName, siteName: "" }, "*");
-        });
+      postListsResult(mapListsJson(listsJson), webTitle);
     })
     .catch(function (err) {
-      window.postMessage({ __spcsv: true, type: "SPCSVSiteListsResult", error: (err && err.message) || "Failed to load lists", tenantName: tenantName, siteName: "" }, "*");
+      fetch(listsUrl, { credentials: "include", headers: { Accept: accept } })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          postListsResult(mapListsJson(j), "");
+        })
+        .catch(function () {
+          window.postMessage({ __spcsv: true, type: "SPCSVSiteListsResult", error: (err && err.message) || "Failed to load lists", tenantName: tenantName, siteName: "" }, "*");
+        });
     });
   fetch(subsitesUrl, { credentials: "include", headers: { Accept: accept } })
     .then(function (r) { return r.json(); })

@@ -31,12 +31,17 @@
   --r-lg: 13px;
   --r-pill: 999px;
   --font: 'DM Sans', system-ui, sans-serif;
+  /* Match Chrome extension popup bottom shape; use for clipping fixed overlays */
+  --popup-br: 14px;
+  --field-label-gap: 6px;
+  --field-stack-gap: 12px;
+  --panel-inline: 14px;
 }
 
 /* ── BASE ─────────────────────────── */
 html {
   font-size: 13px;
-  border-radius: 0 0 14px 14px;
+  border-radius: 0 0 var(--popup-br) var(--popup-br);
   overflow: hidden;
 }
 body {
@@ -49,7 +54,7 @@ body {
   display: flex;
   flex-direction: column;
   -webkit-font-smoothing: antialiased;
-  border-radius: 0 0 14px 14px;
+  border-radius: 0 0 var(--popup-br) var(--popup-br);
   animation: popup-fade-in 0.25s ease-out forwards;
 }
 body.popup-fade-out {
@@ -124,11 +129,11 @@ body.universal-search-open {
   border: 1px solid rgba(255,255,255,.2);
 }
 .popup-header-settings-btn {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: none;
-  border-radius: var(--r-sm);
+  border-radius: 10px;
   background: rgba(255,255,255,.1);
   color: rgba(255,255,255,.85);
   cursor: pointer;
@@ -142,13 +147,13 @@ body.universal-search-open {
   background: rgba(255,255,255,.18);
   color: white;
 }
-.popup-header-settings-btn svg { width: 14px; height: 14px; }
+.popup-header-settings-btn svg { width: 17px; height: 17px; }
 .popup-header-search-btn {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: none;
-  border-radius: var(--r-sm);
+  border-radius: 10px;
   background: rgba(255,255,255,.1);
   color: rgba(255,255,255,.85);
   cursor: pointer;
@@ -162,16 +167,16 @@ body.universal-search-open {
   background: rgba(255,255,255,.18);
   color: white;
 }
-.popup-header-search-btn svg { width: 14px; height: 14px; }
+.popup-header-search-btn svg { width: 17px; height: 17px; }
 
 .feedback-icon-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
-  border-radius: var(--r-sm);
+  border-radius: 10px;
   background: rgba(255,255,255,.1);
   color: rgba(255,255,255,.85);
   text-decoration: none;
@@ -182,9 +187,16 @@ body.universal-search-open {
   background: rgba(255,255,255,.18);
   color: white;
 }
-.feedback-icon-link svg { width: 14px; height: 14px; flex-shrink: 0; }
+.feedback-icon-link svg { width: 17px; height: 17px; flex-shrink: 0; }
 
-#popupMainContent { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+#popupMainContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 0 0 var(--popup-br) var(--popup-br);
+}
 body.popup-settings-visible #popupMainContent { display: none; }
 .popup-settings-screen {
   display: none;
@@ -193,6 +205,7 @@ body.popup-settings-visible #popupMainContent { display: none; }
   min-height: 0;
   overflow: hidden;
   background: var(--surface);
+  border-radius: 0 0 var(--popup-br) var(--popup-br);
 }
 body.popup-settings-visible .popup-settings-screen { display: flex; }
 .popup-settings-screen .settings-header {
@@ -224,10 +237,20 @@ body.popup-settings-visible .popup-settings-screen { display: flex; }
   background: var(--brand-faint);
 }
 .popup-settings-screen .settings-title { font-size: .875rem; font-weight: 700; color: var(--txt); }
-.popup-settings-screen .settings-body { padding: 14px 16px; overflow-y: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.popup-settings-screen .settings-body {
+  padding: var(--panel-inline);
+  padding-bottom: 16px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-sizing: border-box;
+}
 .popup-settings-screen .settings-version { font-size: .7rem; color: var(--txt-soft); margin-top: auto; padding-top: 12px; margin-bottom: 0; }
-.popup-settings-screen .form-label { font-size: .75rem; font-weight: 600; color: var(--txt-mid); margin-bottom: 8px; display: block; }
-.popup-settings-screen .checkbox-row { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: .8125rem; color: var(--txt); margin-bottom: 4px; }
+.popup-settings-screen .form-label { font-size: .75rem; font-weight: 600; color: var(--txt-mid); margin: 0; display: block; }
+.popup-settings-screen .checkbox-row { margin: 0; min-height: 32px; padding: 3px 0; }
 .popup-settings-screen .checkbox-row input { accent-color: var(--brand); }
 .popup-settings-screen .settings-hint {
   font-size: .7rem;
@@ -326,7 +349,9 @@ html.dark-mode .not-on-sp-select option {
 
 /* ── TAB BAR ─────────────────────────── */
 .tab-bar {
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 8;
   background: var(--surface);
   border-bottom: 1.5px solid var(--border);
   display: flex;
@@ -367,6 +392,16 @@ html.dark-mode .not-on-sp-select option {
 }
 .tab:hover { color: var(--txt-mid); }
 .tab.active { color: var(--brand); border-bottom-color: transparent; }
+.tab:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  color: var(--txt-soft);
+}
+.tab:disabled:hover { color: var(--txt-soft); }
+html.dark-mode .tab:disabled {
+  opacity: 0.38;
+  color: rgba(158, 163, 200, 0.75);
+}
 
 /* .tab-content — shown/hidden by popup.js using .active */
 .tab-content {
@@ -409,17 +444,20 @@ body.columns-tab-active { max-height: 600px; }
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 14px;
+  padding: 10px var(--panel-inline);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   background: var(--surface);
+  box-sizing: border-box;
 }
 
 /* ── SHARED INPUT ─────────────────────────── */
 .toolbar input[type="text"],
 .quicklinks-toolbar input[type="text"] {
   flex: 1;
-  padding: 5px 9px;
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 8px 12px;
   border: 1.5px solid var(--border);
   border-radius: var(--r-md);
   background: var(--bg);
@@ -479,27 +517,43 @@ body.columns-tab-active { max-height: 600px; }
 }
 .btn-primary:hover { background: var(--brand-dark); transform: translateY(-1px); }
 
-/* ── SHARED SELECT ─────────────────────────── */
-select {
+/* ── SHARED SELECT / INPUT ─────────────────────────── */
+select,
+.form-field input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.form-input {
   width: 100%;
-  padding: 7px 28px 7px 10px;
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 8px 34px 8px 12px;
   border: 1.5px solid var(--border);
   border-radius: var(--r-md);
-  background-color: white;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235A5F8A' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
+  background-color: var(--surface);
   font-family: var(--font);
   font-size: .8125rem;
   color: var(--txt);
   outline: none;
+  transition: color .2s ease, border-color .2s ease, background .2s ease, background-color .2s ease;
+}
+.form-field input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.form-input {
+  padding: 8px 12px;
+  appearance: none;
+  -webkit-appearance: none;
+}
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235A5F8A' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
   appearance: none;
   -webkit-appearance: none;
   cursor: pointer;
-  transition: color .2s ease, border-color .2s ease, background .2s ease, background-color .2s ease;
 }
-select:hover { border-color: var(--brand-mid); color: var(--brand); background-color: var(--brand-faint); }
-select:focus { border-color: var(--brand-mid); }
+select:hover,
+.form-field input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):hover,
+.form-input:hover { border-color: var(--brand-mid); color: var(--brand); background-color: var(--brand-faint); }
+select:focus,
+.form-field input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+.form-input:focus { border-color: var(--brand-mid); }
 
 /* ── HINT — used as p.hint inside panels by JS ─────────────────────────── */
 p.hint {
@@ -507,7 +561,18 @@ p.hint {
   color: var(--txt-soft);
   font-style: italic;
   line-height: 1.5;
-  padding: 6px 0;
+  padding: 10px 0;
+}
+
+.panel-loading {
+  display: block;
+  padding: 10px 14px;
+  font-size: .8rem;
+  line-height: 1.45;
+  color: var(--txt-soft);
+  font-style: italic;
+  min-height: 36px;
+  box-sizing: border-box;
 }
 
 /* ── STATUS TOAST — #status: fixed bottom-right, static border (no chase), still shows complete/error ─────────────────────────── */
@@ -672,26 +737,59 @@ html.dark-mode #status.success .status-success-icon {
 #pickerStatus.info   { background: var(--brand-soft); color: var(--brand-dark); border: 1.5px solid #C7CDFB; }
 #pickerStatus.error  { background: #FFF1F3; color: #9F1239; border: 1.5px solid #FECDD3; }
 
-/* ── FORM HELPERS ─────────────────────────── */
+/* ── FORM HELPERS (shared field stack) ─────────────────────────── */
+.form-field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--field-label-gap);
+  margin: 0;
+}
 .form-label {
   display: block;
   font-size: .75rem;
   font-weight: 600;
   color: var(--txt-mid);
-  margin-bottom: 4px;
+  margin: 0;
+  line-height: 1.35;
+}
+.form-field > .form-label { margin: 0; }
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--field-stack-gap);
+}
+.form-hint {
+  font-size: .72rem;
+  color: var(--txt-soft);
+  line-height: 1.45;
+  margin: 0;
 }
 .checkbox-row {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px 10px;
-  border-radius: var(--r-md);
-  background: var(--bg);
-  border: 1.5px solid var(--border);
+  gap: 10px;
+  margin: 0;
+  padding: 3px 0;
+  min-height: 32px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: .8125rem;
+  color: var(--txt);
+  line-height: 1.4;
+}
+.checkbox-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--brand);
   cursor: pointer;
 }
-.checkbox-row input[type="checkbox"] { accent-color: var(--brand); }
-.checkbox-row label { font-size: .8125rem; color: var(--txt); cursor: pointer; }
+.checkbox-row label { font-size: inherit; color: inherit; cursor: pointer; margin: 0; }
 
 /* ═══════════════════════════════════════
    QUICK LINKS — tile grid with icons
@@ -722,6 +820,48 @@ html.dark-mode #status.success .status-success-icon {
 .quicklinks-toolbar input[type="text"] {
   width: 100%;
   box-sizing: border-box;
+}
+
+.site-contents-tab-inner {
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 100%;
+}
+.site-contents-lead {
+  font-size: .8rem;
+  color: var(--txt-mid);
+  line-height: 1.45;
+}
+.site-contents-open-btn {
+  align-self: flex-start;
+}
+.site-contents-status {
+  font-size: .75rem;
+  color: var(--txt-mid);
+  min-height: 1.2em;
+}
+.site-contents-classic-wrap {
+  font-size: .72rem;
+  color: var(--txt-soft);
+  margin-top: 4px;
+}
+.site-contents-classic-link {
+  color: var(--brand);
+  font-weight: 600;
+  text-decoration: none;
+}
+.site-contents-classic-link:hover {
+  text-decoration: underline;
+}
+.site-contents-classic-hint {
+  color: var(--txt-soft);
+  font-weight: 400;
+}
+html.dark-mode .site-contents-lead,
+html.dark-mode .site-contents-status {
+  color: var(--txt-soft);
 }
 
 .ql-section-label {
@@ -861,17 +1001,20 @@ html.dark-mode #status.success .status-success-icon {
 }
 #contextFilterByValue { accent-color: var(--brand); }
 
-#contextCount {
+#contextCount,
+#searchSchemaCount {
   font-size: .72rem;
   color: var(--txt-soft);
-  padding: 5px 14px 2px;
+  padding: 0 var(--panel-inline) 8px;
+  margin: 0;
   flex-shrink: 0;
+  line-height: 1.35;
 }
 
 #contextList {
   flex: 1;
   overflow-y: auto;
-  padding: 0 14px 10px;
+  padding: 0 var(--panel-inline) 10px;
 }
 
 /* Rows injected by renderContextList() */
@@ -928,11 +1071,13 @@ html.dark-mode #status.success .status-success-icon {
    SEARCH SCHEMA (COLUMNS TAB)
 ═══════════════════════════════════════ */
 #searchSchemaPanel { padding: 0; }
-
-#searchSchemaCount {
-  font-size: .72rem;
-  color: var(--txt-soft);
-  padding: 5px 14px 2px;
+#searchSchemaPanel #searchSchemaError {
+  margin: 0 var(--panel-inline) var(--field-stack-gap);
+}
+#searchSchemaPanel .schema-col-header,
+#searchSchemaPanel #searchSchemaList {
+  margin-left: var(--panel-inline);
+  margin-right: var(--panel-inline);
 }
 
 #searchSchemaError {
@@ -951,9 +1096,11 @@ html.dark-mode #status.success .status-success-icon {
   display: grid;
   grid-template-columns: 2fr 2fr 2fr 1fr;
   gap: 8px;
-  padding: 5px 14px;
-  border-bottom: 1.5px solid var(--border);
-  background: var(--bg);
+  padding: 8px var(--panel-inline);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  background: var(--surface);
 }
 .schema-col-header span {
   font-size: .65rem;
@@ -967,7 +1114,12 @@ html.dark-mode #status.success .status-success-icon {
 #searchSchemaList {
   flex: 1;
   overflow-y: auto;
-  padding: 0 14px 10px;
+  padding: 0 0 10px;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  border-radius: 0 0 var(--r-md) var(--r-md);
+  background: var(--surface);
 }
 
 /* Rows injected by renderSearchSchemaList() */
@@ -975,20 +1127,68 @@ html.dark-mode #status.success .status-success-icon {
   display: grid;
   grid-template-columns: 2fr 2fr 2fr 1fr;
   gap: 8px;
-  padding: 7px 0;
+  padding: 8px var(--panel-inline);
   border-bottom: 1px solid var(--border);
-  align-items: center;
+  align-items: start;
 }
 .search-schema-row:last-child { border: none; }
-.search-schema-row .col-name  { font-size: .8rem; font-weight: 600; color: var(--txt); }
+.search-schema-row > * { min-width: 0; }
+.search-schema-row .col-name  { font-size: .8rem; font-weight: 600; color: var(--txt); word-break: break-word; overflow-wrap: anywhere; }
 .search-schema-row .col-name-link {
   color: var(--brand);
   font-weight: 600;
   text-decoration: none;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 .search-schema-row .col-name-link:hover { text-decoration: underline; }
-.search-schema-row .col-internal { font-size: .72rem; color: var(--txt-mid); font-family: monospace; }
-.search-schema-row .col-crawled  { font-size: .68rem; color: var(--txt-soft); overflow: hidden; text-overflow: ellipsis; }
+.search-schema-row .col-internal {
+  font-size: .72rem;
+  color: var(--txt-mid);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.search-schema-row .col-crawled  {
+  font-size: .68rem;
+  color: var(--txt-soft);
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+#columnCreatorHost:not(:empty) { margin: 0 var(--panel-inline) var(--field-stack-gap); }
+#columnCreatorHost:empty { display: none; margin: 0; }
+.column-creator { margin: 0; padding: 12px var(--panel-inline); border: 1.5px solid var(--border); border-radius: var(--r-md); background: var(--surface); display: flex; flex-direction: column; gap: 12px; }
+.column-creator[hidden] { display: none !important; }
+.column-creator-label { display: block; font-size: .75rem; font-weight: 600; color: var(--txt-mid); margin: 0; line-height: 1.35; }
+.column-creator-check { display: flex; align-items: center; gap: 8px; font-size: .8rem; color: var(--txt); margin: 0; }
+.column-creator-create-fields, .column-creator-site-pick { display: flex; flex-direction: column; gap: 12px; }
+.column-creator-type-options { display: flex; flex-direction: column; gap: 8px; }
+.column-creator-create-fields[hidden], .column-creator-site-pick[hidden] { display: none !important; }
+.column-creator-preview { padding: 8px 10px; border-radius: var(--r-sm); background: var(--bg); border: 1px solid var(--border); }
+.column-creator-preview-label { display: block; font-size: .65rem; font-weight: 700; color: var(--txt-soft); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+.column-creator-internal { display: block; font-size: .8rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--txt); word-break: break-all; }
+.column-creator-crawled { margin-top: 4px; font-size: .68rem; color: var(--txt-soft); }
+.column-creator-notes { font-size: .72rem; color: var(--txt-mid); }
+.column-creator-note { margin: 0 0 4px; }
+.column-creator-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.column-creator-submit { padding: 7px 12px; border-radius: var(--r-sm); border: none; background: var(--brand); color: #fff; font-size: .78rem; font-weight: 600; cursor: pointer; }
+.column-creator-submit:disabled { opacity: .55; cursor: not-allowed; }
+.column-creator-status { font-size: .72rem; color: var(--txt-soft); }
+.column-creator-status.err { color: #9F1239; }
+.column-creator-status.ok { color: var(--green); }
+.column-creator-placement, .column-creator-type, .column-creator-group, .column-creator-title-input, .column-creator-description, .column-creator-choices, .column-creator-site-filter, .column-creator-type-options select, .column-creator-type-options input { width: 100%; box-sizing: border-box; padding: 8px 11px; border-radius: var(--r-sm); border: 1.5px solid var(--border); background: var(--bg); color: var(--txt); font-size: .8rem; }
+.column-creator-description, .column-creator-choices { min-height: 72px; resize: vertical; }
+.column-creator-site-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--bg); padding: 6px; }
+.column-creator-site-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 6px 8px; border-radius: var(--r-sm); background: var(--surface); border: 1px solid var(--border); }
+.column-creator-site-title { font-size: .8rem; font-weight: 600; color: var(--txt); }
+.column-creator-site-internal { font-size: .72rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--txt-mid); }
+.column-creator-site-type { font-size: .68rem; color: var(--txt-soft); }
+.column-creator-site-add { padding: 5px 10px; border-radius: var(--r-sm); border: 1px solid var(--brand-soft); background: var(--brand-soft); color: var(--brand); font-size: .72rem; font-weight: 600; cursor: pointer; }
+.column-creator-site-add:disabled { opacity: .55; cursor: not-allowed; }
+.column-creator-site-empty { padding: 10px 8px; font-size: .72rem; color: var(--txt-soft); }
+#btnOpenColumnCreator.column-creator-open { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
 .search-schema-row .col-type {
   font-size: .68rem;
   background: var(--brand-soft);
@@ -998,9 +1198,8 @@ html.dark-mode #status.success .status-success-icon {
   font-weight: 700;
   text-align: left;
   justify-self: start;
+  align-self: start;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* ═══════════════════════════════════════
@@ -1012,23 +1211,233 @@ body.reports-settings-visible #reportsPanel { min-height: 260px; }
 
 /* #downloadMain — toggled with .hidden by JS */
 #downloadMain {
-  padding: 14px;
+  padding: var(--panel-inline);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--field-stack-gap);
   flex: 1;
+  box-sizing: border-box;
+}
+#reportsConfigPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--field-stack-gap);
 }
 #downloadMain.hidden { display: none; }
 
-#reportOptions { display: none; }
+#reportOptions { display: none; flex-direction: column; gap: var(--field-stack-gap); }
 #matrixWholeSiteRow { display: none; }
+#matrixOptionsPanel { display: none; flex-direction: column; gap: var(--field-stack-gap); }
+#matrixOptionsPanel.visible { display: flex; }
 #exportOptionsRow   { display: none; }
+
+.matrix-advanced-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--field-stack-gap) 16px;
+  align-items: start;
+}
+.matrix-advanced-grid .form-field { min-width: 0; }
+.matrix-advanced-grid .form-input,
+.matrix-advanced-grid select {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.matrix-sites-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 0 0 var(--field-label-gap);
+}
+.matrix-sites-toolbar button {
+  padding: 4px 8px;
+  font-size: .72rem;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+}
+.matrix-sites-list {
+  max-height: 120px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 6px;
+  font-size: .75rem;
+  background: var(--surface);
+}
+.matrix-site-item {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 0;
+}
+.matrix-site-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--brand);
+}
+.matrix-site-meta {
+  color: var(--txt-soft);
+  font-size: .68rem;
+}
+
+.export-progress-console {
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.export-progress-headwrap {
+  flex-shrink: 0;
+  background: inherit;
+}
+.export-progress-console.hidden { display: none; }
+.export-progress-bar-wrap {
+  height: 6px;
+  background: var(--surface-alt, #eef2f7);
+  position: relative;
+  overflow: hidden;
+}
+.export-progress-console.export-progress-active .export-progress-bar-wrap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(55, 174, 28, 0.28), transparent);
+  animation: export-bar-wave 1.8s ease-in-out infinite;
+  pointer-events: none;
+}
+.export-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--brand);
+  transition: width .25s ease;
+  position: relative;
+  z-index: 1;
+}
+.export-progress-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px 4px;
+}
+.export-progress-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+.export-progress-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(55, 174, 28, 0.2);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: none;
+  animation: export-spin .75s linear infinite;
+}
+.export-progress-console.export-progress-active .export-progress-spinner {
+  display: block;
+}
+.export-progress-message {
+  padding: 0;
+  font-size: .75rem;
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.export-progress-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.export-progress-cancel {
+  display: none;
+  padding: 2px 8px;
+  font-size: .65rem;
+  line-height: 1.4;
+  min-height: 0;
+}
+.export-progress-console.export-progress-active .export-progress-cancel {
+  display: inline-flex;
+}
+.export-progress-elapsed {
+  font-size: .68rem;
+  font-weight: 600;
+  color: var(--txt-soft);
+  font-variant-numeric: tabular-nums;
+  min-width: 3.5em;
+  text-align: right;
+}
+@keyframes export-spin { to { transform: rotate(360deg); } }
+@keyframes export-bar-wave {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.export-progress-pct {
+  font-size: .72rem;
+  font-weight: 700;
+  color: var(--brand);
+  white-space: nowrap;
+}
+.export-progress-log {
+  flex: 1;
+  min-height: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 8px 8px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: .68rem;
+  line-height: 1.35;
+  color: var(--txt-soft);
+  white-space: pre-wrap;
+}
+
+#downloadMain {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+#downloadMain.reports-export-active #reportsConfigPanel { display: none; }
+#downloadMain.reports-export-active #exportProgressConsole {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1;
+  min-height: 300px;
+  margin: 0;
+}
+#downloadMain.reports-export-active .export-progress-log {
+  flex: 1;
+  max-height: none;
+  min-height: 0;
+  overflow-y: auto;
+}
 
 .btn-row {
   display: flex;
-  gap: 7px;
+  gap: 8px;
   align-items: center;
   flex-wrap: wrap;
+  margin-top: 4px;
 }
 
 #btnExport {
@@ -1192,6 +1601,17 @@ body.reports-settings-visible #reportsPanel { min-height: 260px; }
   background: var(--bg);
 }
 #settingsPanel.visible { display: flex; }
+#matrixSettingsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: var(--field-stack-gap);
+  border-top: 1px solid var(--border);
+}
+#matrixSettingsSection > .form-label {
+  margin: 0 0 2px;
+}
 
 .settings-header {
   display: flex;
@@ -1205,10 +1625,11 @@ body.reports-settings-visible #reportsPanel { min-height: 260px; }
 .settings-header-title { font-size: .875rem; font-weight: 700; flex: 1; }
 
 .settings-body {
-  padding: 14px;
+  padding: var(--panel-inline);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--field-stack-gap);
+  box-sizing: border-box;
 }
 .settings-note {
   font-size: .75rem;
@@ -1256,7 +1677,12 @@ body.reports-settings-visible #reportsPanel { min-height: 260px; }
   color: var(--txt-mid);
 }
 .refinable-mappings-out.empty { display: none; }
-.refinable-mappings-out.loading { font-style: italic; color: var(--txt-soft); }
+.refinable-mappings-out.loading {
+  font-style: italic;
+  color: var(--txt-soft);
+  padding: 10px 0;
+  min-height: 36px;
+}
 .refinable-mappings-out.error { color: var(--coral); }
 .refinable-mappings-list { list-style: none; padding: 0; margin: 0; }
 .refinable-mappings-list li {
@@ -1520,6 +1946,9 @@ html.dark-mode .dark-toggle-btn .dark-toggle-knob {
   align-items: flex-start;
   justify-content: center;
   padding: 14px 12px;
+  /* Fixed layers ignore body clipping — round to match popup so backdrop meets window corners */
+  border-radius: 0 0 var(--popup-br) var(--popup-br);
+  overflow: hidden;
 }
 .universal-search-overlay.open { display: flex; }
 .universal-search-dialog {
@@ -1542,14 +1971,14 @@ body.universal-search-open .universal-search-dialog {
 .universal-search-input-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 12px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--border);
 }
 .universal-search-input-wrap svg {
-  width: 14px;
-  height: 14px;
-  color: var(--txt-soft);
+  width: 18px;
+  height: 18px;
+  color: var(--txt-mid);
   flex-shrink: 0;
 }
 #universalSearchInput {
@@ -1562,12 +1991,19 @@ body.universal-search-open .universal-search-dialog {
   font-size: .85rem;
 }
 .universal-search-hint {
-  font-size: .67rem;
-  color: var(--txt-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 22px;
+  font-size: .72rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--txt-mid);
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 2px 5px;
+  border-radius: 7px;
+  padding: 0 8px;
 }
 .universal-search-results {
   flex: 1 1 auto;
@@ -1632,7 +2068,7 @@ body.universal-search-open .universal-search-dialog {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
   </a>
   <button type="button" class="popup-header-search-btn" id="btnUniversalSearch" title="Universal Settings Search" aria-label="Open Universal Settings Search">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 100 13.5 6.75 6.75 0 000-13.5zM2.25 10.5a8.25 8.25 0 1114.59 5.31l3.94 3.94a.75.75 0 11-1.06 1.06l-3.94-3.94A8.25 8.25 0 012.25 10.5z"/></svg>
   </button>
   <button type="button" class="popup-header-settings-btn" id="btnSettingsGear" title="Settings" aria-label="Settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -1656,7 +2092,15 @@ body.universal-search-open .universal-search-dialog {
     </label>
     <label class="checkbox-row">
       <input type="checkbox" id="chkUniversalSearchOpenOnLoad" />
-      <span>Open Universal Settings Search when the popup opens</span>
+      <span>Open Universal Settings Search when the dropdown opens</span>
+    </label>
+    <label class="checkbox-row">
+      <input type="checkbox" id="chkCompassUniversalSearchOpenOnLoad" />
+      <span>Open Universal Search when the popout opens</span>
+    </label>
+    <label class="checkbox-row">
+      <input type="checkbox" id="chkCompassRememberActiveTab" />
+      <span>Remember last tab when opening popout</span>
     </label>
     <label class="checkbox-row">
       <input type="checkbox" id="chkUniversalSearchHotkeyEnabled" />
@@ -1692,6 +2136,7 @@ body.universal-search-open .universal-search-dialog {
   <button class="tab" id="tabReports" data-tab="reports">Reports</button>
   <button class="tab" data-tab="refinableProps">Refinables</button>
   <button class="tab" id="tabViewManager" data-tab="viewManager">Views</button>
+  <button class="tab" id="tabSiteContents" data-tab="siteContents">Site Contents</button>
 </div>
 
 <!-- ═══ QUICK LINKS ═══ -->
@@ -1739,10 +2184,11 @@ body.universal-search-open .universal-search-dialog {
 <div class="tab-content" id="searchSchemaPanel">
   <div class="toolbar">
     <input type="text" id="searchSchemaFilter" placeholder="Search columns…" />
-    <button type="button" id="btnRefreshSearchSchema" class="btn-ghost btn-ghost-icon" title="Refresh columns" aria-label="Refresh columns">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+    <button type="button" id="btnOpenColumnCreator" class="btn-ghost btn-ghost-icon" title="Create column" aria-label="Create column" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
     </button>
   </div>
+  <div id="columnCreatorHost"></div>
   <div id="searchSchemaCount">Columns: —</div>
   <div id="searchSchemaError"></div>
   <div class="schema-col-header">
@@ -1759,10 +2205,30 @@ body.universal-search-open .universal-search-dialog {
 
   <!-- #downloadMain — .hidden toggled by JS -->
   <div id="downloadMain">
+    <div id="exportProgressConsole" class="export-progress-console hidden" aria-live="polite">
+      <div class="export-progress-headwrap">
+        <div class="export-progress-bar-wrap"><div id="exportProgressBar" class="export-progress-bar"></div></div>
+        <div class="export-progress-head">
+          <div class="export-progress-status">
+            <span class="export-progress-spinner" aria-hidden="true"></span>
+            <div id="exportProgressMessage" class="export-progress-message"></div>
+          </div>
+          <div class="export-progress-meta">
+            <span id="exportProgressElapsed" class="export-progress-elapsed"></span>
+            <button type="button" id="exportProgressCancel" class="btn-ghost export-progress-cancel" title="Stop export">Cancel</button>
+            <div id="exportProgressPct" class="export-progress-pct"></div>
+          </div>
+        </div>
+      </div>
+      <div id="exportProgressLog" class="export-progress-log"></div>
+    </div>
+
+    <div id="reportsConfigPanel" class="form-stack">
+
     <div id="status"><span class="status-toast-inner"><span class="status-spinner" aria-hidden="true"></span><span class="status-success-icon" aria-hidden="true">✓</span><span class="status-text"></span></span></div>
 
-    <div>
-      <label class="form-label">Report Type</label>
+    <div class="form-field">
+      <label class="form-label" for="reportSelect">Report Type</label>
       <select id="reportSelect">
         <option value="exportCSV" id="reportOptionExportCSV">Export List / Library to CSV / Excel</option>
         <option value="folderCount">Folder &amp; Item Counts</option>
@@ -1771,15 +2237,25 @@ body.universal-search-open .universal-search-dialog {
       </select>
     </div>
 
-    <div id="reportOptions">
+    <div id="reportOptions" class="form-stack">
       <div id="matrixWholeSiteRow">
-        <label class="checkbox-row">
-          <input type="checkbox" id="chkMatrixWholeSite" />
-          <label for="chkMatrixWholeSite">Scan entire site (slow)</label>
-        </label>
+        <div id="matrixOptionsPanel">
+          <div class="form-field">
+            <label class="form-label">Sites to scan</label>
+            <div class="matrix-sites-toolbar">
+              <button type="button" id="btnMatrixLoadSites">Load sites</button>
+              <button type="button" id="btnMatrixSitesAll">All</button>
+              <button type="button" id="btnMatrixSitesNone">None</button>
+            </div>
+            <div id="matrixSitesList" class="matrix-sites-list" aria-live="polite">
+              <span class="form-hint">Click Load sites to choose root site and subsites (same as PowerShell picker).</span>
+            </div>
+          </div>
+          <p class="form-hint">Matrix options are in Settings (gear). Matrix shows broken inheritance only.</p>
+        </div>
       </div>
-      <div id="exportOptionsRow">
-        <label class="form-label">Export Format</label>
+      <div id="exportOptionsRow" class="form-field">
+        <label class="form-label" for="formatSelect">Export Format</label>
         <select id="formatSelect">
           <option value="xlsx">Excel (.xlsx)</option>
           <option value="csv">CSV (.csv)</option>
@@ -1791,6 +2267,7 @@ body.universal-search-open .universal-search-dialog {
       <button id="btnExport">Run Export</button>
       <button id="btnChooseColumns">Choose Columns</button>
       <button id="btnSettings">⚙</button>
+    </div>
     </div>
   </div>
 
@@ -1822,8 +2299,8 @@ body.universal-search-open .universal-search-dialog {
       <button id="btnSettingsBack">← Back</button>
       <span class="settings-header-title">Settings</span>
     </div>
-    <div class="settings-body">
-      <div>
+    <div class="settings-body form-stack">
+      <div class="form-field">
         <label class="form-label" for="pageSizeSelect">Page Size (items per request)</label>
         <select id="pageSizeSelect">
           <option value="500">500</option>
@@ -1832,7 +2309,7 @@ body.universal-search-open .universal-search-dialog {
         </select>
       </div>
       <p class="settings-note">Larger page sizes export faster but may time out on very large lists. 5000 is recommended.</p>
-      <div>
+      <div class="form-field">
         <label class="form-label" for="defaultExportFormatSelect">Default export format</label>
         <select id="defaultExportFormatSelect">
           <option value="xlsx" selected>Excel (.xlsx)</option>
@@ -1840,6 +2317,43 @@ body.universal-search-open .universal-search-dialog {
         </select>
       </div>
       <p class="settings-note">Used for the &quot;Export List/Library&quot; report. You can still change the format per run in the Reports tab.</p>
+      <div id="matrixSettingsSection">
+        <label class="form-label">Permissions matrix</label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="chkMatrixIncludeSubsites" checked />
+          <label for="chkMatrixIncludeSubsites">Include subsites when loading site list</label>
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="chkMatrixExpandGroups" />
+          <label for="chkMatrixExpandGroups">Expand groups in matrix</label>
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="chkMatrixIncludeAllInherited" />
+          <label for="chkMatrixIncludeAllInherited">Include ALL inherited rows (slow)</label>
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="chkMatrixIncludeFolderSharingLinks" checked />
+          <label for="chkMatrixIncludeFolderSharingLinks">Include folder sharing links</label>
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="chkMatrixSharingLinkFetchAll" checked />
+          <label for="chkMatrixSharingLinkFetchAll">Fetch sharing link URLs for all unique items (matches PowerShell; slower)</label>
+        </label>
+        <div class="matrix-advanced-grid">
+          <div class="form-field">
+            <label class="form-label" for="matrixMaxItems">Max list items (full matrix)</label>
+            <input type="number" id="matrixMaxItems" min="0" step="100" value="2000" class="form-input" />
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="matrixPageSize">List item page size</label>
+            <select id="matrixPageSize">
+              <option value="500">500</option>
+              <option value="1000">1000</option>
+              <option value="5000" selected>5000</option>
+            </select>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1847,14 +2361,14 @@ body.universal-search-open .universal-search-dialog {
 
 <!-- ═══ REFINABLE PROPS ═══ -->
 <div class="tab-content" id="refinablePropsPanel">
-  <div class="refinable-props-body">
-    <div>
+  <div class="refinable-props-body form-stack">
+    <div class="form-field">
       <label class="form-label" for="refinableTypeSelect">Refinable type</label>
       <select id="refinableTypeSelect">
         <!-- Options filled by popup.js -->
       </select>
     </div>
-    <div>
+    <div class="form-field">
       <label class="form-label" for="refinableNumberSelect">Number</label>
       <select id="refinableNumberSelect">
         <!-- Options filled by popup.js -->
@@ -1886,6 +2400,19 @@ body.universal-search-open .universal-search-dialog {
       <svg viewBox="0 0 24 24"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/></svg>
       View formatter
     </button>
+  </div>
+</div>
+
+<!-- ═══ SITE CONTENTS (in-page panel — same as compass launcher) ═══ -->
+<div class="tab-content" id="siteContentsPanel">
+  <div class="site-contents-tab-inner">
+    <p class="site-contents-lead">Open the same lists and libraries panel that appears from the compass icon on the page: filters, subsites, and toolbar shortcuts.</p>
+    <button type="button" id="btnOpenSiteContentsPanel" class="btn-primary site-contents-open-btn">Open Site Contents panel</button>
+    <p class="site-contents-status" id="siteContentsPanelStatus" role="status"></p>
+    <p class="site-contents-classic-wrap">
+      <a id="siteContentsClassicLink" class="site-contents-classic-link" href="#" target="_blank" rel="noopener noreferrer">Classic Site contents page</a>
+      <span class="site-contents-classic-hint">(<code>viewlsts.aspx</code>)</span>
+    </p>
   </div>
 </div>
 </div><!-- /#popupMainContent -->

@@ -93,6 +93,7 @@ loadDarkMode();
 // --- Settings (gear: open settings screen; back button: return to main) ---
 const chkListsLauncherEnabled = document.getElementById("chkListsLauncherEnabled");
 const chkUniversalSearchOpenOnLoad = document.getElementById("chkUniversalSearchOpenOnLoad");
+const chkCompassUniversalSearchOpenOnLoad = document.getElementById("chkCompassUniversalSearchOpenOnLoad");
 const chkUniversalSearchHotkeyEnabled = document.getElementById("chkUniversalSearchHotkeyEnabled");
 const universalSearchShortcutDisplay = document.getElementById("universalSearchShortcutDisplay");
 
@@ -113,10 +114,11 @@ document.getElementById("btnSettingsBackToMain")?.addEventListener("click", () =
   document.body.classList.remove("popup-settings-visible");
 });
 chrome.storage.local.get(
-  ["listsLauncherEnabled", "universalSearchOpenOnLoad", "universalSearchHotkeyEnabled"],
+  ["listsLauncherEnabled", "universalSearchOpenOnLoad", "compassUniversalSearchOpenOnLoad", "universalSearchHotkeyEnabled"],
   (r) => {
     if (chkListsLauncherEnabled) chkListsLauncherEnabled.checked = r.listsLauncherEnabled !== false;
     if (chkUniversalSearchOpenOnLoad) chkUniversalSearchOpenOnLoad.checked = !!r.universalSearchOpenOnLoad;
+    if (chkCompassUniversalSearchOpenOnLoad) chkCompassUniversalSearchOpenOnLoad.checked = !!r.compassUniversalSearchOpenOnLoad;
     if (chkUniversalSearchHotkeyEnabled) chkUniversalSearchHotkeyEnabled.checked = r.universalSearchHotkeyEnabled !== false;
   }
 );
@@ -125,6 +127,9 @@ chkListsLauncherEnabled?.addEventListener("change", () => {
 });
 chkUniversalSearchOpenOnLoad?.addEventListener("change", () => {
   chrome.storage.local.set({ universalSearchOpenOnLoad: chkUniversalSearchOpenOnLoad.checked });
+});
+chkCompassUniversalSearchOpenOnLoad?.addEventListener("change", () => {
+  chrome.storage.local.set({ compassUniversalSearchOpenOnLoad: chkCompassUniversalSearchOpenOnLoad.checked });
 });
 chkUniversalSearchHotkeyEnabled?.addEventListener("change", () => {
   chrome.storage.local.set({ universalSearchHotkeyEnabled: chkUniversalSearchHotkeyEnabled.checked });

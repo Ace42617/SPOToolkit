@@ -3,6 +3,140 @@
 
 const RB_WAIT_SESSION_KEY = "__SPO_TOOLKIT_RB_WAIT__";
 const ADMIN_WAIT_SESSION_KEY = "__SPO_TOOLKIT_ADMIN_WAIT__";
+const SECOND_STAGE_RB_PORT = "SPOToolkitSecondStageRecycleBin";
+
+function normalizeTrailingSlashRb(url) {
+  if (!url || typeof url !== "string") return "";
+  return url.replace(/\/$/, "");
+}
+
+const ADMIN_RECYCLE_BIN_SECOND_STAGE_SUFFIX_RB = "/_layouts/15/AdminRecycleBin.aspx?view=5#view=13";
+
+function secondStageRecycleBinUrlRb(siteCollectionRootAbsoluteUrl) {
+  const base = normalizeTrailingSlashRb(siteCollectionRootAbsoluteUrl);
+  if (!base) return "";
+  return base + ADMIN_RECYCLE_BIN_SECOND_STAGE_SUFFIX_RB;
+}
+
+function isToolkitSharePointPageForRb(url) {
+  if (!url || typeof url !== "string") return false;
+  if (!url.includes("sharepoint.com")) return false;
+  try {
+    return !new URL(url).hostname.toLowerCase().endsWith("-admin.sharepoint.com");
+  } catch (_) {
+    return true;
+  }
+}
+
+function parseContextFromUrlForRb(pageUrl) {
+  if (!pageUrl || !isToolkitSharePointPageForRb(pageUrl)) {
+    return { webAbsoluteUrl: "", pageListId: "", viewId: "" };
+  }
+  try {
+    const u = new URL(pageUrl);
+    let webAbsoluteUrl = "";
+    let pageListId = "";
+    let viewId = "";
+    const listParam = u.searchParams.get("List") || u.searchParams.get("list");
+    if (listParam) pageListId = String(listParam).replace(/^\{|\}$/g, "").replace(/%7B|%7D/gi, "");
+    const viewParam = u.searchParams.get("View") || u.searchParams.get("view");
+    if (viewParam) viewId = String(viewParam).replace(/^\{|\}$/g, "").replace(/%7B|%7D/gi, "");
+    const path = decodeURIComponent(u.pathname.replace(/\/$/, ""));
+    const segments = path.split("/").filter(Boolean);
+    let siteEnd = -1;
+    for (let i = 0; i < segments.length; i++) {
+      if ((segments[i] === "sites" || segments[i] === "site" || segments[i] === "teams") && segments[i + 1]) {
+        siteEnd = i + 1;
+        break;
+      }
+    }
+    webAbsoluteUrl = siteEnd >= 0 ? u.origin + "/" + segments.slice(0, siteEnd + 1).join("/") : u.origin;
+    return { webAbsoluteUrl, pageListId, viewId };
+  } catch (_) {
+    return { webAbsoluteUrl: "", pageListId: "", viewId: "" };
+  }
+}
+
+function sitePathFromWebAbsoluteUrlRb(webAbsoluteUrl) {
+  if (!webAbsoluteUrl) return "";
+  try {
+    return new URL(webAbsoluteUrl).pathname.replace(/\/$/, "") || "/";
+  } catch (_) {
+    return "";
+  }
+}
+
+function startSecondStageRecycleBinLikePopup(tabId, keepalivePort) {
+  function bail() {
+    if (!keepalivePort) return;
+    try {
+      keepalivePort.disconnect();
+    } catch (_) {}
+  }
+  chrome.tabs.get(tabId, (tab) => {
+    if (chrome.runtime.lastError || !tab || !tab.url) {
+      bail();
+      return;
+    }
+    const pageUrl = tab.url;
+    if (!isToolkitSharePointPageForRb(pageUrl)) {
+      bail();
+      return;
+    }
+    const ctx = parseContextFromUrlForRb(pageUrl);
+    let siteBase = "";
+    try {
+      siteBase = (ctx.webAbsoluteUrl || "").replace(/\/$/, "") || new URL(pageUrl).origin;
+    } catch (_) {
+      bail();
+      return;
+    }
+    if (!siteBase) {
+      bail();
+      return;
+    }
+
+    chrome.tabs.sendMessage(tabId, { action: "getPageContext" }, (pc) => {
+      void chrome.runtime.lastError;
+      let fromPage = "";
+      if (pc && pc.ok && (pc.siteAbsoluteUrl || "").trim()) {
+        fromPage = normalizeTrailingSlashRb(pc.siteAbsoluteUrl.trim());
+      }
+      if (fromPage) {
+        finish(fromPage);
+        return;
+      }
+      const sitePath = sitePathFromWebAbsoluteUrlRb(siteBase) || "/";
+      chrome.tabs.sendMessage(
+        tabId,
+        { action: "rest", method: "GET", path: sitePath + "/_api/site/rootweb?$select=Url" },
+        (rest) => {
+          void chrome.runtime.lastError;
+          let fromRest = "";
+          if (rest && rest.ok && rest.data) {
+            const d = rest.data;
+            const u =
+              (typeof d.Url === "string" && d.Url.trim()) ||
+              (typeof d.url === "string" && d.url.trim()) ||
+              "";
+            if (u) fromRest = normalizeTrailingSlashRb(u);
+          }
+          finish(fromRest || normalizeTrailingSlashRb(siteBase));
+        }
+      );
+    });
+
+    function finish(siteCollRoot) {
+      const secondUrl = secondStageRecycleBinUrlRb(siteCollRoot);
+      const firstUrl = normalizeTrailingSlashRb(siteBase) + "/_layouts/15/RecycleBin.aspx";
+      if (!secondUrl || !firstUrl) {
+        bail();
+        return;
+      }
+      openSecondStageRecycleBinSequence(tabId, firstUrl, secondUrl, keepalivePort);
+    }
+  });
+}
 
 /** @param {string} url */
 function isSharePointTenantAdminUrl(url) {
@@ -106,7 +240,15 @@ function injectRecycleBinWaitOverlay(tabId, done) {
   );
 }
 
-function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl) {
+function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl, keepalivePort) {
+  let portToClose = keepalivePort;
+  function disconnectKeepalive() {
+    if (!portToClose) return;
+    try {
+      portToClose.disconnect();
+    } catch (_) {}
+    portToClose = null;
+  }
   let settled = false;
   let sequenceClosed = false;
   let failsafe = 0;
@@ -129,6 +271,7 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
       teardownAdminHashWait();
       teardownAdminHashWait = null;
     }
+    disconnectKeepalive();
   }
 
   function endFirstStageOnly() {
@@ -286,6 +429,38 @@ chrome.commands.onCommand.addListener((command) => {
   });
 });
 
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== SECOND_STAGE_RB_PORT) return;
+  const onStart = (msg) => {
+    if (!msg) return;
+    if (msg.type === "startLikePopup") {
+      port.onMessage.removeListener(onStart);
+      const tabId = msg.tabId != null ? msg.tabId : port.sender && port.sender.tab && port.sender.tab.id;
+      if (tabId == null) {
+        try {
+          port.disconnect();
+        } catch (_) {}
+        return;
+      }
+      startSecondStageRecycleBinLikePopup(tabId, port);
+      return;
+    }
+    if (msg.type !== "start") return;
+    port.onMessage.removeListener(onStart);
+    const tabId = msg.tabId != null ? msg.tabId : port.sender && port.sender.tab && port.sender.tab.id;
+    const firstUrl = String(msg.firstUrl || "");
+    const secondUrl = String(msg.secondUrl || "");
+    if (tabId == null || !firstUrl || !secondUrl) {
+      try {
+        port.disconnect();
+      } catch (_) {}
+      return;
+    }
+    openSecondStageRecycleBinSequence(tabId, firstUrl, secondUrl, port);
+  };
+  port.onMessage.addListener(onStart);
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "SPOToolkitOpenTenantAdminWithWait") {
     const url = String(message.url || "");
@@ -297,15 +472,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ ok: true });
     return false;
   }
+  if (message.type === "SPOToolkitSecondStageRecycleBinLikePopup") {
+    const tabId =
+      message.tabId != null ? message.tabId : sender.tab && sender.tab.id;
+    if (tabId == null) {
+      sendResponse({ ok: false, error: "No tab" });
+      return false;
+    }
+    startSecondStageRecycleBinLikePopup(tabId, null);
+    sendResponse({ ok: true });
+    return false;
+  }
   if (message.type !== "SPOToolkitSecondStageRecycleBin") return;
-  const tabId = message.tabId;
+  const tabId =
+    message.tabId != null ? message.tabId : sender.tab && sender.tab.id;
   const firstUrl = String(message.firstUrl || "");
   const secondUrl = String(message.secondUrl || "");
   if (tabId == null || !firstUrl || !secondUrl) {
     sendResponse({ ok: false, error: "Missing tab or URL" });
     return false;
   }
-  openSecondStageRecycleBinSequence(tabId, firstUrl, secondUrl);
+  openSecondStageRecycleBinSequence(tabId, firstUrl, secondUrl, null);
   sendResponse({ ok: true });
   return false;
 });

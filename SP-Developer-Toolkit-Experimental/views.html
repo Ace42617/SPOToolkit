@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>View Manager – SP Developer Toolkit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ── RESET ─────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /* ── TOKENS (match popup) ─────────────────────────── */
+    :root {
+      --brand:       #37ae1c;
+      --brand-dark:  #3D4FD6;
+      --brand-mid:   #7B89F5;
+      --brand-soft:  #EEF0FE;
+      --brand-faint: #F5F6FF;
+      --green:       #22C55E;
+      --coral:       #F04E65;
+      --bg:          #F3F4FB;
+      --surface:     #FFFFFF;
+      --border:      #E4E6F5;
+      --border-mid:  #CDD0EE;
+      --txt:         #1C1F4A;
+      --txt-mid:     #5A5F8A;
+      --txt-soft:    #9EA3C8;
+      --r-sm: 5px;
+      --r-md: 9px;
+      --r-lg: 13px;
+      --r-pill: 999px;
+      --font: 'DM Sans', system-ui, sans-serif;
+    }
+
+    html.dark-mode {
+      --brand:       #4ade80;
+      --brand-dark:  #7B89F5;
+      --brand-mid:   #a5b4fc;
+      --brand-soft:  rgba(74, 222, 128, .12);
+      --brand-faint: rgba(74, 222, 128, .06);
+      --green:       #4ade80;
+      --coral:       #f87171;
+      --bg:          #0f1117;
+      --surface:     #181b23;
+      --border:      #2a2e3a;
+      --border-mid:  #3d4354;
+      --txt:         #e8eaef;
+      --txt-mid:     #9ca3bf;
+      --txt-soft:    #6b728c;
+    }
+
+    /* ── BASE ─────────────────────────── */
+    html { font-size: 14px; height: 100%; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--txt);
+      height: 100vh;
+      max-height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+      transition: background .2s, color .2s;
+    }
+
+    /* ── SCROLLBAR ─────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--brand-mid); }
+
+    /* ── HEADER (match popup) ─────────────────────────── */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      flex-shrink: 0;
+      padding: 12px 20px;
+      background: linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      box-shadow: 0 2px 10px rgba(61,79,214,.25);
+      transition: box-shadow .2s;
+    }
+    html.dark-mode .header {
+      background: linear-gradient(135deg, #166534 0%, #1e3a5f 50%, #312e81 100%);
+      box-shadow: 0 2px 16px rgba(0,0,0,.4);
+    }
+    .header-icon {
+      width: 30px; height: 30px;
+      background: rgba(255,255,255,.28);
+      border-radius: var(--r-md);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      border: none;
+      padding: 0;
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+    }
+    .header-icon:focus { outline: none; }
+    .header-icon:focus-visible { box-shadow: 0 0 0 2px rgba(255,255,255,.5); }
+    .header-compass-img {
+      display: block;
+      width: 20px; height: 20px;
+      object-fit: contain;
+      filter: brightness(0) invert(1);
+      transition: filter 0.25s ease-out;
+    }
+    .header-icon.spin .header-compass-img {
+      filter: none;
+      animation: compass-spin 0.6s ease-in-out;
+      transition: filter 0.25s ease-out;
+    }
+    @keyframes compass-spin { to { transform: rotate(360deg); } }
+    .header-text { flex: 1; min-width: 0; }
+    .header h1 { margin: 0; font-size: 1.125rem; font-weight: 700; letter-spacing: -.01em; }
+    .header-sub { font-size: .75rem; color: rgba(255,255,255,.65); margin-top: 1px; }
+    .header-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .header a {
+      display: inline-flex; align-items: center; gap: 6px;
+      color: rgba(255,255,255,.9);
+      text-decoration: none;
+      font-size: .8125rem; font-weight: 600;
+      padding: 6px 12px;
+      border-radius: var(--r-md);
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.2);
+      transition: background .15s, border-color .15s;
+    }
+    .header a:hover { background: rgba(255,255,255,.22); border-color: rgba(255,255,255,.35); }
+    .header a svg { width: 14px; height: 14px; flex-shrink: 0; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* Dark mode toggle (match popup — Early Riser / Night Owl) ─────────────────────────── */
+    .dark-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin-left: 4px;
+    }
+    .dark-toggle-btn {
+      width: 52px;
+      height: 24px;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      position: relative;
+      flex-shrink: 0;
+      overflow: hidden;
+      background: linear-gradient(90deg, #f5e6c8 0%, #e8d4a8 35%, #3d2a5c 65%, #1a0a2e 100%);
+      box-shadow: inset 0 1px 2px rgba(0,0,0,.2), 0 0 0 1px rgba(255,255,255,.15);
+      transition: box-shadow .2s ease;
+    }
+    .dark-toggle-btn:hover {
+      box-shadow: inset 0 1px 2px rgba(0,0,0,.25), 0 0 0 1px rgba(255,255,255,.25);
+    }
+    .dark-toggle-btn::before {
+      content: '';
+      position: absolute;
+      left: 5px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px;
+      height: 14px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b8860b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='10' r='4'/%3E%3Cpath d='M12 2v2M12 18v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M18 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41'/%3E%3Cpath d='M5 14h14'/%3E%3C/svg%3E") no-repeat center / contain;
+      opacity: .95;
+      pointer-events: none;
+    }
+    .dark-toggle-btn::after {
+      content: '';
+      position: absolute;
+      right: 5px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px;
+      height: 14px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23c9b8e8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'/%3E%3C/svg%3E") no-repeat center / contain;
+      opacity: .9;
+      pointer-events: none;
+    }
+    .dark-toggle-btn .dark-toggle-knob {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #fff 0%, #f0ebe0 50%, #e0d8c8 100%);
+      box-shadow: 0 1px 3px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.5);
+      transition: transform .25s cubic-bezier(0.4, 0, 0.2, 1);
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .dark-toggle-btn .dark-toggle-knob::before {
+      content: '';
+      width: 11px;
+      height: 11px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23c4952a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='9' r='3'/%3E%3Cpath d='M12 1v1.5M12 19.5V21M4.22 4.22l1.06 1.06M18.72 18.72l1.06 1.06M1 12h1.5M19.5 12H21M4.22 19.78l1.06-1.06M18.72 5.28l1.06-1.06'/%3E%3Cpath d='M4 14h16'/%3E%3C/svg%3E") no-repeat center / contain;
+    }
+    html.dark-mode .dark-toggle-btn .dark-toggle-knob::before {
+      content: '';
+      width: 10px;
+      height: 10px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e8e0f0' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'/%3E%3C/svg%3E") no-repeat center / contain;
+    }
+    html.dark-mode .dark-toggle-btn .dark-toggle-knob {
+      transform: translateX(28px);
+      background: radial-gradient(circle at 30% 30%, #c9b8e8 0%, #5c4d7a 50%, #2d2345 100%);
+      box-shadow: 0 1px 3px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.15);
+    }
+    .dark-toggle-btn:focus-visible {
+      outline: 2px solid white;
+      outline-offset: 2px;
+    }
+
+    /* ── CONTAINER & CARDS ─────────────────────────── */
+    .container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+      padding: 20px 24px;
+      padding-top: 28px;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    .card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-lg);
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.04);
+      transition: border-color .2s, box-shadow .2s, background .2s;
+    }
+    .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.06); }
+    html.dark-mode .card { box-shadow: 0 2px 12px rgba(0,0,0,.2); }
+    #editorCard:not(.hide) {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    #editorCard:not(.hide) .view-select-row { flex-shrink: 0; }
+    #editorCard:not(.hide) .editor-layout { flex: 1; min-height: 0; overflow: hidden; }
+    #editorCard:not(.hide) .actions-bar { flex-shrink: 0; }
+    .card h2 {
+      margin: 0 0 16px 0;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--txt);
+      padding-bottom: 10px;
+      border-bottom: 1.5px solid var(--border);
+    }
+    .card h3 {
+      margin: 14px 0 8px 0;
+      font-size: .8125rem;
+      font-weight: 600;
+      color: var(--txt-mid);
+    }
+
+    /* ── CONTEXT BAR ─────────────────────────── */
+    .context-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: .8125rem; color: var(--txt-mid); }
+    .context-bar strong { color: var(--txt); }
+    .context-block { margin-bottom: 16px; }
+    .context-block:last-child { margin-bottom: 0; }
+    .context-lines-stack { display: flex; flex-direction: column; gap: 18px; width: 100%; }
+    .context-card-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .context-list-heading { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+    .context-list-kind {
+      font-size: .9375rem;
+      font-weight: 600;
+      letter-spacing: .025em;
+      text-transform: uppercase;
+      color: var(--txt-soft);
+      line-height: 1;
+      margin: 0;
+    }
+    .context-list-kind.hide { display: none; }
+    .context-card-row h2 { margin: 0; padding-bottom: 0; border: none; font-size: 1rem; }
+    /* Pull title up so type + name read as one tight block (must follow .context-card-row h2) */
+    .context-card-row .context-list-heading h2 { margin: -3px 0 0 0; line-height: 1.25; }
+    .content-types-section { width: 100%; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); }
+    .content-types-heading { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--txt-mid); margin: 0 0 8px 0; }
+    .content-types-hint { font-size: .75rem; color: var(--txt-soft); margin: 0 0 8px 0; }
+    .content-types-hint.loading { color: var(--brand-dark); }
+    .content-types-hint.error { color: var(--coral); }
+    .content-types-scroll { max-height: 220px; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); }
+    .content-types-table { width: 100%; border-collapse: collapse; font-size: .75rem; }
+    .content-types-table th { text-align: left; padding: 8px 10px; font-size: .75rem; font-weight: 600; color: var(--txt-mid); background: var(--bg); border-bottom: 1px solid var(--border); position: sticky; top: 0; }
+    .content-types-table td { padding: 8px 10px; font-size: .75rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .content-types-table tr:last-child td { border-bottom: none; }
+    .content-types-table .ct-id-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    /* Match List ID / View ID row: same code size, padding, and default secondary button sizing */
+    .content-types-table code.ct-id-cell {
+      font-size: .75rem;
+      word-break: break-all;
+      flex: 1;
+      min-width: 0;
+      background: var(--bg);
+      padding: 6px 10px;
+      border-radius: var(--r-sm);
+      border: 1px solid var(--border);
+      color: var(--txt);
+      font-family: ui-monospace, monospace;
+    }
+    .content-types-table .ct-copy-btn { flex-shrink: 0; }
+    .content-types-table .ct-parent-cell { max-width: 200px; word-break: break-word; }
+    .content-types-table .ct-parent-unknown { color: var(--txt-soft); }
+    .context-ids { display: block; }
+    .context-ids .context-id-wrap { margin-bottom: 6px; }
+    .context-ids .context-id-wrap:last-child { margin-bottom: 0; }
+    .context-id-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+    .context-id-wrap strong { flex-shrink: 0; min-width: 5.5em; }
+    .context-id-wrap code {
+      flex: 1;
+      min-width: 0;
+      font-size: .75rem; word-break: break-all;
+      background: var(--bg);
+      padding: 6px 10px;
+      border-radius: var(--r-sm);
+      color: var(--txt);
+      border: 1px solid var(--border);
+      font-family: ui-monospace, monospace;
+    }
+    .context-id-wrap button.secondary { flex-shrink: 0; }
+
+    /* ── STATUS MESSAGES ─────────────────────────── */
+    .status {
+      padding: 10px 14px;
+      border-radius: var(--r-md);
+      margin: 8px 0;
+      font-size: .8125rem;
+      font-weight: 500;
+      transition: opacity .2s;
+    }
+    .status.error { background: #FFF1F3; color: #9F1239; border: 1.5px solid #FECDD3; }
+    .status.loading { background: var(--brand-soft); color: var(--brand-dark); border: 1.5px solid #C7CDFB; }
+    .status.success { background: #ecfdf5; color: #047857; border: 1.5px solid #a7f3d0; }
+    .status.warn { background: #fffbeb; color: #92400e; border: 1.5px solid #fde68a; }
+    html.dark-mode .status.error { background: rgba(248, 113, 113, .15); color: #fca5a5; border-color: rgba(248, 113, 113, .3); }
+    html.dark-mode .status.loading { background: rgba(74, 222, 128, .12); color: #86efac; border-color: rgba(74, 222, 128, .25); }
+    html.dark-mode .status.success { background: rgba(74, 222, 128, .12); color: #86efac; border-color: rgba(74, 222, 128, .25); }
+    html.dark-mode .status.warn { background: rgba(245, 158, 11, .15); color: #fcd34d; border-color: rgba(245, 158, 11, .3); }
+
+    /* ── FORM CONTROLS ─────────────────────────── */
+    select, input[type="text"], input[type="number"] {
+      padding: 8px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-md);
+      font-size: .8125rem;
+      font-family: var(--font);
+      background: var(--surface);
+      color: var(--txt);
+      outline: none;
+    }
+    select, input[type="text"], input[type="number"] { transition: color .2s ease, border-color .2s ease, background .2s ease, background-color .2s ease; }
+    select:hover, input[type="text"]:hover, input[type="number"]:hover {
+      border-color: var(--brand-mid);
+      color: var(--brand);
+    }
+    select:hover { background-color: var(--brand-faint); }
+    input[type="text"]:hover, input[type="number"]:hover { background: var(--brand-faint); }
+    select:focus, input:focus {
+      border-color: var(--brand-mid);
+    }
+    select {
+      padding-right: 28px;
+      appearance: none;
+      -webkit-appearance: none;
+      background-color: var(--surface);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235A5F8A' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+    }
+    html.dark-mode select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239EA3C8' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
+    }
+    select option {
+      color: var(--txt);
+      background: var(--surface);
+    }
+    .form-row input[type="text"] { width: 100%; }
+    input[type="checkbox"] { accent-color: var(--brand); margin-right: 8px; vertical-align: middle; }
+    label { cursor: pointer; }
+
+    /* ── BUTTONS ─────────────────────────── */
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: var(--r-md);
+      font-size: .8125rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--font);
+      transition: all .15s;
+    }
+    button.primary {
+      background: var(--brand);
+      color: white;
+      box-shadow: 0 3px 10px rgba(55, 174, 28, .3);
+    }
+    button.primary:hover { background: var(--brand-dark); transform: translateY(-1px); }
+    button.primary:disabled { background: var(--border-mid); cursor: not-allowed; transform: none; box-shadow: none; }
+    button.secondary {
+      background: var(--bg);
+      color: var(--txt-mid);
+      border: 1.5px solid var(--border);
+    }
+    button.secondary:hover { border-color: var(--brand-mid); color: var(--brand); background: var(--brand-faint); }
+    button.danger { background: var(--coral); color: white; }
+    button.danger:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    button.danger.secondary { background: transparent; color: var(--coral); border: 1.5px solid var(--coral); }
+    button.danger.secondary:hover { background: rgba(240, 78, 101, .12); }
+    button.link {
+      background: transparent;
+      color: var(--brand);
+      font-weight: 600;
+      padding: 4px 8px;
+    }
+    button.link:hover { text-decoration: underline; }
+    html.dark-mode button.primary { box-shadow: 0 3px 12px rgba(74, 222, 128, .35); }
+    html.dark-mode button.primary:hover { background: #22c55e; }
+    html.dark-mode button.danger.secondary:hover { background: rgba(248, 113, 113, .15); }
+
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+    .form-row { margin-bottom: 14px; }
+    .form-row label { display: block; margin-bottom: 5px; font-weight: 600; color: var(--txt-mid); font-size: .75rem; }
+    .inline-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .inline-row label { margin: 0; font-weight: normal; font-size: .8125rem; color: var(--txt); }
+
+    /* ── VIEW SELECTOR ─────────────────────────── */
+    .view-select-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+    .view-select-row select { min-width: 260px; }
+
+    /* ── EDITOR LAYOUT ─────────────────────────── */
+    .editor-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      align-items: stretch;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .editor-section-columns { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+    .editor-section-right { overflow-y: auto; min-height: 0; }
+    .editor-section { min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+    .editor-section .col-list { flex: 1; min-height: 0; overflow-y: auto; }
+    .editor-section > h3 { margin: 0 0 8px 0; }
+    .editor-section-columns > .empty-hint { margin: 0 0 12px 0; }
+    .editor-section-right .form-row:first-of-type { margin-top: 10px; }
+
+    /* ── COLUMNS LIST ─────────────────────────── */
+    .col-search { margin-bottom: 12px; }
+    .col-search input { width: 100%; }
+    .col-toolbar { margin-bottom: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .col-list {
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-md);
+      background: var(--bg);
+      transition: border-color .15s;
+    }
+    .col-list:focus-within { border-color: var(--brand-mid); }
+    .col-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      cursor: grab;
+      user-select: none;
+      transition: background .12s;
+    }
+    .col-item:last-child { border-bottom: none; }
+    .col-item:hover { background: var(--brand-faint); }
+    .col-item.dragging { opacity: 0.7; cursor: grabbing; background: var(--brand-soft); }
+    .col-item .drag-handle { color: var(--txt-soft); cursor: grab; font-size: 14px; line-height: 1; }
+    .col-item .col-check { flex-shrink: 0; }
+    .col-item .col-label { flex: 1; font-size: .8125rem; color: var(--txt); }
+    .col-item .col-internal { margin-left: 20px; font-size: .7rem; color: var(--txt-soft); font-family: ui-monospace, monospace; }
+
+    /* ── SORT / FILTER ROWS ─────────────────────────── */
+    .sort-row, .filter-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      transition: background .1s;
+    }
+    .sort-row:last-child, .filter-row:last-child { border-bottom: none; }
+    .sort-row select, .filter-row select { min-width: 140px; }
+    .filter-block { border-bottom: 1px solid var(--border); padding: 10px 0; }
+    .filter-block:last-of-type { border-bottom: none; }
+    #filterContainer .filter-row { border-bottom: none; padding: 0; }
+    .filter-join-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      padding: 6px 0 10px 4px;
+      font-size: .8125rem;
+      color: var(--txt-mid);
+    }
+    .filter-join-row label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 500; color: var(--txt); }
+    .filter-value-wrap { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .filter-value-typeahead-wrap { position: relative; display: inline-block; min-width: 180px; flex: 1; max-width: min(100%, 420px); }
+    .filter-typeahead-list {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: calc(100% + 4px);
+      margin: 0;
+      padding: 4px 0;
+      max-height: 240px;
+      overflow-y: auto;
+      z-index: 100;
+      list-style: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      box-shadow: 0 10px 28px rgba(28, 31, 74, .12);
+    }
+    html.dark-mode .filter-typeahead-list { box-shadow: 0 10px 28px rgba(0, 0, 0, .4); }
+    .filter-typeahead-item {
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: .8125rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      line-height: 1.25;
+    }
+    .filter-typeahead-item:hover,
+    .filter-typeahead-item.active {
+      background: var(--brand-faint);
+    }
+    .filter-typeahead-token { font-family: ui-monospace, monospace; font-weight: 600; color: var(--txt); font-size: .8rem; word-break: break-all; }
+    .filter-typeahead-hint { font-size: .72rem; color: var(--txt-soft); }
+    .filter-row input[type="text"],
+    .filter-row .filter-value-bool { min-width: 160px; }
+    .filter-op { min-width: 120px; }
+    .group-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .group-row select { min-width: 200px; }
+    .actions-bar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding-top: 18px;
+      border-top: 1.5px solid var(--border);
+      margin-top: 18px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: var(--r-sm);
+      font-size: .6875rem;
+      font-weight: 600;
+      margin-left: 6px;
+    }
+    .badge.default { background: var(--brand-soft); color: var(--brand-dark); }
+    .badge.personal { background: var(--bg); color: var(--txt-mid); border: 1px solid var(--border); }
+    .empty-hint { color: var(--txt-soft); font-size: .8rem; margin: 8px 0; font-style: italic; }
+    .section-add-wrap { text-align: left; margin-top: 6px; }
+    .editor-section-right .empty-hint { margin: 2px 0 4px 0; }
+    .editor-section-right .section-add-wrap { margin-top: 2px; }
+
+    #contextStatus.loading { display: block; }
+    #contextLines { display: none; }
+    #contextLines.visible { display: block; }
+    #contextListName { margin-top: 16px; margin-bottom: 24px; }
+    .hide { display: none !important; }
+
+    /* Fact toast (compass tips) ─────────────────────────── */
+    #vm-fact-toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 99999;
+      max-width: 320px; min-width: 220px;
+      font-family: var(--font);
+    }
+    .vm-fact-wrap {
+      position: relative;
+      background: var(--txt);
+      color: var(--surface);
+      border-radius: var(--r-lg);
+      padding: 14px 36px 14px 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.25);
+      font-size: .8125rem;
+      line-height: 1.5;
+      border: 1.5px solid var(--border);
+    }
+    html.dark-mode .vm-fact-wrap { background: var(--txt-mid); color: var(--surface); }
+    .vm-fact-text { margin: 0 0 8px; }
+    .vm-fact-source {
+      display: inline-block;
+      padding: 6px 12px;
+      background: rgba(255,255,255,.25);
+      color: inherit;
+      font-size: .75rem;
+      font-weight: 600;
+      text-decoration: none;
+      border-radius: var(--r-md);
+    }
+    .vm-fact-source:hover { background: rgba(255,255,255,.35); }
+    .vm-fact-close {
+      position: absolute; top: 8px; right: 8px;
+      width: 24px; height: 24px;
+      border: none;
+      background: rgba(255,255,255,.2);
+      color: inherit;
+      border-radius: var(--r-sm);
+      font-size: 18px; line-height: 1;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      padding: 0;
+    }
+    .vm-fact-close:hover { background: rgba(255,255,255,.3); }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <button type="button" class="header-icon" id="headerIconBtn" title="Click for a SharePoint tip" aria-label="Toolkit icon">
+      <img id="headerCompassIcon" class="header-compass-img" src="" alt="" width="20" height="20">
+    </button>
+    <div class="header-text">
+      <h1 id="headerTitle">SP Developer Toolkit</h1>
+      <div class="header-sub" id="headerSub">View Manager</div>
+    </div>
+    <div class="header-actions">
+      <a href="#" id="backToTab">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        Back to SharePoint
+      </a>
+      <div class="dark-toggle">
+        <button type="button" class="dark-toggle-btn" id="darkModeToggle" title="Early Riser" aria-label="Theme: Early Riser. Click to switch to Night Owl."><span class="dark-toggle-knob"></span></button>
+      </div>
+    </div>
+  </header>
+  <div class="container">
+    <div class="card" id="contextCard">
+      <p class="status loading" id="contextStatus">Loading context…</p>
+      <div id="contextLines" class="context-lines-stack">
+        <div class="context-card-row">
+          <div class="context-list-heading">
+            <span class="context-list-kind hide" id="contextListKind"></span>
+            <h2 id="contextListName">—</h2>
+          </div>
+          <div class="context-ids">
+            <div class="context-id-wrap">
+              <strong>List ID:</strong>
+              <code id="contextListIdDisplay">—</code>
+              <button type="button" class="secondary" id="btnCopyListId" title="Copy full List ID">Copy</button>
+            </div>
+            <div class="context-id-wrap hide" id="contextViewIdWrap">
+              <strong>View ID:</strong>
+              <code id="contextViewIdDisplay">—</code>
+              <button type="button" class="secondary" id="btnCopyViewId" title="Copy View ID">Copy</button>
+            </div>
+          </div>
+        </div>
+        <div class="content-types-section hide" id="contentTypesSection">
+          <h3 class="content-types-heading">Content types</h3>
+          <p class="content-types-hint" id="contentTypesStatus"></p>
+          <div class="content-types-scroll">
+            <table class="content-types-table" id="contentTypesTable" aria-label="List content types">
+              <thead><tr><th>Name</th><th>Parent</th><th>Content Type ID</th></tr></thead>
+              <tbody id="contentTypesBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card hide" id="editorCard">
+      <div class="view-select-row">
+        <select id="viewSelect">
+          <option value="">— Create new view —</option>
+        </select>
+        <button type="button" class="link hide" id="btnDuplicate">Duplicate as new</button>
+      </div>
+
+      <div class="editor-layout">
+        <div class="editor-section editor-section-columns">
+          <h3>Columns</h3>
+          <p class="empty-hint">Check columns to show; drag to reorder.</p>
+          <div class="col-search">
+            <input type="text" id="colSearch" placeholder="Search columns…">
+          </div>
+          <div class="col-toolbar">
+            <button type="button" class="link" id="btnColAddAll">Add all</button>
+            <button type="button" class="link" id="btnColRemoveAll">Remove all</button>
+          </div>
+          <div class="col-list" id="colList"></div>
+        </div>
+
+        <div class="editor-section editor-section-right">
+          <h3>View settings</h3>
+          <div class="form-row">
+            <label for="viewName">View name</label>
+            <input type="text" id="viewName" placeholder="e.g. My View">
+          </div>
+          <div class="inline-row hide" id="viewPersonalWrap" style="margin-bottom:12px;">
+            <label><input type="checkbox" id="viewPersonal"> Personal view (only visible to you)</label>
+          </div>
+          <div class="form-row">
+            <label for="viewRowLimit">Item limit</label>
+            <select id="viewRowLimit">
+              <option value="30">30</option>
+              <option value="100" selected>100</option>
+              <option value="500">500</option>
+              <option value="1000">1,000</option>
+              <option value="5000">5,000</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label for="viewScope">Scope</label>
+            <select id="viewScope">
+              <option value="1">Show items in folder only</option>
+              <option value="2" selected>Show all items (no folder filter)</option>
+            </select>
+          </div>
+
+          <h3>Sort</h3>
+          <p class="empty-hint">Primary sort first. Add multiple levels for secondary sort.</p>
+          <div id="sortContainer"></div>
+          <div class="section-add-wrap">
+            <button type="button" class="link" id="btnAddSort">+ Add sort level</button>
+          </div>
+
+          <h3>Filter</h3>
+          <p class="empty-hint">Combine conditions with <strong>And</strong> / <strong>Or</strong> between rows (left to right). Leave value blank to skip a row. <strong>Value</strong> type-ahead for <code>[Today]</code> / offsets appears on <strong>Date</strong> columns only; <code>[Me]</code> on <strong>Person</strong> columns only.</p>
+          <div id="filterContainer"></div>
+          <div class="section-add-wrap">
+            <button type="button" class="link" id="btnAddFilter">+ Add filter condition</button>
+          </div>
+
+          <h3>Group by</h3>
+          <div class="group-row">
+            <select id="groupByColumn">
+              <option value="">— None —</option>
+            </select>
+            <label><input type="checkbox" id="groupExpand"> Expand by default</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions-bar">
+        <button type="button" class="primary" id="btnSave">Save view</button>
+        <button type="button" class="secondary hide" id="btnSetDefault" title="Make this the list default view">Set as Default View</button>
+        <button type="button" class="secondary" id="btnExportViewColumns" title="Export internal column names as CSV headers">Export column names to CSV</button>
+        <button type="button" class="danger secondary hide" id="btnDelete">Delete view</button>
+      </div>
+      <p class="status hide" id="saveStatus"></p>
+    </div>
+
+    <div class="card hide" id="noListCard">
+      <p class="status warn">Open a SharePoint list or library page, then open View Manager from the popup.</p>
+    </div>
+  </div>
+  <script src="sharepoint-facts.js"></script>
+  <script src="filterTypeaheadLogic.js"></script>
+  <script src="views.js"></script>
+</body>
+</html>

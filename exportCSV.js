@@ -1,8 +1,6 @@
 // Runs in page context on SharePoint. Creates temp RPC view, pages by ID range via owssvr.dll, exports CSV.
 // Uses SharePoint system field names (ID, Title, FileLeafRef, etc.) — same across all lists/libraries.
 (function () {
-  try { window.postMessage({ __spcsv: true, type: "SPCSVExportStarted" }, "*"); } catch (e) {}
-
   // -----------------------------
   // Param bootstrap (extension-style)
   // -----------------------------
@@ -23,6 +21,21 @@
     console.error("SharePoint CSV Export – Missing params.");
     return;
   }
+
+  var exportReport = params.report || "exportCSV";
+  var exportOverallPct = 0;
+
+  try {
+    window.postMessage({
+      __spcsv: true,
+      type: "SPCSVExportStarted",
+      detail: {
+        message: "Export started…",
+        report: exportReport
+      }
+    }, "*");
+  } catch (_) {}
+
   // -----------------------------
   // Helpers
   // -----------------------------
@@ -37,11 +50,32 @@
 
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
+  function fmtExportCount(n) {
+    n = Math.max(0, Math.round(n || 0));
+    try { return n.toLocaleString(); } catch (_) { return String(n); }
+  }
+
   function reportProgress(message, opts) {
-    var detail = { message: message };
-    if (opts && (opts.currentCount != null || opts.totalCount != null)) {
-      detail.currentCount = opts.currentCount;
-      detail.totalCount = opts.totalCount;
+    opts = opts || {};
+    var detail = { message: message || "", logLine: message || "", report: exportReport };
+    if (opts.logLine) detail.logLine = opts.logLine;
+    var pct = opts.percent;
+    if (pct == null && opts.currentCount != null && opts.totalCount != null && opts.totalCount > 0) {
+      pct = Math.min(99, Math.round((opts.currentCount / opts.totalCount) * 100));
+    }
+    if (pct != null) {
+      exportOverallPct = Math.max(exportOverallPct, Math.min(99, Math.round(pct)));
+      detail.percent = exportOverallPct;
+    } else if (exportOverallPct) {
+      detail.percent = exportOverallPct;
+    }
+    if (opts.currentCount != null && opts.totalCount != null && opts.totalCount > 0) {
+      var headline = exportOverallPct + "% — " + fmtExportCount(opts.currentCount) + " of " + fmtExportCount(opts.totalCount);
+      if (message) headline += " — " + message;
+      detail.message = headline;
+      if (!opts.logLine && message) detail.logLine = message;
+    } else if (message) {
+      detail.message = message;
     }
     window.postMessage({ __spcsv: true, type: "SPCSVExportProgress", detail: detail }, "*");
   }
@@ -603,6 +637,22 @@
     } catch (_) { return null; }
   }
 
+  async function getMaxListItemId() {
+    try {
+      var r = await fetch(listBaseUrl() + "/items?$select=Id&$orderby=Id desc&$top=1", {
+        credentials: "include",
+        headers: { "Accept": "application/json;odata=nometadata" }
+      });
+      if (!r.ok) return null;
+      var j = await r.json();
+      var items = j.value || j.d?.results || [];
+      if (items.length === 0) return null;
+      var id = items[0].ID || items[0].Id;
+      var n = parseInt(id, 10);
+      return isNaN(n) || n < 1 ? null : n;
+    } catch (_) { return null; }
+  }
+
   // Wait for page/context to be ready (avoids 403 when script runs before SharePoint is ready).
   async function waitForPageReady(maxMs) {
     maxMs = maxMs || 4000;
@@ -704,11 +754,19 @@
       if (!vf.ok) return vf;
       fieldNames = vf.fields;
     }
-    if (params.report === "folderCount" || params.report === "pathLengths") {
+    var reportNeedsPathCols =
+      params.report === "folderCount" ||
+      params.report === "pathLengths" ||
+      params.report === "exportCSV";
+    if (reportNeedsPathCols) {
       fieldNames = fieldNames.slice();
-      if (fieldNames.indexOf("FileRef") < 0) fieldNames.push("FileRef");
-      if (fieldNames.indexOf("ContentTypeId") < 0) fieldNames.push("ContentTypeId");
-      if (fieldNames.indexOf("FileDirRef") < 0) fieldNames.push("FileDirRef");
+      var vrPath = await getListFieldInternalNames();
+      var vnPath = (vrPath.ok && vrPath.names) ? vrPath.names : {};
+      if (fieldNames.indexOf("FileRef") < 0 && vnPath["FileRef"]) fieldNames.push("FileRef");
+      if ((params.report === "folderCount" || params.report === "pathLengths") && fieldNames.indexOf("ContentTypeId") < 0 && vnPath["ContentTypeId"]) {
+        fieldNames.push("ContentTypeId");
+      }
+      if (fieldNames.indexOf("FileDirRef") < 0 && vnPath["FileDirRef"]) fieldNames.push("FileDirRef");
     }
     if (!fieldNames || fieldNames.length === 0) {
       return { ok: false, error: "No columns selected" };
@@ -1385,17 +1443,36 @@
     var allRows = [];
     var allColumns = { ID: true, Title: true, FileLeafRef: true, FSObjType: true };
     var pageNum = 0;
-    var MAX_PAGES = 500;
     var totalCount = (itemCount != null && itemCount > 0) ? itemCount : null;
 
+    var minId = null;
+    var maxIdResolved = null;
+    await Promise.all([
+      getMinListItemId().then(function (x) { minId = x; }),
+      getMaxListItemId().then(function (x) { maxIdResolved = x; })
+    ]);
+
     var baseStartId = 1;
-    var minId = await getMinListItemId();
     if (minId != null) baseStartId = Math.floor(minId / 100) * 100;
+
+    var MAX_PAGES = 500;
+    if (maxIdResolved != null && maxIdResolved >= baseStartId) {
+      var spanIds = maxIdResolved - baseStartId;
+      MAX_PAGES = Math.min(500000, Math.ceil(spanIds / PAGE_LIMIT) + 10);
+    }
+
+    var emptyStreak = 0;
+    var maxEmptyStreak = maxIdResolved != null ? 50 : 2000;
 
     while (pageNum < MAX_PAGES) {
       pageNum++;
       var startId = baseStartId + (pageNum - 1) * PAGE_LIMIT;
       var endId = baseStartId + pageNum * PAGE_LIMIT;
+
+      if (maxIdResolved != null && startId > maxIdResolved) {
+        break;
+      }
+
       var viewQuery = buildViewQueryForIdRange(startId, endId);
 
       var uq = await setViewQueryById(viewId, viewQuery);
@@ -1438,8 +1515,12 @@
           await sleep(2000);
           return exportViaOwssvrWithView(viewId, itemCount, retryCount + 1);
         }
-        break;
+        emptyStreak++;
+        if (maxIdResolved != null && startId > maxIdResolved) break;
+        if (emptyStreak >= maxEmptyStreak) break;
+        continue;
       }
+      emptyStreak = 0;
       for (var i = 0; i < parsed.rows.length; i++) {
         var r = parsed.rows[i];
         allRows.push(r);
@@ -1448,8 +1529,6 @@
         }
       }
       reportProgress("", { currentCount: allRows.length, totalCount: totalCount });
-      // Only stop when we get 0 rows - with versions, row count can exceed PAGE_LIMIT;
-      // with sparse IDs, a partial page may be followed by more items in higher ID ranges.
     }
 
     if (allRows.length === 0) {
@@ -1512,11 +1591,17 @@
       fieldNames = base.concat(rest);
       if (fieldNames.length <= 1) fieldNames = ["ID", "Title"].concat(fr.fields.filter(function (n) { return n !== "ID" && n !== "Title"; }).slice(0, 50));
     }
-    if (params.report === "folderCount" || params.report === "pathLengths") {
-      var v = (typeof valid !== "undefined" && valid && valid.names) ? valid.names : {};
-      if (fieldNames.indexOf("FileRef") < 0 && v["FileRef"]) fieldNames = fieldNames.concat(["FileRef"]);
-      if (fieldNames.indexOf("ContentTypeId") < 0 && v["ContentTypeId"]) fieldNames = fieldNames.concat(["ContentTypeId"]);
-      if (fieldNames.indexOf("FileDirRef") < 0 && v["FileDirRef"]) fieldNames = fieldNames.concat(["FileDirRef"]);
+    var vrest = (typeof valid !== "undefined" && valid && valid.names) ? valid.names : {};
+    var restNeedsPathCols =
+      params.report === "folderCount" ||
+      params.report === "pathLengths" ||
+      params.report === "exportCSV";
+    if (restNeedsPathCols) {
+      if (fieldNames.indexOf("FileRef") < 0 && vrest["FileRef"]) fieldNames = fieldNames.concat(["FileRef"]);
+      if ((params.report === "folderCount" || params.report === "pathLengths") && fieldNames.indexOf("ContentTypeId") < 0 && vrest["ContentTypeId"]) {
+        fieldNames = fieldNames.concat(["ContentTypeId"]);
+      }
+      if (fieldNames.indexOf("FileDirRef") < 0 && vrest["FileDirRef"]) fieldNames = fieldNames.concat(["FileDirRef"]);
     }
     var select = fieldNames.join(",");
     var selectWithVersion = (select.indexOf("VersionLabel") >= 0 || select.indexOf("_UIVersionString") >= 0)
@@ -1525,9 +1610,13 @@
     var accept = { "Accept": "application/json;odata=nometadata" };
     var rowMap = {};
     var allColumns = { ID: true, Title: true, FileLeafRef: true, FSObjType: true };
+    var maxItemIdResolved = await getMaxListItemId();
     var lastId = 0;
     var pageNum = 0;
     var MAX_PAGES = 200;
+    if (maxItemIdResolved != null && maxItemIdResolved >= 1) {
+      MAX_PAGES = Math.min(500000, Math.ceil(maxItemIdResolved / PAGE_LIMIT) + 10);
+    }
 
     if (params.incVer !== false) {
       reportProgress("List export with version history (paginated per item). Starting…");
@@ -1652,6 +1741,7 @@
       }
       lastId = parseInt(items[items.length - 1].ID || items[items.length - 1].Id, 10) || lastId;
       reportProgress("", { currentCount: Object.keys(rowMap).length, totalCount: (itemCount != null && itemCount > 0) ? itemCount : null });
+      if (maxItemIdResolved != null && lastId >= maxItemIdResolved) break;
       if (items.length < PAGE_LIMIT) break;
     }
 
@@ -2741,7 +2831,7 @@
         return;
       }
       if (params.report === "permissionsMatrix") {
-        await exportPermissionsMatrixReport();
+        reportDone(false, "Permissions matrix now runs via permissionsMatrixExport.js. Reload the extension and try again.");
         return;
       }
       if ((params.report === "folderCount" || params.report === "pathLengths") && listBaseTemplate !== 101) {

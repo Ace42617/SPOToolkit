@@ -85,6 +85,20 @@
           pickerFields.push({ InternalName: defaultNames[p], Title: defaultNames[p] });
         }
       }
+      var pathExtras = ["FileRef", "FileDirRef"];
+      for (var pe = 0; pe < pathExtras.length; pe++) {
+        var px = pathExtras[pe];
+        if (fieldMap[px]) continue;
+        for (var ai = 0; ai < allFields.length; ai++) {
+          var af = allFields[ai];
+          var ain = af.InternalName || af.Title;
+          if (ain === px) {
+            fieldMap[px] = af.Title || px;
+            pickerFields.push({ InternalName: px, Title: af.Title || px });
+            break;
+          }
+        }
+      }
       window.postMessage({
         __spcsv: true,
         type: "SPCSVFieldsResult",

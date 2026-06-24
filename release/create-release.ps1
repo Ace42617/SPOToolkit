@@ -1,7 +1,7 @@
 # Create a GitHub release for the current extension version (after: gh auth login).
 # 1) Bump manifest.json version  2) Commit  3) Run this from repo root or release folder
 $ErrorActionPreference = "Stop"
-$version = "1.0.6.1"
+$version = "1.0.7.0"
 $tag = "v$version"
 $zipName = "SPOToolkit-$version.zip"
 $root = Split-Path $PSScriptRoot -Parent
@@ -12,10 +12,14 @@ New-Item -ItemType Directory -Path $staging | Out-Null
 $files = @(
   "manifest.json", "background.js", "content.js",
   "popup.html", "popup.js", "views.html", "views.js",
-  "view-formatter.html", "view-formatter.js",
+  "view-formatter.html", "view-formatter.js", "view-formatter-iframe-bridge.js",
   "sharepoint-facts.js", "filterTypeaheadLogic.js", "icon.png",
-  "exportCSV.js", "getFields.js", "getSearchSchema.js", "checkListPage.js", "getListType.js",
-  "getRefinableMappings.js", "getViewsData.js", "getPageContext.js", "getPageContextJson.js", "getViewFormatContext.js", "getSiteLists.js",
+  "exportCSV.js", "permissionsMatrixExport.js", "permissionsMatrixStyles.js", "matrixScanPlan.js",
+  "getFields.js", "getSearchSchema.js", "getColumnCreatorContext.js", "createColumn.js",
+  "checkListPage.js", "getListType.js", "getRefinableMappings.js", "getViewsData.js",
+  "getPageContext.js", "getPageContextFull.js", "getPageContextJson.js", "getViewFormatContext.js", "getSiteLists.js",
+  "compassColumnCreator.js", "compassToolkitPanels.js", "compassUniversalSearch.js", "matrixWorkerLock.js",
+  "adminCenterWaitBanner.js", "recycleBinWaitBanner.js",
   "jszip.min.js", "jszip-preload.js", "jszip-restore.js",
   "README.md", "OWSSVR-LISTS.md"
 )

@@ -31,6 +31,7 @@
   --r-lg: 13px;
   --r-pill: 999px;
   --font: 'DM Sans', system-ui, sans-serif;
+  --popup-br: 14px;
 }
 
 /* ── BASE ─────────────────────────── */
@@ -124,11 +125,11 @@ body.universal-search-open {
   border: 1px solid rgba(255,255,255,.2);
 }
 .popup-header-settings-btn {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: none;
-  border-radius: var(--r-sm);
+  border-radius: 10px;
   background: rgba(255,255,255,.1);
   color: rgba(255,255,255,.85);
   cursor: pointer;
@@ -142,13 +143,13 @@ body.universal-search-open {
   background: rgba(255,255,255,.18);
   color: white;
 }
-.popup-header-settings-btn svg { width: 14px; height: 14px; }
+.popup-header-settings-btn svg { width: 17px; height: 17px; }
 .popup-header-search-btn {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: none;
-  border-radius: var(--r-sm);
+  border-radius: 10px;
   background: rgba(255,255,255,.1);
   color: rgba(255,255,255,.85);
   cursor: pointer;
@@ -162,16 +163,16 @@ body.universal-search-open {
   background: rgba(255,255,255,.18);
   color: white;
 }
-.popup-header-search-btn svg { width: 14px; height: 14px; }
+.popup-header-search-btn svg { width: 17px; height: 17px; }
 
 .feedback-icon-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
-  border-radius: var(--r-sm);
+  border-radius: 10px;
   background: rgba(255,255,255,.1);
   color: rgba(255,255,255,.85);
   text-decoration: none;
@@ -182,9 +183,16 @@ body.universal-search-open {
   background: rgba(255,255,255,.18);
   color: white;
 }
-.feedback-icon-link svg { width: 14px; height: 14px; flex-shrink: 0; }
+.feedback-icon-link svg { width: 17px; height: 17px; flex-shrink: 0; }
 
-#popupMainContent { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+#popupMainContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 0 0 var(--popup-br) var(--popup-br);
+}
 body.popup-settings-visible #popupMainContent { display: none; }
 .popup-settings-screen {
   display: none;
@@ -193,6 +201,7 @@ body.popup-settings-visible #popupMainContent { display: none; }
   min-height: 0;
   overflow: hidden;
   background: var(--surface);
+  border-radius: 0 0 var(--popup-br) var(--popup-br);
 }
 body.popup-settings-visible .popup-settings-screen { display: flex; }
 .popup-settings-screen .settings-header {
@@ -1384,6 +1393,8 @@ html.dark-mode .dark-toggle-btn .dark-toggle-knob {
   align-items: flex-start;
   justify-content: center;
   padding: 14px 12px;
+  border-radius: 0 0 var(--popup-br) var(--popup-br);
+  overflow: hidden;
 }
 .universal-search-overlay.open { display: flex; }
 .universal-search-dialog {
@@ -1406,14 +1417,14 @@ body.universal-search-open .universal-search-dialog {
 .universal-search-input-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 12px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--border);
 }
 .universal-search-input-wrap svg {
-  width: 14px;
-  height: 14px;
-  color: var(--txt-soft);
+  width: 18px;
+  height: 18px;
+  color: var(--txt-mid);
   flex-shrink: 0;
 }
 #universalSearchInput {
@@ -1426,12 +1437,19 @@ body.universal-search-open .universal-search-dialog {
   font-size: .85rem;
 }
 .universal-search-hint {
-  font-size: .67rem;
-  color: var(--txt-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 22px;
+  font-size: .72rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--txt-mid);
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 2px 5px;
+  border-radius: 7px;
+  padding: 0 8px;
 }
 .universal-search-results {
   flex: 1 1 auto;
@@ -1496,7 +1514,7 @@ body.universal-search-open .universal-search-dialog {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
   </a>
   <button type="button" class="popup-header-search-btn" id="btnUniversalSearch" title="Universal Settings Search" aria-label="Open Universal Settings Search">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 100 13.5 6.75 6.75 0 000-13.5zM2.25 10.5a8.25 8.25 0 1114.59 5.31l3.94 3.94a.75.75 0 11-1.06 1.06l-3.94-3.94A8.25 8.25 0 012.25 10.5z"/></svg>
   </button>
   <button type="button" class="popup-header-settings-btn" id="btnSettingsGear" title="Settings" aria-label="Settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -1520,7 +1538,11 @@ body.universal-search-open .universal-search-dialog {
     </label>
     <label class="checkbox-row">
       <input type="checkbox" id="chkUniversalSearchOpenOnLoad" />
-      <span>Open Universal Settings Search when the popup opens</span>
+      <span>Open Universal Settings Search when the dropdown opens</span>
+    </label>
+    <label class="checkbox-row">
+      <input type="checkbox" id="chkCompassUniversalSearchOpenOnLoad" />
+      <span>Open Universal Search when the popout opens</span>
     </label>
     <label class="checkbox-row">
       <input type="checkbox" id="chkUniversalSearchHotkeyEnabled" />

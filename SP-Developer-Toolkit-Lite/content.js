@@ -136,7 +136,11 @@ const LISTS_LAUNCHER_PANEL_ID = "sp-toolkit-lists-panel";
 const LISTS_LAUNCHER_STYLE_ID = "sp-toolkit-lists-launcher-style";
 
 const LISTS_LAUNCHER_CSS =
-  "#" + LISTS_LAUNCHER_ID + "{position:fixed;bottom:20px;right:20px;z-index:2147483646;font-family:'Segoe UI',sans-serif;transition:opacity .15s ease-out;display:block;width:48px;flex-shrink:0;box-sizing:border-box;}" +
+  "#" + LISTS_LAUNCHER_ID + "{position:fixed;right:20px;bottom:20px;left:auto;top:auto;z-index:2147483646;font-family:'Segoe UI',sans-serif;transition:opacity .15s ease-out;display:block;width:48px;flex-shrink:0;box-sizing:border-box;touch-action:manipulation;}" +
+  "#" + LISTS_LAUNCHER_ID + ".sp-toolkit-launcher-dragging .sp-toolkit-lists-btn{cursor:grabbing;touch-action:none;user-select:none;-webkit-user-select:none;}" +
+  "#" + LISTS_LAUNCHER_ID + ".sp-toolkit-launcher-wiggle .sp-toolkit-lists-btn{animation:sp-toolkit-launcher-wiggle .12s ease-in-out infinite;}" +
+  "#" + LISTS_LAUNCHER_ID + ".sp-toolkit-launcher-wiggle .sp-toolkit-lists-btn:hover{transform:none;}" +
+  "@keyframes sp-toolkit-launcher-wiggle{0%,100%{transform:rotate(-2.2deg);}50%{transform:rotate(2.2deg);}}" +
   "#" + LISTS_LAUNCHER_ID + ".sp-toolkit-launcher-rolled-up{opacity:0;pointer-events:none;}" +
   "#" + LISTS_LAUNCHER_ID + " .sp-toolkit-lists-btn{width:48px!important;height:48px!important;min-width:48px!important;min-height:48px!important;max-width:48px!important;max-height:48px!important;flex:0 0 48px!important;border-radius:50%;border:none;cursor:pointer;display:inline-flex!important;align-items:center;justify-content:center;padding:0!important;box-sizing:border-box!important;overflow:hidden;" +
   "background:linear-gradient(135deg,#e8eaef 0%,#d8dce4 100%);color:#1a1d24;box-shadow:0 4px 16px rgba(0,0,0,.18);transition:transform .15s,box-shadow .15s;}" +
@@ -144,12 +148,14 @@ const LISTS_LAUNCHER_CSS =
   "#" + LISTS_LAUNCHER_ID + ".sp-toolkit-launcher-dark .sp-toolkit-lists-btn{background:linear-gradient(135deg,#3d4048 0%,#2d3038 100%);border:1px solid rgba(0,0,0,.4);box-shadow:0 4px 16px rgba(0,0,0,.35);}" +
   "#" + LISTS_LAUNCHER_ID + ".sp-toolkit-launcher-dark .sp-toolkit-lists-btn:hover{box-shadow:0 6px 22px rgba(0,0,0,.5);}" +
   "#" + LISTS_LAUNCHER_ID + ".sp-toolkit-launcher-dark .sp-toolkit-lists-btn .sp-toolkit-launcher-compass{filter:brightness(0) invert(1);}" +
-  "#" + LISTS_LAUNCHER_ID + " .sp-toolkit-lists-btn .sp-toolkit-launcher-compass,#" + LISTS_LAUNCHER_ID + " .sp-toolkit-lists-btn img.sp-toolkit-launcher-compass{width:24px!important;height:24px!important;min-width:24px!important;min-height:24px!important;max-width:24px!important;max-height:24px!important;display:block;flex-shrink:0;object-fit:contain;transition:transform .25s ease;}" +
+  "#" + LISTS_LAUNCHER_ID + " .sp-toolkit-lists-btn .sp-toolkit-launcher-compass,#" + LISTS_LAUNCHER_ID + " .sp-toolkit-lists-btn img.sp-toolkit-launcher-compass{width:24px!important;height:24px!important;min-width:24px!important;min-height:24px!important;max-width:24px!important;max-height:24px!important;display:block;flex-shrink:0;object-fit:contain;transition:transform .25s ease;-webkit-user-drag:none;user-drag:none;}" +
   "#" + LISTS_LAUNCHER_ID + " .sp-toolkit-lists-btn:hover .sp-toolkit-launcher-compass{animation:sp-toolkit-launcher-spin .7s ease-in-out 1;}" +
-  "#" + LISTS_LAUNCHER_ID + " .sp-toolkit-lists-btn.sp-toolkit-launcher-click-spin .sp-toolkit-launcher-compass{animation:sp-toolkit-launcher-spin-click .55s ease-out 1 forwards;}" +
   "@keyframes sp-toolkit-launcher-spin{to{transform:rotate(360deg);}}" +
-  "@keyframes sp-toolkit-launcher-spin-click{to{transform:rotate(1080deg);}}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + "{position:absolute;bottom:68px;right:0;width:max-content;min-width:360px;max-width:min(92vw, 1000px);max-height:70vh;overflow:hidden;display:flex;flex-direction:column;border-radius:11px;box-shadow:0 8px 32px rgba(0,0,0,.25);transition:background .2s,color .2s,border-color .2s;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + "{position:absolute;width:max-content;min-width:360px;max-width:min(92vw, 1000px);max-height:70vh;overflow:hidden;display:flex;flex-direction:column;border-radius:11px;box-shadow:0 8px 32px rgba(0,0,0,.25);transition:background .2s,color .2s,border-color .2s;}" +
+  "#" + LISTS_LAUNCHER_ID + ".sp-toolkit-launcher-panel-up #" + LISTS_LAUNCHER_PANEL_ID + "{bottom:68px;top:auto;}" +
+  "#" + LISTS_LAUNCHER_ID + ".sp-toolkit-launcher-panel-down #" + LISTS_LAUNCHER_PANEL_ID + "{top:68px;bottom:auto;}" +
+  "#" + LISTS_LAUNCHER_ID + ".sp-toolkit-launcher-panel-anchor-left #" + LISTS_LAUNCHER_PANEL_ID + "{left:0;right:auto;}" +
+  "#" + LISTS_LAUNCHER_ID + ".sp-toolkit-launcher-panel-anchor-right #" + LISTS_LAUNCHER_PANEL_ID + "{right:0;left:auto;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark{background:#181b23!important;color:#fff!important;border:1px solid rgba(255,255,255,.08);color-scheme:dark;isolation:isolate;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light{background:#fff;color:#1C1F4A;border:1px solid #E4E6F5;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-lists-panel-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.12);flex-shrink:0;transition:border-color .2s;}" +
@@ -197,6 +203,10 @@ const LISTS_LAUNCHER_CSS =
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-filter-row select{width:100%;max-width:140px;padding:4px 8px;font-size:11px;border-radius:4px;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.2);color:inherit;font-family:inherit;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-filter-row input," +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-filter-row select{background:#f5f6ff;border-color:#E4E6F5;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-contents-table thead tr.sp-toolkit-filter-row th{position:sticky;top:0;z-index:6;background:#181b23;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table thead tr.sp-toolkit-filter-row th{position:sticky;top:0;z-index:6;background:#fff;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-contents-table thead tr.sp-toolkit-column-header-row th{position:sticky;top:2.25rem;z-index:5;background:#181b23;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table thead tr.sp-toolkit-column-header-row th{position:sticky;top:2.25rem;z-index:5;background:#fff;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:middle;white-space:nowrap;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table td{border-bottom-color:#E4E6F5;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-name{display:flex;align-items:center;gap:8px;}" +
@@ -236,6 +246,199 @@ let listsLauncherExpanded = false;
 let listsLauncherListsListener = null;
 let listsLauncherSubsitesListener = null;
 
+const LISTS_LAUNCHER_POSITION_KEY = "listsLauncherPosition";
+const LAUNCHER_BTN_PX = 48;
+const LAUNCHER_VIEW_MARGIN = 20;
+const LAUNCHER_DRAG_START_SLOP = 10;
+const LAUNCHER_DRAG_HOLD_MS = 0;
+/** Short press + little movement opens the panel. */
+const LAUNCHER_TAP_MAX_MS = 300;
+
+function clampLauncherPosition(left, top) {
+  const maxL = Math.max(LAUNCHER_VIEW_MARGIN, window.innerWidth - LAUNCHER_BTN_PX - LAUNCHER_VIEW_MARGIN);
+  const maxT = Math.max(LAUNCHER_VIEW_MARGIN, window.innerHeight - LAUNCHER_BTN_PX - LAUNCHER_VIEW_MARGIN);
+  return {
+    left: Math.min(maxL, Math.max(LAUNCHER_VIEW_MARGIN, left)),
+    top: Math.min(maxT, Math.max(LAUNCHER_VIEW_MARGIN, top)),
+  };
+}
+
+function updateLauncherPanelPlacement(container) {
+  if (!container) return;
+  const rect = container.getBoundingClientRect();
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const openDown = cy < vh / 2;
+  const anchorLeft = cx < vw / 2;
+  container.classList.remove(
+    "sp-toolkit-launcher-panel-up",
+    "sp-toolkit-launcher-panel-down",
+    "sp-toolkit-launcher-panel-anchor-left",
+    "sp-toolkit-launcher-panel-anchor-right"
+  );
+  if (openDown) container.classList.add("sp-toolkit-launcher-panel-down");
+  else container.classList.add("sp-toolkit-launcher-panel-up");
+  if (anchorLeft) container.classList.add("sp-toolkit-launcher-panel-anchor-left");
+  else container.classList.add("sp-toolkit-launcher-panel-anchor-right");
+}
+
+function applyLauncherPositionFromStored(container, storedPos) {
+  if (!container) return;
+  if (
+    storedPos &&
+    typeof storedPos.left === "number" &&
+    typeof storedPos.top === "number" &&
+    !Number.isNaN(storedPos.left) &&
+    !Number.isNaN(storedPos.top)
+  ) {
+    const c = clampLauncherPosition(storedPos.left, storedPos.top);
+    container.style.left = c.left + "px";
+    container.style.top = c.top + "px";
+    container.style.right = "auto";
+    container.style.bottom = "auto";
+  } else {
+    container.style.left = "auto";
+    container.style.top = "auto";
+    container.style.right = LAUNCHER_VIEW_MARGIN + "px";
+    container.style.bottom = LAUNCHER_VIEW_MARGIN + "px";
+  }
+  updateLauncherPanelPlacement(container);
+}
+
+function persistLauncherPosition(left, top) {
+  const c = clampLauncherPosition(left, top);
+  try {
+    chrome.storage.local.set({ [LISTS_LAUNCHER_POSITION_KEY]: { left: c.left, top: c.top } });
+  } catch (_) {}
+}
+
+let listsLauncherResizeTimer = null;
+function bindListsLauncherResizeClamp(container) {
+  function clampStoredToViewport() {
+    if (!container || !document.body.contains(container)) return;
+    chrome.storage.local.get(LISTS_LAUNCHER_POSITION_KEY, function (r) {
+      const p = r && r[LISTS_LAUNCHER_POSITION_KEY];
+      applyLauncherPositionFromStored(container, p);
+    });
+  }
+  window.addEventListener("resize", function () {
+    if (listsLauncherResizeTimer) clearTimeout(listsLauncherResizeTimer);
+    listsLauncherResizeTimer = setTimeout(clampStoredToViewport, 120);
+  });
+}
+
+function attachListsLauncherDragAndTap(container, btn) {
+  let pointerDownTime = 0;
+  let startClientX = 0;
+  let startClientY = 0;
+  let dragging = false;
+  let dragOffsetX = 0;
+  let dragOffsetY = 0;
+  let suppressNextClick = false;
+  let activePointerId = null;
+
+  function moveDist(ev) {
+    return Math.hypot(ev.clientX - startClientX, ev.clientY - startClientY);
+  }
+
+  function onPointerDown(ev) {
+    if (ev.button != null && ev.button !== 0) return;
+    pointerDownTime = Date.now();
+    startClientX = ev.clientX;
+    startClientY = ev.clientY;
+    dragging = false;
+    activePointerId = ev.pointerId;
+    try {
+      if (btn.setPointerCapture) btn.setPointerCapture(ev.pointerId);
+    } catch (_) {}
+  }
+
+  function onPointerMove(ev) {
+    if (activePointerId == null || ev.pointerId !== activePointerId) return;
+    if (dragging) {
+      const nextLeft = ev.clientX - dragOffsetX;
+      const nextTop = ev.clientY - dragOffsetY;
+      const c = clampLauncherPosition(nextLeft, nextTop);
+      container.style.left = c.left + "px";
+      container.style.top = c.top + "px";
+      container.style.right = "auto";
+      container.style.bottom = "auto";
+      updateLauncherPanelPlacement(container);
+      return;
+    }
+    const held = Date.now() - pointerDownTime;
+    if (held < LAUNCHER_DRAG_HOLD_MS) return;
+    if (moveDist(ev) <= LAUNCHER_DRAG_START_SLOP) return;
+    dragging = true;
+    container.classList.add("sp-toolkit-launcher-dragging");
+    const r = container.getBoundingClientRect();
+    dragOffsetX = ev.clientX - r.left;
+    dragOffsetY = ev.clientY - r.top;
+    const c = clampLauncherPosition(ev.clientX - dragOffsetX, ev.clientY - dragOffsetY);
+    container.style.left = c.left + "px";
+    container.style.top = c.top + "px";
+    container.style.right = "auto";
+    container.style.bottom = "auto";
+    updateLauncherPanelPlacement(container);
+  }
+
+  function onPointerUp(ev) {
+    if (activePointerId == null || ev.pointerId !== activePointerId) return;
+    try {
+      if (btn.releasePointerCapture) btn.releasePointerCapture(activePointerId);
+    } catch (_) {}
+    activePointerId = null;
+    const distEnd = Math.hypot(ev.clientX - startClientX, ev.clientY - startClientY);
+    const elapsed = Date.now() - pointerDownTime;
+    if (dragging) {
+      dragging = false;
+      container.classList.remove("sp-toolkit-launcher-dragging");
+      const r = container.getBoundingClientRect();
+      persistLauncherPosition(r.left, r.top);
+      suppressNextClick = true;
+      updateLauncherPanelPlacement(container);
+      return;
+    }
+    if (elapsed <= LAUNCHER_TAP_MAX_MS && distEnd <= LAUNCHER_DRAG_START_SLOP) {
+      suppressNextClick = true;
+      toggleListsLauncher();
+    }
+  }
+
+  function onPointerCancel(ev) {
+    if (activePointerId == null || (ev && ev.pointerId != null && ev.pointerId !== activePointerId)) return;
+    try {
+      if (btn.releasePointerCapture) btn.releasePointerCapture(activePointerId);
+    } catch (_) {}
+    activePointerId = null;
+    if (dragging) {
+      dragging = false;
+      container.classList.remove("sp-toolkit-launcher-dragging");
+      const r = container.getBoundingClientRect();
+      persistLauncherPosition(r.left, r.top);
+      suppressNextClick = true;
+      updateLauncherPanelPlacement(container);
+    }
+  }
+
+  btn.addEventListener("pointerdown", onPointerDown);
+  btn.addEventListener("pointermove", onPointerMove);
+  btn.addEventListener("pointerup", onPointerUp);
+  btn.addEventListener("pointercancel", onPointerCancel);
+  btn.addEventListener(
+    "click",
+    function (e) {
+      if (!suppressNextClick) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      suppressNextClick = false;
+    },
+    true
+  );
+}
+
 function toggleListsLauncher() {
   const container = document.getElementById(LISTS_LAUNCHER_ID);
   const panel = document.getElementById(LISTS_LAUNCHER_PANEL_ID);
@@ -245,6 +448,7 @@ function toggleListsLauncher() {
     panel.style.display = "flex";
     panel.classList.remove("sp-toolkit-panel-rolling-up");
     panel.classList.add("sp-toolkit-lists-panel-open");
+    updateLauncherPanelPlacement(container);
     try { chrome.runtime.sendMessage({ type: "SPOToolkitPanelOpened" }); } catch (_) {}
   } else {
     panel.classList.remove("sp-toolkit-lists-panel-open");
@@ -360,14 +564,6 @@ function toggleListsLauncher() {
       if (thead && tableEl) {
         thead.innerHTML = "";
         const cols = [{ key: "name", label: "Name" }, { key: "type", label: "Type" }, { key: "items", label: "Items" }, { key: "modified", label: "Modified" }];
-        const headerRow = document.createElement("tr");
-        cols.forEach(function (c) {
-          const th = document.createElement("th");
-          th.setAttribute("data-column", c.key);
-          th.innerHTML = c.label + " <span class=\"sp-toolkit-sort-icon\" aria-hidden=\"true\">↕</span>";
-          headerRow.appendChild(th);
-        });
-        thead.appendChild(headerRow);
         const filterRow = document.createElement("tr");
         filterRow.className = "sp-toolkit-filter-row";
         const filterNameTh = document.createElement("th");
@@ -404,6 +600,15 @@ function toggleListsLauncher() {
         filterRow.appendChild(document.createElement("th"));
         filterRow.appendChild(document.createElement("th"));
         thead.appendChild(filterRow);
+        const headerRow = document.createElement("tr");
+        headerRow.className = "sp-toolkit-column-header-row";
+        cols.forEach(function (c) {
+          const th = document.createElement("th");
+          th.setAttribute("data-column", c.key);
+          th.innerHTML = c.label + " <span class=\"sp-toolkit-sort-icon\" aria-hidden=\"true\">↕</span>";
+          headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
         panel._siteContentsLists = lists;
         panel._siteContentsCurrentPath = currentPath;
         panel._siteContentsSort = { col: null, dir: 1 };
@@ -629,15 +834,15 @@ function initListsLauncherUI() {
   compassImg.alt = "";
   compassImg.width = 24;
   compassImg.height = 24;
+  compassImg.draggable = false;
   btn.appendChild(compassImg);
-  btn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    btn.classList.remove("sp-toolkit-launcher-click-spin");
-    void btn.offsetWidth;
-    btn.classList.add("sp-toolkit-launcher-click-spin");
-    setTimeout(function () { btn.classList.remove("sp-toolkit-launcher-click-spin"); }, 600);
-    toggleListsLauncher();
-  });
+  btn.addEventListener(
+    "dragstart",
+    function (e) {
+      e.preventDefault();
+    },
+    true
+  );
   const panel = document.createElement("div");
   panel.id = LISTS_LAUNCHER_PANEL_ID;
   panel.className = "sp-toolkit-lists-panel";
@@ -656,6 +861,11 @@ function initListsLauncherUI() {
   container.appendChild(panel);
   container.appendChild(btn);
   document.body.appendChild(container);
+  chrome.storage.local.get(LISTS_LAUNCHER_POSITION_KEY, function (r) {
+    applyLauncherPositionFromStored(container, r[LISTS_LAUNCHER_POSITION_KEY]);
+  });
+  attachListsLauncherDragAndTap(container, btn);
+  bindListsLauncherResizeClamp(container);
   document.addEventListener("click", closeListsLauncherPanel);
   applyListsPanelTheme(panel);
 }
@@ -684,6 +894,10 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   if (changes.darkMode) {
     const panel = document.getElementById(LISTS_LAUNCHER_PANEL_ID);
     if (panel) applyListsPanelTheme(panel);
+  }
+  if (changes[LISTS_LAUNCHER_POSITION_KEY]) {
+    const c = document.getElementById(LISTS_LAUNCHER_ID);
+    if (c) applyLauncherPositionFromStored(c, changes[LISTS_LAUNCHER_POSITION_KEY].newValue);
   }
 });
 
@@ -756,7 +970,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   if (message.type === "SPOToolkitPopupClosed") {
     const launcher = document.getElementById(LISTS_LAUNCHER_ID);
-    if (launcher) launcher.classList.add("sp-toolkit-launcher-rolled-up");
+    if (launcher) launcher.classList.remove("sp-toolkit-launcher-rolled-up");
     sendResponse({});
     return true;
   }
