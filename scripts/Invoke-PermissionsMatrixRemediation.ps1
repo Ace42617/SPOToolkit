@@ -107,14 +107,14 @@ $BaseMatrixColumns = [System.Collections.Generic.HashSet[string]]::new(
     [StringComparer]::OrdinalIgnoreCase
 )
 @(
-    'Site Name', 'Item path', 'Item Type', 'Inheritance', 'Details',
+    'Site Name', 'Site URL', 'Item path', 'Item Type', 'Inheritance', 'Details',
     'User/group', 'Principal type', 'Account name', 'External user', 'Given through'
 ) | ForEach-Object { [void]$BaseMatrixColumns.Add($_) }
 
 $State = @{
     ConnectedUrl = ''
     SiteHost     = ''
-    SiteMap      = @{}   # Site Name -> Site URL
+    SiteMap      = @{}   # Fallback Site Name -> Site URL for older reports without per-row Site URL.
     RoleColumns  = @()
 }
 
@@ -138,6 +138,21 @@ function Get-NormalizedSiteUrl {
     $p = $uri.AbsolutePath
     if ($p -ne '/' -and $p.EndsWith('/')) { $p = $p.TrimEnd('/') }
     return ('{0}://{1}{2}' -f $uri.Scheme, $uri.Host, $p).ToLowerInvariant()
+}
+
+function Test-IsSharePointTenantAdminUrl {
+    param([string] $Url)
+
+    if ([string]::IsNullOrWhiteSpace($Url)) { return $false }
+    try {
+        $u = [Uri]$Url.Trim()
+        if ($u.Host -match '-admin\.sharepoint\.com$') { return $true }
+        if ($u.Host -match '\.sharepoint\.com$' -and $u.AbsolutePath -match '/_layouts/.*/(online|tenant)/') {
+            return $true
+        }
+    }
+    catch { }
+    return $false
 }
 
 function Get-ServerRelativePath {
@@ -586,7 +601,10 @@ function Get-ReportRootSiteUrl {
     )
 
     if (-not [string]::IsNullOrWhiteSpace($SummaryUrl)) {
-        return (Get-NormalizedSiteUrl $SummaryUrl.Trim())
+        $summaryRoot = Get-NormalizedSiteUrl $SummaryUrl.Trim()
+        if ($summaryRoot -and -not (Test-IsSharePointTenantAdminUrl $summaryRoot)) {
+            return $summaryRoot
+        }
     }
 
     $urls = [System.Collections.Generic.List[string]]::new()
@@ -663,7 +681,7 @@ function Initialize-SiteMap {
         }
     }
 
-    if ($SummaryUrl) {
+    if ($SummaryUrl -and -not (Test-IsSharePointTenantAdminUrl $SummaryUrl)) {
         $State.SiteHost = '{0}://{1}' -f ([Uri]$SummaryUrl).Scheme, ([Uri]$SummaryUrl).Host
     }
     elseif ($DefaultSiteUrl) {
@@ -678,6 +696,9 @@ function Get-SiteUrlForRow {
         [object] $Row,
         [string] $FallbackSiteUrl
     )
+
+    $rowSiteUrl = Get-NormalizedSiteUrl ([string]$Row.'Site URL')
+    if ($rowSiteUrl) { return $rowSiteUrl }
 
     $name = [string]$Row.'Site Name'
     if ($name -and $State.SiteMap.ContainsKey($name)) {
@@ -1011,6 +1032,9 @@ function Connect-PnPSiteIfNeeded {
 
     $target = Get-NormalizedSiteUrl $TargetSiteUrl
     if (-not $target) { throw 'Site URL was empty.' }
+    if (Test-IsSharePointTenantAdminUrl $target) {
+        throw "Refusing to run remediation against tenant admin URL '$target'. Provide a content site URL instead."
+    }
     if ($State.ConnectedUrl -eq $target) { return }
 
     Connect-PnPOnline -Url $target -Interactive -ClientId $ClientId | Out-Null
@@ -1207,12 +1231,6 @@ function Invoke-RemoveExternalUserTarget {
             $ctx = Get-ListItemContextFromPath -ServerRelativePath $itemPath -ItemType $itemType
             $list = Resolve-PnPListFromPath -ListPathOrTitle $ctx.ListTitle
             if (Remove-ExternalUserAssignmentAtScope -Login $login -ScopeKind ListItem -List $list -ItemId $ctx.ItemId) {
-                $removedAny = $true
-            }
-            if (Remove-ExternalUserAssignmentAtScope -Login $login -ScopeKind List -List $list) {
-                $removedAny = $true
-            }
-            if (Remove-ExternalUserAssignmentAtScope -Login $login -ScopeKind Web) {
                 $removedAny = $true
             }
         }
