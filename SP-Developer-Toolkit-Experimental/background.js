@@ -105,10 +105,6 @@ function unregisterViewFormatterFrameTab(tabId) {
   updateViewFormatterFrameRules();
 }
 
-chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: VIEW_FORMATTER_FRAME_RULE_IDS }, () => {
-  void chrome.runtime.lastError;
-});
-
 chrome.tabs.onRemoved.addListener((tabId) => {
   unregisterViewFormatterFrameTab(tabId);
 });
