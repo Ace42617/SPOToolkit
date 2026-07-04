@@ -819,9 +819,9 @@ function Build-SharingLinkPlan {
 
     foreach ($row in $Sharing) {
         if ([string]$row.RecordType -ne 'SharingLink') { continue }
-        $shareId = [string]$row.ShareId
+        $shareId = ([string]$row.ShareId).Trim()
         $rel = Get-ServerRelativePath ([string]$row.RelativeUrl)
-        if (-not $shareId -and -not $rel) { continue }
+        if (-not $shareId -or -not $rel) { continue }
 
         $siteUrl = Get-NormalizedSiteUrl ([string]$row.SiteUrl)
         $key = "$siteUrl|$shareId|$rel"
@@ -1233,24 +1233,18 @@ function Invoke-RemoveSharingLinkTarget {
     Connect-PnPSiteIfNeeded -TargetSiteUrl $Target.SiteUrl
 
     $rel = [string]$Target.ItemPath
-    $shareId = [string]$Target.ShareId
+    $shareId = ([string]$Target.ShareId).Trim()
     $itemType = [string]$Target.ItemType
 
+    if (-not $shareId) {
+        throw "Refusing to remove sharing links on '$rel' without a ShareId. Re-export the report and try again."
+    }
+
     if ($itemType -eq 'Folder') {
-        if ($shareId) {
-            Remove-PnPFolderSharingLink -Folder $rel -Identity $shareId -Force -ErrorAction Stop
-        }
-        else {
-            Remove-PnPFolderSharingLink -Folder $rel -Force -ErrorAction Stop
-        }
+        Remove-PnPFolderSharingLink -Folder $rel -Identity $shareId -Force -ErrorAction Stop
     }
     else {
-        if ($shareId) {
-            Remove-PnPFileSharingLink -FileUrl $rel -Identity $shareId -Force -ErrorAction Stop
-        }
-        else {
-            Remove-PnPFileSharingLink -FileUrl $rel -Force -ErrorAction Stop
-        }
+        Remove-PnPFileSharingLink -FileUrl $rel -Identity $shareId -Force -ErrorAction Stop
     }
 }
 
