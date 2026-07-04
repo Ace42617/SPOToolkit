@@ -13,7 +13,7 @@
     "rule_resources": [
       {
         "id": "view_formatter_iframe",
-        "enabled": true,
+        "enabled": false,
         "path": "rules/view-formatter-iframe.json"
       }
     ]

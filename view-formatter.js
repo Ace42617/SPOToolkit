@@ -430,6 +430,30 @@
     });
   }
 
+  let formatterFrameRulesDone = false;
+  let formatterFrameRulesReady = false;
+  const formatterFrameRulesReadyPromise = new Promise(function (resolve) {
+    if (!previewUrl) {
+      formatterFrameRulesDone = true;
+      resolve(false);
+      return;
+    }
+    try {
+      chrome.runtime.sendMessage({ type: "SPOToolkitEnsureViewFormatterFrameRules" }, function (response) {
+        const ok = !chrome.runtime.lastError && response && response.ok === true;
+        formatterFrameRulesReady = ok;
+        formatterFrameRulesDone = true;
+        if (!ok) {
+          showBanner("Could not enable scoped SharePoint frame rules. Reload the extension and open View Formatter again.");
+        }
+        resolve(ok);
+      });
+    } catch (_) {
+      formatterFrameRulesDone = true;
+      resolve(false);
+    }
+  });
+
   const STORAGE_SPLIT = "spotk-vf-split-pct";
   /** Draft cache is per list URL + view id so switching views does not reuse the wrong JSON. */
   function storageKeyForView(viewId) {
@@ -444,6 +468,16 @@
 
   function setPreviewFrameSrc(url) {
     if (!frame || !url) return;
+    if (!formatterFrameRulesDone) {
+      formatterFrameRulesReadyPromise.then(function () {
+        setPreviewFrameSrc(url);
+      });
+      return;
+    }
+    if (!formatterFrameRulesReady) {
+      showBanner("Could not enable scoped SharePoint frame rules. Reload the extension and open View Formatter again.");
+      return;
+    }
     try {
       const u = new URL(url);
       u.searchParams.set("_spotkVf", "1");

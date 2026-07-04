@@ -4,6 +4,122 @@
 const RB_WAIT_SESSION_KEY = "__SPO_TOOLKIT_RB_WAIT__";
 const ADMIN_WAIT_SESSION_KEY = "__SPO_TOOLKIT_ADMIN_WAIT__";
 const SECOND_STAGE_RB_PORT = "SPOToolkitSecondStageRecycleBin";
+const VIEW_FORMATTER_FRAME_RULE_IDS = [90101, 90102, 90103];
+const viewFormatterFrameTabIds = new Set();
+
+function viewFormatterFrameRules(tabIds) {
+  const initiatorDomains = [chrome.runtime.id];
+  return [
+    {
+      id: 90101,
+      priority: 1,
+      action: {
+        type: "modifyHeaders",
+        responseHeaders: [
+          { header: "x-frame-options", operation: "remove" },
+          { header: "content-security-policy", operation: "remove" },
+          { header: "content-security-policy-report-only", operation: "remove" }
+        ]
+      },
+      condition: {
+        urlFilter: "||sharepoint.com^",
+        resourceTypes: ["sub_frame"],
+        tabIds,
+        initiatorDomains
+      }
+    },
+    {
+      id: 90102,
+      priority: 1,
+      action: {
+        type: "modifyHeaders",
+        responseHeaders: [
+          { header: "x-frame-options", operation: "remove" },
+          { header: "content-security-policy", operation: "remove" },
+          { header: "content-security-policy-report-only", operation: "remove" }
+        ]
+      },
+      condition: {
+        urlFilter: "||sharepoint.us^",
+        resourceTypes: ["sub_frame"],
+        tabIds,
+        initiatorDomains
+      }
+    },
+    {
+      id: 90103,
+      priority: 1,
+      action: {
+        type: "modifyHeaders",
+        responseHeaders: [
+          { header: "x-frame-options", operation: "remove" },
+          { header: "content-security-policy", operation: "remove" },
+          { header: "content-security-policy-report-only", operation: "remove" }
+        ]
+      },
+      condition: {
+        urlFilter: "||sharepoint.de^",
+        resourceTypes: ["sub_frame"],
+        tabIds,
+        initiatorDomains
+      }
+    }
+  ];
+}
+
+function updateViewFormatterFrameRules(done) {
+  const tabIds = Array.from(viewFormatterFrameTabIds).filter((id) => Number.isInteger(id));
+  const options = { removeRuleIds: VIEW_FORMATTER_FRAME_RULE_IDS };
+  if (tabIds.length) options.addRules = viewFormatterFrameRules(tabIds);
+  chrome.declarativeNetRequest.updateSessionRules(options, () => {
+    const err = chrome.runtime.lastError;
+    if (err) {
+      console.warn("SPOToolkit could not update View Formatter frame rules:", err.message || err);
+    }
+    if (typeof done === "function") done(!err);
+  });
+}
+
+function isViewFormatterExtensionUrl(url) {
+  if (!url) return false;
+  try {
+    const expected = new URL(chrome.runtime.getURL("view-formatter.html"));
+    const actual = new URL(url);
+    return actual.origin === expected.origin && actual.pathname === expected.pathname;
+  } catch (_) {
+    return false;
+  }
+}
+
+function registerViewFormatterFrameTab(tabId, done) {
+  if (!Number.isInteger(tabId)) {
+    if (typeof done === "function") done(false);
+    return;
+  }
+  viewFormatterFrameTabIds.add(tabId);
+  updateViewFormatterFrameRules(done);
+}
+
+function unregisterViewFormatterFrameTab(tabId) {
+  if (!viewFormatterFrameTabIds.delete(tabId)) return;
+  updateViewFormatterFrameRules();
+}
+
+chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: VIEW_FORMATTER_FRAME_RULE_IDS }, () => {
+  void chrome.runtime.lastError;
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  unregisterViewFormatterFrameTab(tabId);
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (!viewFormatterFrameTabIds.has(tabId)) return;
+  const nextUrl = changeInfo.url || (tab && tab.url) || "";
+  if (nextUrl && !isViewFormatterExtensionUrl(nextUrl)) {
+    unregisterViewFormatterFrameTab(tabId);
+  }
+});
 
 function normalizeTrailingSlashRb(url) {
   if (!url || typeof url !== "string") return "";
@@ -512,6 +628,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ ok: true });
     return false;
   }
+  if (message.type === "SPOToolkitEnsureViewFormatterFrameRules") {
+    const tabId = sender.tab && sender.tab.id;
+    registerViewFormatterFrameTab(tabId, (ok) => {
+      sendResponse({ ok });
+    });
+    return true;
+  }
   if (message.type === "SPOToolkitOpenViewFormatter") {
     const previewUrl = String(message.previewUrl || (sender.tab && sender.tab.url) || "");
     if (!previewUrl || !previewUrl.includes("sharepoint.com")) {
@@ -522,8 +645,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     u.searchParams.set("src", previewUrl);
     const tid = sender.tab && sender.tab.id;
     if (tid != null) u.searchParams.set("tabId", String(tid));
-    chrome.tabs.create({ url: u.toString() });
-    sendResponse({ ok: true });
+    chrome.tabs.create({ url: u.toString() }, (tab) => {
+      if (chrome.runtime.lastError || !tab || tab.id == null) {
+        sendResponse({ ok: false, error: "Could not open View Formatter." });
+        return;
+      }
+      registerViewFormatterFrameTab(tab.id, (ok) => {
+        sendResponse({ ok, tabId: tab.id });
+      });
+    });
     return true;
   }
   if (message.type !== "SPOToolkitOpenViewManager") return;
