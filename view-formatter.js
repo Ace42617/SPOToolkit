@@ -455,6 +455,27 @@
     }
   }
 
+  function withViewFormatterFrameRules(done) {
+    if (typeof chrome === "undefined" || !chrome.tabs || !chrome.tabs.getCurrent || !chrome.runtime || !chrome.runtime.sendMessage) {
+      done();
+      return;
+    }
+    chrome.tabs.getCurrent(function (tab) {
+      const tabId = tab && tab.id;
+      if (tabId == null) {
+        done();
+        return;
+      }
+      chrome.runtime.sendMessage({ type: "SPOToolkitInstallViewFormatterFrameRules", tabId: tabId }, function (res) {
+        const err = chrome.runtime.lastError && chrome.runtime.lastError.message;
+        if (err || !res || res.ok === false) {
+          showBanner("Preview frame rules could not be scoped to this tab. Use Open in tab if the preview does not load.");
+        }
+        done();
+      });
+    });
+  }
+
   let livePreviewTimer = null;
   let livePreviewStatusTimer = null;
   function scheduleLivePreview(immediate) {
@@ -807,7 +828,9 @@
 
   if (previewUrl && frame) {
     try {
-      setPreviewFrameSrc(previewUrl);
+      withViewFormatterFrameRules(function () {
+        setPreviewFrameSrc(previewUrl);
+      });
     } catch (_) {
       showBanner("Could not set preview URL.");
     }

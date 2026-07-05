@@ -4,6 +4,48 @@
 const RB_WAIT_SESSION_KEY = "__SPO_TOOLKIT_RB_WAIT__";
 const ADMIN_WAIT_SESSION_KEY = "__SPO_TOOLKIT_ADMIN_WAIT__";
 const SECOND_STAGE_RB_PORT = "SPOToolkitSecondStageRecycleBin";
+const VIEW_FORMATTER_FRAME_RULE_BASE = 200000000;
+const VIEW_FORMATTER_FRAME_URL_FILTERS = ["||sharepoint.com^", "||sharepoint.us^", "||sharepoint.de^"];
+const VIEW_FORMATTER_FRAME_HEADER_REMOVALS = [
+  { header: "x-frame-options", operation: "remove" },
+  { header: "content-security-policy", operation: "remove" },
+  { header: "content-security-policy-report-only", operation: "remove" },
+];
+
+function viewFormatterFrameRuleIdsForTab(tabId) {
+  const slot = Math.abs(Number(tabId) || 0) % 1000000;
+  return VIEW_FORMATTER_FRAME_URL_FILTERS.map(function (_, i) {
+    return VIEW_FORMATTER_FRAME_RULE_BASE + slot * 10 + i;
+  });
+}
+
+function installViewFormatterFrameRules(tabId, done) {
+  if (!chrome.declarativeNetRequest || !chrome.declarativeNetRequest.updateSessionRules) {
+    if (typeof done === "function") done({ ok: false, error: "declarativeNetRequest unavailable" });
+    return;
+  }
+  const ids = viewFormatterFrameRuleIdsForTab(tabId);
+  const addRules = VIEW_FORMATTER_FRAME_URL_FILTERS.map(function (urlFilter, i) {
+    return {
+      id: ids[i],
+      priority: 1,
+      action: { type: "modifyHeaders", responseHeaders: VIEW_FORMATTER_FRAME_HEADER_REMOVALS },
+      condition: { urlFilter, resourceTypes: ["sub_frame"], tabIds: [tabId] },
+    };
+  });
+  chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: ids, addRules }, function () {
+    const err = chrome.runtime.lastError && chrome.runtime.lastError.message;
+    if (typeof done === "function") done(err ? { ok: false, error: err } : { ok: true });
+  });
+}
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (!chrome.declarativeNetRequest || !chrome.declarativeNetRequest.updateSessionRules) return;
+  chrome.declarativeNetRequest.updateSessionRules(
+    { removeRuleIds: viewFormatterFrameRuleIdsForTab(tabId) },
+    () => { void chrome.runtime.lastError; }
+  );
+});
 
 function normalizeTrailingSlashRb(url) {
   if (!url || typeof url !== "string") return "";
@@ -487,6 +529,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     openTenantAdminUrlWithWaitOverlay(url);
     sendResponse({ ok: true });
     return false;
+  }
+  if (message.type === "SPOToolkitInstallViewFormatterFrameRules") {
+    const tabId = Number(message.tabId);
+    const senderUrl = String(sender.url || "");
+    if (!Number.isInteger(tabId) || tabId < 0 || senderUrl.indexOf(chrome.runtime.getURL("view-formatter.html")) !== 0) {
+      sendResponse({ ok: false, error: "Invalid View Formatter tab" });
+      return false;
+    }
+    installViewFormatterFrameRules(tabId, sendResponse);
+    return true;
   }
   if (message.type === "SPOToolkitSecondStageRecycleBinLikePopup") {
     const tabId =

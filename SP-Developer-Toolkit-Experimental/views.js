@@ -1460,12 +1460,47 @@
   async function applyViewFields(viewId) {
     const ordered = getOrderedViewColumns();
     const vfBase = sitePath + "/_api/web/lists(guid'" + listId.replace(/'/g, "''") + "')/views(guid'" + viewId.replace(/'/g, "''") + "')/ViewFields";
-    const rm = await rest("POST", vfBase + "/RemoveAllViewFields");
-    if (!rm.ok && rm.status !== 404 && rm.status !== 501) throw new Error(rm.error || "RemoveAllViewFields failed");
+
+    function fieldNamesFromResponse(data) {
+      const d = data && data.d;
+      const items = (data && (data.Items || data.value || (d && d.results))) || [];
+      return [].concat(items).filter(Boolean).map(function (x) {
+        return String(typeof x === "object" ? (x.Name || x.InternalName || x.Title || x) : x);
+      }).filter(Boolean);
+    }
+
+    function quoteFieldName(name) {
+      return String(name).replace(/'/g, "''");
+    }
+
+    const currentRes = await rest("GET", vfBase);
+    if (!currentRes || !currentRes.ok) throw new Error(currentRes && currentRes.error ? String(currentRes.error) : "Read ViewFields failed");
+
+    const desiredSet = new Set(ordered.map(function (n) { return String(n).toLowerCase(); }));
+    const current = fieldNamesFromResponse(currentRes.data);
+    const currentSet = new Set(current.map(function (n) { return String(n).toLowerCase(); }));
+
+    // Add every desired field before removing anything, so a transient add failure
+    // cannot leave the SharePoint view empty or partially truncated.
     for (let i = 0; i < ordered.length; i++) {
-      const name = String(ordered[i]).replace(/'/g, "''");
+      if (currentSet.has(String(ordered[i]).toLowerCase())) continue;
+      const name = quoteFieldName(ordered[i]);
       const r = await rest("POST", vfBase + "/addviewfield('" + name + "')");
       if (!r.ok) throw new Error(r.error || "Add field failed");
+      currentSet.add(String(ordered[i]).toLowerCase());
+    }
+
+    for (let i = 0; i < current.length; i++) {
+      const existing = String(current[i]);
+      if (desiredSet.has(existing.toLowerCase())) continue;
+      const r = await rest("POST", vfBase + "/removeviewfield('" + quoteFieldName(existing) + "')");
+      if (!r.ok && r.status !== 404) throw new Error(r.error || "Remove field failed");
+    }
+
+    for (let i = 0; i < ordered.length; i++) {
+      const name = quoteFieldName(ordered[i]);
+      const r = await rest("POST", vfBase + "/moveviewfieldto(field='" + name + "',index=" + i + ")");
+      if (!r.ok && r.status !== 404 && r.status !== 501) throw new Error(r.error || "Move field failed");
     }
   }
 
