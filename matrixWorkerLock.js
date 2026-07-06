@@ -300,7 +300,7 @@
       '<div class="spot-mwl-card">' +
       '<h1 class="spot-mwl-title">Permissions matrix export</h1>' +
       '<p class="spot-mwl-warn">Processing — do not close this tab</p>' +
-      '<p class="spot-mwl-hint">Your page was opened in a new tab so you can keep working. This tab runs the export and will close automatically when finished.</p>' +
+      '<p class="spot-mwl-hint">Your page was opened in a new tab so you can keep working. This tab runs the export and returns to normal when finished.</p>' +
       '<div class="spot-mwl-bar-wrap"><div class="spot-mwl-bar"></div></div>' +
       '<div class="spot-mwl-head"><span class="spot-mwl-msg">Starting…</span><span class="spot-mwl-pct">0%</span></div>' +
       '<pre class="spot-mwl-log"></pre>' +
@@ -361,12 +361,20 @@
     if (msgEl && message) msgEl.textContent = String(message);
     if (barEl && success) barEl.style.width = "100%";
     if (pctEl && success) pctEl.textContent = "100%";
+    const dismissMs = Math.max(0, Number(autoCloseMs) || 0);
     if (statusEl) {
-      const sec = Math.max(1, Math.round((autoCloseMs || 5000) / 1000));
-      statusEl.textContent = "Closing this tab in " + sec + " second" + (sec === 1 ? "" : "s") + "…";
+      if (dismissMs > 0) {
+        const sec = Math.max(1, Math.round(dismissMs / 1000));
+        statusEl.textContent = "Returning this tab to normal in " + sec + " second" + (sec === 1 ? "" : "s") + "…";
+      } else {
+        statusEl.textContent = "Export finished. You can return to the page.";
+      }
     }
     const cancelBtn = overlayEl.querySelector(".spot-mwl-cancel");
     if (cancelBtn) cancelBtn.style.display = "none";
+    if (dismissMs > 0) {
+      setTimeout(hide, dismissMs);
+    }
   }
 
   function hide() {
