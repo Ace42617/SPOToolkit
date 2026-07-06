@@ -69,7 +69,7 @@ function sitePathFromWebAbsoluteUrlRb(webAbsoluteUrl) {
 }
 
 /**
- * Same URL resolution as popup quick links: getPageContext.siteAbsoluteUrl → REST rootweb → siteBase.
+ * Same URL resolution as popup quick links: getPageContext.siteAbsoluteUrl → REST rootweb.
  * @param {number} tabId
  * @param {chrome.runtime.Port | null | undefined} [keepalivePort]
  */
@@ -128,7 +128,11 @@ function startSecondStageRecycleBinLikePopup(tabId, keepalivePort) {
               "";
             if (u) fromRest = normalizeTrailingSlashRb(u);
           }
-          finish(fromRest || normalizeTrailingSlashRb(siteBase));
+          if (fromRest) {
+            finish(fromRest);
+          } else {
+            bail();
+          }
         }
       );
     });
@@ -258,8 +262,17 @@ function injectRecycleBinWaitOverlay(tabId, done) {
  * @param {number} tabId
  * @param {string} firstStageUrl
  * @param {string} secondStageUrl
+ * @param {chrome.runtime.Port | null | undefined} [keepalivePort]
  */
-function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl) {
+function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl, keepalivePort) {
+  let portToClose = keepalivePort;
+  function disconnectKeepalive() {
+    if (!portToClose) return;
+    try {
+      portToClose.disconnect();
+    } catch (_) {}
+    portToClose = null;
+  }
   let settled = false;
   let sequenceClosed = false;
   let failsafe = 0;
@@ -282,6 +295,7 @@ function openSecondStageRecycleBinSequence(tabId, firstStageUrl, secondStageUrl)
       teardownAdminHashWait();
       teardownAdminHashWait = null;
     }
+    disconnectKeepalive();
   }
 
   function endFirstStageOnly() {
@@ -777,20 +791,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (wasMatrix) {
       matrixExportWorker.params = null;
       if (workerTabId != null) {
-        const closeMs = success ? 5000 : 15000;
+        const dismissMs = success ? 5000 : 15000;
         try {
           chrome.tabs.sendMessage(workerTabId, {
             action: "matrixWorkerFinish",
             success: success,
             message: doneMessage,
-            autoCloseMs: closeMs
+            autoCloseMs: dismissMs
           });
         } catch (_) {}
-        setTimeout(function () {
-          chrome.tabs.remove(workerTabId, function () {
-            void chrome.runtime.lastError;
-          });
-        }, closeMs);
       }
     }
     sendResponse({ ok: true });

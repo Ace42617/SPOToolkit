@@ -107,14 +107,14 @@ $BaseMatrixColumns = [System.Collections.Generic.HashSet[string]]::new(
     [StringComparer]::OrdinalIgnoreCase
 )
 @(
-    'Site Name', 'Item path', 'Item Type', 'Inheritance', 'Details',
+    'Site Name', 'Site URL', 'Item path', 'Item Type', 'Inheritance', 'Details',
     'User/group', 'Principal type', 'Account name', 'External user', 'Given through'
 ) | ForEach-Object { [void]$BaseMatrixColumns.Add($_) }
 
 $State = @{
     ConnectedUrl = ''
     SiteHost     = ''
-    SiteMap      = @{}   # Site Name -> Site URL
+    SiteMap      = @{}   # Fallback Site Name -> Site URL for older reports without per-row Site URL.
     RoleColumns  = @()
 }
 
@@ -138,6 +138,21 @@ function Get-NormalizedSiteUrl {
     $p = $uri.AbsolutePath
     if ($p -ne '/' -and $p.EndsWith('/')) { $p = $p.TrimEnd('/') }
     return ('{0}://{1}{2}' -f $uri.Scheme, $uri.Host, $p).ToLowerInvariant()
+}
+
+function Test-IsSharePointTenantAdminUrl {
+    param([string] $Url)
+
+    if ([string]::IsNullOrWhiteSpace($Url)) { return $false }
+    try {
+        $u = [Uri]$Url.Trim()
+        if ($u.Host -match '-admin\.sharepoint\.com$') { return $true }
+        if ($u.Host -match '\.sharepoint\.com$' -and $u.AbsolutePath -match '/_layouts/.*/(online|tenant)/') {
+            return $true
+        }
+    }
+    catch { }
+    return $false
 }
 
 function Get-ServerRelativePath {
@@ -586,7 +601,10 @@ function Get-ReportRootSiteUrl {
     )
 
     if (-not [string]::IsNullOrWhiteSpace($SummaryUrl)) {
-        return (Get-NormalizedSiteUrl $SummaryUrl.Trim())
+        $summaryRoot = Get-NormalizedSiteUrl $SummaryUrl.Trim()
+        if ($summaryRoot -and -not (Test-IsSharePointTenantAdminUrl $summaryRoot)) {
+            return $summaryRoot
+        }
     }
 
     $urls = [System.Collections.Generic.List[string]]::new()
@@ -663,7 +681,7 @@ function Initialize-SiteMap {
         }
     }
 
-    if ($SummaryUrl) {
+    if ($SummaryUrl -and -not (Test-IsSharePointTenantAdminUrl $SummaryUrl)) {
         $State.SiteHost = '{0}://{1}' -f ([Uri]$SummaryUrl).Scheme, ([Uri]$SummaryUrl).Host
     }
     elseif ($DefaultSiteUrl) {
@@ -678,6 +696,9 @@ function Get-SiteUrlForRow {
         [object] $Row,
         [string] $FallbackSiteUrl
     )
+
+    $rowSiteUrl = Get-NormalizedSiteUrl ([string]$Row.'Site URL')
+    if ($rowSiteUrl) { return $rowSiteUrl }
 
     $name = [string]$Row.'Site Name'
     if ($name -and $State.SiteMap.ContainsKey($name)) {
@@ -769,45 +790,6 @@ function Build-ExternalUserPlan {
         }
     }
 
-    foreach ($target in @($plan)) {
-        if ($target.ItemType -notmatch '^(File|Folder|List item)$') { continue }
-
-        $siteUrl = [string]$target.SiteUrl
-        $login = [string]$target.Login
-        $webPath = Normalize-ServerRelativePath ([Uri]$siteUrl).AbsolutePath
-
-        $siteKey = "user|$siteUrl|Site|$webPath|$login"
-        if ($seen.Add($siteKey)) {
-            $plan.Add([pscustomobject]@{
-                Action    = 'RemoveUserPermission'
-                SiteUrl   = $siteUrl
-                ItemPath  = $webPath
-                ItemType  = 'Site'
-                Login     = $login
-                Group     = ''
-                Roles     = ''
-                Detail    = "Remove site-level grants for external user $login (sharing cleanup)"
-            }) | Out-Null
-        }
-
-        $listPath = Get-ParentServerRelativePath ([string]$target.ItemPath)
-        if ($listPath) {
-            $listKey = "user|$siteUrl|Library|$listPath|$login"
-            if ($seen.Add($listKey)) {
-                $plan.Add([pscustomobject]@{
-                    Action    = 'RemoveUserPermission'
-                    SiteUrl   = $siteUrl
-                    ItemPath  = $listPath
-                    ItemType  = 'Library'
-                    Login     = $login
-                    Group     = ''
-                    Roles     = ''
-                    Detail    = "Remove library-level grants for external user $login (sharing cleanup)"
-                }) | Out-Null
-            }
-        }
-    }
-
     return @($plan)
 }
 
@@ -819,9 +801,9 @@ function Build-SharingLinkPlan {
 
     foreach ($row in $Sharing) {
         if ([string]$row.RecordType -ne 'SharingLink') { continue }
-        $shareId = [string]$row.ShareId
+        $shareId = ([string]$row.ShareId).Trim()
         $rel = Get-ServerRelativePath ([string]$row.RelativeUrl)
-        if (-not $shareId -and -not $rel) { continue }
+        if (-not $shareId -or -not $rel) { continue }
 
         $siteUrl = Get-NormalizedSiteUrl ([string]$row.SiteUrl)
         $key = "$siteUrl|$shareId|$rel"
@@ -1011,6 +993,9 @@ function Connect-PnPSiteIfNeeded {
 
     $target = Get-NormalizedSiteUrl $TargetSiteUrl
     if (-not $target) { throw 'Site URL was empty.' }
+    if (Test-IsSharePointTenantAdminUrl $target) {
+        throw "Refusing to run remediation against tenant admin URL '$target'. Provide a content site URL instead."
+    }
     if ($State.ConnectedUrl -eq $target) { return }
 
     Connect-PnPOnline -Url $target -Interactive -ClientId $ClientId | Out-Null
@@ -1209,12 +1194,6 @@ function Invoke-RemoveExternalUserTarget {
             if (Remove-ExternalUserAssignmentAtScope -Login $login -ScopeKind ListItem -List $list -ItemId $ctx.ItemId) {
                 $removedAny = $true
             }
-            if (Remove-ExternalUserAssignmentAtScope -Login $login -ScopeKind List -List $list) {
-                $removedAny = $true
-            }
-            if (Remove-ExternalUserAssignmentAtScope -Login $login -ScopeKind Web) {
-                $removedAny = $true
-            }
         }
         default {
             Write-Warning "Skipped unsupported external-user target type '$itemType' for $login"
@@ -1233,24 +1212,18 @@ function Invoke-RemoveSharingLinkTarget {
     Connect-PnPSiteIfNeeded -TargetSiteUrl $Target.SiteUrl
 
     $rel = [string]$Target.ItemPath
-    $shareId = [string]$Target.ShareId
+    $shareId = ([string]$Target.ShareId).Trim()
     $itemType = [string]$Target.ItemType
 
+    if (-not $shareId) {
+        throw "Refusing to remove sharing links on '$rel' without a ShareId. Re-export the report and try again."
+    }
+
     if ($itemType -eq 'Folder') {
-        if ($shareId) {
-            Remove-PnPFolderSharingLink -Folder $rel -Identity $shareId -Force -ErrorAction Stop
-        }
-        else {
-            Remove-PnPFolderSharingLink -Folder $rel -Force -ErrorAction Stop
-        }
+        Remove-PnPFolderSharingLink -Folder $rel -Identity $shareId -Force -ErrorAction Stop
     }
     else {
-        if ($shareId) {
-            Remove-PnPFileSharingLink -FileUrl $rel -Identity $shareId -Force -ErrorAction Stop
-        }
-        else {
-            Remove-PnPFileSharingLink -FileUrl $rel -Force -ErrorAction Stop
-        }
+        Remove-PnPFileSharingLink -FileUrl $rel -Identity $shareId -Force -ErrorAction Stop
     }
 }
 

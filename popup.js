@@ -964,6 +964,7 @@ function isTenantAdminQuickLinkHref(href) {
 
 /** Same tab: end-user RecycleBin first, then site-collection AdminRecycleBin (?view=5#view=13). */
 function addSecondStageRecycleBinQuickLink(ul, label, tabId, siteBase, secondStageHref, icon) {
+  if (!secondStageHref) return;
   const firstUrl = normalizeTrailingSlash(siteBase) + "/_layouts/15/RecycleBin.aspx";
   const li = document.createElement("li");
   const a = document.createElement("a");
@@ -1238,10 +1239,9 @@ async function getSiteCollectionRootAbsoluteUrl(tabId, webAbsoluteUrl) {
   });
 }
 
-/** Prefer _spPageContextInfo.siteAbsoluteUrl from the tab; then REST rootweb; then current web URL. */
+/** Prefer _spPageContextInfo.siteAbsoluteUrl from the tab; then REST rootweb. */
 async function resolveSiteCollectionRootUrl(tabId, webAbsoluteUrl) {
-  const fallback = normalizeTrailingSlash(webAbsoluteUrl);
-  if (!tabId) return fallback;
+  if (!tabId) return "";
   const fromPage = await new Promise((resolve) => {
     try {
       chrome.tabs.sendMessage(tabId, { action: "getPageContext" }, (res) => {
@@ -1259,7 +1259,7 @@ async function resolveSiteCollectionRootUrl(tabId, webAbsoluteUrl) {
   if (fromPage) return fromPage;
   const fromRest = await getSiteCollectionRootAbsoluteUrl(tabId, webAbsoluteUrl);
   if (fromRest) return fromRest;
-  return fallback;
+  return "";
 }
 
 async function getCurrentSiteIdFromPage(tabId, webAbsoluteUrl) {
