@@ -13,10 +13,17 @@ for (const command of removeSharingLinkCommands) {
   assert.match(command, /\s-Identity\s+\$shareId\b/, `sharing-link removal must target a concrete ShareId: ${command}`);
 }
 
-const fileFolderBranchMatch = script.match(/'\^\(File\|Folder\|List item\)\$'\s*\{([\s\S]*?)^\s*\}/m);
-assert.ok(fileFolderBranchMatch, "expected file/folder/list item remediation branch");
+const removeExternalUserFunctionMatch = script.match(
+  /function Invoke-RemoveExternalUserTarget \{[\s\S]*?(?=^function Invoke-RemoveSharingLinkTarget \{)/m,
+);
+assert.ok(removeExternalUserFunctionMatch, "expected external-user remediation function");
 
-const fileFolderBranch = fileFolderBranchMatch[1];
+const removeExternalUserFunction = removeExternalUserFunctionMatch[0];
+const fileFolderBranchStart = removeExternalUserFunction.indexOf("'^(File|Folder|List item)$' {");
+const defaultBranchStart = removeExternalUserFunction.indexOf("default {", fileFolderBranchStart);
+assert.ok(fileFolderBranchStart >= 0 && defaultBranchStart > fileFolderBranchStart, "expected file/folder/list item remediation branch");
+
+const fileFolderBranch = removeExternalUserFunction.slice(fileFolderBranchStart, defaultBranchStart);
 assert.match(fileFolderBranch, /ScopeKind ListItem\b/, "item remediation should remove the selected item assignment");
 assert.doesNotMatch(fileFolderBranch, /ScopeKind List\b/, "item remediation must not cascade to parent list/library");
 assert.doesNotMatch(fileFolderBranch, /ScopeKind Web\b/, "item remediation must not cascade to parent site/web");
