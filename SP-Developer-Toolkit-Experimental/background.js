@@ -4,6 +4,69 @@
 const RB_WAIT_SESSION_KEY = "__SPO_TOOLKIT_RB_WAIT__";
 const ADMIN_WAIT_SESSION_KEY = "__SPO_TOOLKIT_ADMIN_WAIT__";
 const SECOND_STAGE_RB_PORT = "SPOToolkitSecondStageRecycleBin";
+const VIEW_FORMATTER_FRAME_RULE_IDS = [5101];
+const VIEW_FORMATTER_FRAME_URL_FILTERS = ["||sharepoint.com^"];
+const viewFormatterPreviewTabIds = new Set();
+
+function isViewFormatterExtensionUrl(url) {
+  if (!url || typeof url !== "string") return false;
+  try {
+    const expected = chrome.runtime.getURL("view-formatter.html");
+    return url.indexOf(expected) === 0;
+  } catch (_) {
+    return false;
+  }
+}
+
+function canManageViewFormatterFrameRules() {
+  return !!(
+    chrome.declarativeNetRequest &&
+    typeof chrome.declarativeNetRequest.updateSessionRules === "function"
+  );
+}
+
+function buildViewFormatterFrameRules(tabIds) {
+  return VIEW_FORMATTER_FRAME_URL_FILTERS.map((urlFilter, index) => ({
+    id: VIEW_FORMATTER_FRAME_RULE_IDS[index],
+    priority: 1,
+    action: {
+      type: "modifyHeaders",
+      responseHeaders: [
+        { header: "x-frame-options", operation: "remove" },
+        { header: "content-security-policy", operation: "remove" },
+        { header: "content-security-policy-report-only", operation: "remove" },
+      ],
+    },
+    condition: {
+      urlFilter,
+      resourceTypes: ["sub_frame"],
+      tabIds,
+    },
+  }));
+}
+
+function syncViewFormatterFrameRules() {
+  if (!canManageViewFormatterFrameRules()) return;
+  const tabIds = Array.from(viewFormatterPreviewTabIds).filter((id) => Number.isInteger(id));
+  const update = {
+    removeRuleIds: VIEW_FORMATTER_FRAME_RULE_IDS,
+    addRules: tabIds.length ? buildViewFormatterFrameRules(tabIds) : [],
+  };
+  chrome.declarativeNetRequest.updateSessionRules(update, () => {
+    void chrome.runtime.lastError;
+  });
+}
+
+function registerViewFormatterPreviewTab(tabId) {
+  if (!Number.isInteger(tabId)) return;
+  viewFormatterPreviewTabIds.add(tabId);
+  syncViewFormatterFrameRules();
+}
+
+function unregisterViewFormatterPreviewTab(tabId) {
+  if (!viewFormatterPreviewTabIds.delete(tabId)) return;
+  syncViewFormatterFrameRules();
+}
 
 function normalizeTrailingSlashRb(url) {
   if (!url || typeof url !== "string") return "";
@@ -445,6 +508,19 @@ chrome.commands.onCommand.addListener((command) => {
   });
 });
 
+chrome.tabs.onRemoved.addListener((tabId) => {
+  unregisterViewFormatterPreviewTab(tabId);
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (!viewFormatterPreviewTabIds.has(tabId)) return;
+  if (changeInfo.status !== "loading" && !changeInfo.url) return;
+  const nextUrl = changeInfo.url || (tab && tab.url) || "";
+  if (nextUrl && !isViewFormatterExtensionUrl(nextUrl)) {
+    unregisterViewFormatterPreviewTab(tabId);
+  }
+});
+
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== SECOND_STAGE_RB_PORT) return;
   const onStart = (msg) => {
@@ -512,6 +588,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ ok: true });
     return false;
   }
+  if (message.type === "SPOToolkitRegisterFormatterPreviewTab") {
+    const tabId = sender.tab && sender.tab.id;
+    if (tabId == null || !isViewFormatterExtensionUrl(sender.tab && sender.tab.url)) {
+      sendResponse({ ok: false, error: "Formatter tab required" });
+      return false;
+    }
+    registerViewFormatterPreviewTab(tabId);
+    sendResponse({ ok: true });
+    return false;
+  }
   if (message.type === "SPOToolkitOpenViewFormatter") {
     const previewUrl = String(message.previewUrl || (sender.tab && sender.tab.url) || "");
     if (!previewUrl || !previewUrl.includes("sharepoint.com")) {
@@ -522,8 +608,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     u.searchParams.set("src", previewUrl);
     const tid = sender.tab && sender.tab.id;
     if (tid != null) u.searchParams.set("tabId", String(tid));
-    chrome.tabs.create({ url: u.toString() });
-    sendResponse({ ok: true });
+    chrome.tabs.create({ url: u.toString() }, (tab) => {
+      if (chrome.runtime.lastError || !tab || tab.id == null) {
+        sendResponse({ ok: false, error: "Could not open View Formatter" });
+        return;
+      }
+      registerViewFormatterPreviewTab(tab.id);
+      sendResponse({ ok: true });
+    });
     return true;
   }
   if (message.type !== "SPOToolkitOpenViewManager") return;
