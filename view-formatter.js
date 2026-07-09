@@ -442,8 +442,33 @@
     return storageKeyForView(selectedViewId || contextViewId);
   };
 
+  let formatterFrameRulesReady = !previewUrl;
+  let formatterFrameRulesRequested = false;
+  let pendingPreviewFrameUrl = "";
+
+  function ensureFormatterPreviewRules() {
+    if (formatterFrameRulesReady || formatterFrameRulesRequested) return;
+    formatterFrameRulesRequested = true;
+    if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.sendMessage) {
+      formatterFrameRulesReady = true;
+      return;
+    }
+    chrome.runtime.sendMessage({ type: "SPOToolkitRegisterFormatterPreviewTab" }, function () {
+      void chrome.runtime.lastError;
+      formatterFrameRulesReady = true;
+      const nextUrl = pendingPreviewFrameUrl;
+      pendingPreviewFrameUrl = "";
+      if (nextUrl) setPreviewFrameSrc(nextUrl);
+    });
+  }
+
   function setPreviewFrameSrc(url) {
     if (!frame || !url) return;
+    if (!formatterFrameRulesReady) {
+      pendingPreviewFrameUrl = url;
+      ensureFormatterPreviewRules();
+      return;
+    }
     try {
       const u = new URL(url);
       u.searchParams.set("_spotkVf", "1");
