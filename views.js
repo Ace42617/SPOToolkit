@@ -88,6 +88,8 @@
   let fields = [];
   let selectedViewId = null;
   let viewDetails = null;
+  let viewDetailsLoadedForId = null;
+  let viewDetailsLoadingForId = null;
   let columnOrder = [];
   let inViewSet = new Set();
   let sortLevels = [];
@@ -527,6 +529,12 @@
     wrap.style.display = show ? "" : "none";
   }
 
+  function updateSaveButtonForViewDetails() {
+    const btn = document.getElementById("btnSave");
+    if (!btn) return;
+    btn.disabled = !!(selectedViewId && viewDetailsLoadedForId !== selectedViewId);
+  }
+
   function updateUrlWithList(listTitleVal) {
     if (typeof history === "undefined" || !history.replaceState) return;
     const slug = (listTitleVal || "")
@@ -937,6 +945,10 @@
 
   async function loadViewDetails(viewId) {
     if (!viewId) return;
+    viewDetails = null;
+    viewDetailsLoadedForId = null;
+    viewDetailsLoadingForId = viewId;
+    updateSaveButtonForViewDetails();
     try {
       const res = await sendToTab({
         action: "getViewsData",
@@ -944,11 +956,13 @@
         listId: forcedViewManagerListId || undefined,
         webAbsoluteUrl: contextWebAbsoluteUrl || undefined
       });
+      if (selectedViewId !== viewId) return;
       if (!res || res.error || !res.viewDetails) {
         showSaveStatus(res && res.error ? res.error : "Failed to load view details.", true);
         return;
       }
       viewDetails = res.viewDetails;
+      viewDetailsLoadedForId = viewId;
       const viewFields = viewDetails.viewFields || [];
       inViewSet = new Set(viewFields);
       const otherFields = (fields || []).filter(function (f) { return viewFields.indexOf(f.internalName) < 0; });
@@ -1003,12 +1017,19 @@
       renderGroupBy();
       updateSetDefaultVisibility();
     } catch (e) {
-      showSaveStatus(e && e.message ? e.message : "Failed to load view.", true);
+      if (selectedViewId === viewId) {
+        showSaveStatus(e && e.message ? e.message : "Failed to load view.", true);
+      }
+    } finally {
+      if (viewDetailsLoadingForId === viewId) viewDetailsLoadingForId = null;
+      updateSaveButtonForViewDetails();
     }
   }
 
   function setNewViewDefaults() {
     viewDetails = null;
+    viewDetailsLoadedForId = null;
+    viewDetailsLoadingForId = null;
     inViewSet = new Set();
     const sorted = (fields || []).slice().sort(function (a, b) { return (a.title || "").localeCompare(b.title || ""); });
     columnOrder = sorted.map(function (f) { return f.internalName; });
@@ -1027,6 +1048,7 @@
     renderSortLevels();
     renderFilterConditions();
     renderGroupBy();
+    updateSaveButtonForViewDetails();
   }
 
   function renderViewSelect() {
@@ -1067,6 +1089,7 @@
       updateSetDefaultVisibility();
       return;
     }
+    viewDetailsLoadedForId = null;
     document.getElementById("btnDuplicate").classList.remove("hide");
     updateDeleteButtonVisibility();
     updateSetDefaultVisibility();
@@ -1457,15 +1480,40 @@
     return columnOrder.filter(function (n) { return inViewSet.has(n); });
   }
 
+  function viewFieldsCore() {
+    return (typeof window !== "undefined" && window.SPViewFieldsCore) ? window.SPViewFieldsCore : null;
+  }
+
+  function viewFieldRestName(name) {
+    return String(name || "").replace(/'/g, "''");
+  }
+
   async function applyViewFields(viewId) {
     const ordered = getOrderedViewColumns();
     const vfBase = sitePath + "/_api/web/lists(guid'" + listId.replace(/'/g, "''") + "')/views(guid'" + viewId.replace(/'/g, "''") + "')/ViewFields";
-    const rm = await rest("POST", vfBase + "/RemoveAllViewFields");
-    if (!rm.ok && rm.status !== 404 && rm.status !== 501) throw new Error(rm.error || "RemoveAllViewFields failed");
-    for (let i = 0; i < ordered.length; i++) {
-      const name = String(ordered[i]).replace(/'/g, "''");
+    const core = viewFieldsCore();
+    if (!core) throw new Error("View field planner did not load.");
+    const currentRes = await rest("GET", vfBase);
+    if (!currentRes || !currentRes.ok) {
+      throw new Error(currentRes && currentRes.error ? String(currentRes.error) : "Could not read current view fields");
+    }
+    const current = core.viewFieldsResponseToNames(currentRes.data);
+    const plan = core.planViewFieldChanges(current, ordered);
+
+    for (let i = 0; i < plan.additions.length; i++) {
+      const name = viewFieldRestName(plan.additions[i]);
       const r = await rest("POST", vfBase + "/addviewfield('" + name + "')");
-      if (!r.ok) throw new Error(r.error || "Add field failed");
+      if (!r || !r.ok) throw new Error(r && r.error ? String(r.error) : "Add field failed");
+    }
+    for (let i = 0; i < plan.removals.length; i++) {
+      const name = viewFieldRestName(plan.removals[i]);
+      const r = await rest("POST", vfBase + "/removeviewfield('" + name + "')");
+      if (!r || !r.ok) throw new Error(r && r.error ? String(r.error) : "Remove field failed");
+    }
+    for (let i = 0; i < plan.moves.length; i++) {
+      const move = plan.moves[i];
+      const r = await rest("POST", vfBase + "/moveViewFieldTo", { field: move.field, index: move.index });
+      if (!r || !r.ok) throw new Error(r && r.error ? String(r.error) : "Move field failed");
     }
   }
 
@@ -1481,6 +1529,10 @@
     }
     if (!listId) {
       showSaveStatus("No list context. Refresh context.", true);
+      return;
+    }
+    if (selectedViewId && viewDetailsLoadedForId !== selectedViewId) {
+      showSaveStatus("Wait for the selected view details to load before saving.", true);
       return;
     }
 
