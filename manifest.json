@@ -35,7 +35,7 @@
     },
     {
       "matches": ["*://*.sharepoint.com/*"],
-      "js": ["compassColumnCreator.js", "compassToolkitPanels.js", "compassUniversalSearch.js", "matrixWorkerLock.js", "content.js"],
+      "js": ["compassActionContext.js", "compassColumnCreator.js", "compassToolkitPanels.js", "compassUniversalSearch.js", "matrixWorkerLock.js", "content.js"],
       "run_at": "document_idle"
     },
     {

@@ -1261,18 +1261,35 @@
     b1.title = canOpenViewManager ? "Open View Manager" : "Open a list or library view first";
     b1.addEventListener("click", function () {
       if (!canOpenViewManager) return;
-      try {
-        chrome.runtime.sendMessage(
-          { type: "SPOToolkitOpenViewManager", listId: listIdClean, webUrl: siteUrl },
-          function (res) {
-            if (chrome.runtime.lastError || (res && res.ok === false)) {
-              console.warn("SPOToolkit: View Manager open failed", chrome.runtime.lastError || res);
-            }
-          }
-        );
-      } catch (e) {
-        console.warn("SPOToolkit: View Manager open failed", e);
+      const resolveContext = window.SPOT_resolveCompassActionContext;
+      if (typeof resolveContext !== "function") {
+        b1.title = "Could not verify the current list. Reload this page and try again.";
+        return;
       }
+      b1.disabled = true;
+      b1.title = "Checking the current list…";
+      resolveContext(invoke, "getPageContext", true).then(function (current) {
+        try {
+          chrome.runtime.sendMessage(
+            { type: "SPOToolkitOpenViewManager", listId: current.listId, webUrl: current.siteUrl },
+            function (res) {
+              b1.disabled = false;
+              b1.title = "Open View Manager";
+              if (chrome.runtime.lastError || (res && res.ok === false)) {
+                console.warn("SPOToolkit: View Manager open failed", chrome.runtime.lastError || res);
+              }
+            }
+          );
+        } catch (e) {
+          b1.disabled = false;
+          b1.title = "Open View Manager";
+          console.warn("SPOToolkit: View Manager open failed", e);
+        }
+      }).catch(function (err) {
+        b1.disabled = false;
+        b1.title = (err && err.message) || "Open a list or library view first";
+        console.warn("SPOToolkit: View Manager target check failed", err);
+      });
     });
     row.appendChild(b1);
     const b2 = document.createElement("button");
