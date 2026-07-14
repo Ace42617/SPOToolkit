@@ -510,25 +510,45 @@
 
     function addSiteColumn(internalName, title, btn) {
       if (!internalName) return;
-      setSiteStatus("Adding…", false);
+      setSiteStatus("Checking current list…", false);
       if (btn) btn.disabled = true;
-      invoke({
-        action: "createColumn",
-        siteUrl: context.siteUrl,
-        listId: context.listId,
-        target: "listFromSite",
-        schemaXml: "",
-        siteFieldInternal: internalName,
-      }).then(function (res) {
-        if (btn) btn.disabled = false;
-        if (!res || !res.ok) {
-          setSiteStatus((res && res.error) || "Add failed.", true);
+      loadContext().then(function (loaded) {
+        if (!loaded) {
+          if (btn) btn.disabled = false;
           return;
         }
-        setSiteStatus("Added " + (res.title || title || internalName) + ".", false);
-        loadContext().then(function () {
-          renderSiteColumnList();
-          onCreated();
+        const freshSiteField = (context.siteFields || []).find(function (field) {
+          return normalizeKey(field.internalName || field.InternalName) === normalizeKey(internalName);
+        });
+        if (!context.listId || !freshSiteField) {
+          if (btn) btn.disabled = false;
+          setSiteStatus(
+            !context.listId
+              ? "Open a list or library view before adding a site column."
+              : "That site column is not available on the current site.",
+            true
+          );
+          return;
+        }
+        setSiteStatus("Adding…", false);
+        return invoke({
+          action: "createColumn",
+          siteUrl: context.siteUrl,
+          listId: context.listId,
+          target: "listFromSite",
+          schemaXml: "",
+          siteFieldInternal: internalName,
+        }).then(function (res) {
+          if (btn) btn.disabled = false;
+          if (!res || !res.ok) {
+            setSiteStatus((res && res.error) || "Add failed.", true);
+            return;
+          }
+          setSiteStatus("Added " + (res.title || title || internalName) + ".", false);
+          loadContext().then(function () {
+            renderSiteColumnList();
+            onCreated();
+          });
         });
       }).catch(function (err) {
         if (btn) btn.disabled = false;
@@ -550,14 +570,22 @@
     }
 
     function loadContext() {
-      return invoke({ action: "getColumnCreatorContext" }).then(function (res) {
-        if (!res || !res.ok) {
+      const resolveContext = window.SPOT_resolveCompassActionContext;
+      if (typeof resolveContext !== "function") {
+        contextLoaded = false;
+        setCreateStatus("Could not verify the current SharePoint page.", true);
+        setSiteStatus("Could not verify the current SharePoint page.", true);
+        return Promise.resolve(false);
+      }
+      return resolveContext(invoke, "getColumnCreatorContext", false).then(function (res) {
+        if (!res) {
           context = { siteFields: [], listFields: [], siteUrl: "", listId: "" };
-          setCreateStatus((res && res.error) || "Could not load column context.", true);
-          setSiteStatus((res && res.error) || "Could not load column context.", true);
+          contextLoaded = false;
+          setCreateStatus("Could not load column context.", true);
+          setSiteStatus("Could not load column context.", true);
           renderPrediction();
           renderSiteColumnList();
-          return;
+          return false;
         }
         context = {
           siteFields: res.siteFields || [],
@@ -569,57 +597,85 @@
         setCreateStatus("", false);
         setSiteStatus("", false);
         updatePlacementUI();
+        return true;
+      }).catch(function (err) {
+        context = { siteFields: [], listFields: [], siteUrl: "", listId: "" };
+        contextLoaded = false;
+        const message = (err && err.message) || "Could not load column context.";
+        setCreateStatus(message, true);
+        setSiteStatus(message, true);
+        renderPrediction();
+        renderSiteColumnList();
+        return false;
       });
     }
 
     function submit() {
       const title = String(titleEl.value || "").trim();
       if (!title) return;
-      renderPrediction();
-      if (!prediction.internalName) return;
-
-      const choicesEl = host.querySelector("#columnCreatorChoices");
-      const dateEl = host.querySelector("#columnCreatorDateFormat");
-      const decimalsEl = host.querySelector("#columnCreatorDecimals");
-      const userModeEl = host.querySelector("#columnCreatorUserMode");
-      const numLinesEl = host.querySelector("#columnCreatorNumLines");
-      const schemaXml = buildFieldSchemaXml({
-        internalName: prediction.internalName,
-        title: title,
-        typeId: typeEl.value,
-        required: !!(requiredEl && requiredEl.checked),
-        group: groupEl ? groupEl.value : DEFAULT_COLUMN_GROUP,
-        description: descriptionEl ? descriptionEl.value : "",
-        choices: choicesEl ? parseChoices(choicesEl.value) : undefined,
-        dateFormat: dateEl ? dateEl.value : undefined,
-        decimals: decimalsEl ? parseInt(decimalsEl.value, 10) : undefined,
-        userSelectionMode: userModeEl ? userModeEl.value : undefined,
-        numLines: numLinesEl ? parseInt(numLinesEl.value, 10) : undefined,
-      });
-      const placement = placementValue();
-      const target = placement === "site" ? "site" : "list";
-      setCreateStatus("Creating…", false);
+      setCreateStatus("Checking current page…", false);
       if (submitBtn) submitBtn.disabled = true;
-      invoke({
-        action: "createColumn",
-        siteUrl: context.siteUrl,
-        listId: context.listId,
-        target: target,
-        schemaXml: schemaXml,
-        siteFieldInternal: prediction.internalName,
-      }).then(function (res) {
-        if (submitBtn) submitBtn.disabled = false;
-        if (!res || !res.ok) {
-          setCreateStatus((res && res.error) || "Create failed.", true);
-          renderPrediction();
+      loadContext().then(function (loaded) {
+        if (!loaded) {
+          if (submitBtn) submitBtn.disabled = false;
           return;
         }
-        setCreateStatus("Created " + (res.title || res.internalName || title) + ".", false);
-        titleEl.value = "";
-        loadContext().then(function () {
-          onCreated();
-          renderPrediction();
+        renderPrediction();
+        if (!prediction.internalName) {
+          if (submitBtn) submitBtn.disabled = false;
+          return;
+        }
+
+        const choicesEl = host.querySelector("#columnCreatorChoices");
+        const dateEl = host.querySelector("#columnCreatorDateFormat");
+        const decimalsEl = host.querySelector("#columnCreatorDecimals");
+        const userModeEl = host.querySelector("#columnCreatorUserMode");
+        const numLinesEl = host.querySelector("#columnCreatorNumLines");
+        const schemaXml = buildFieldSchemaXml({
+          internalName: prediction.internalName,
+          title: title,
+          typeId: typeEl.value,
+          required: !!(requiredEl && requiredEl.checked),
+          group: groupEl ? groupEl.value : DEFAULT_COLUMN_GROUP,
+          description: descriptionEl ? descriptionEl.value : "",
+          choices: choicesEl ? parseChoices(choicesEl.value) : undefined,
+          dateFormat: dateEl ? dateEl.value : undefined,
+          decimals: decimalsEl ? parseInt(decimalsEl.value, 10) : undefined,
+          userSelectionMode: userModeEl ? userModeEl.value : undefined,
+          numLines: numLinesEl ? parseInt(numLinesEl.value, 10) : undefined,
         });
+        const placement = placementValue();
+        const target = placement === "site" ? "site" : "list";
+        if (target === "list" && !context.listId) {
+          if (submitBtn) submitBtn.disabled = false;
+          setCreateStatus("Open a list or library view before creating a list column.", true);
+          return;
+        }
+        setCreateStatus("Creating…", false);
+        return invoke({
+          action: "createColumn",
+          siteUrl: context.siteUrl,
+          listId: context.listId,
+          target: target,
+          schemaXml: schemaXml,
+          siteFieldInternal: prediction.internalName,
+        }).then(function (res) {
+          if (submitBtn) submitBtn.disabled = false;
+          if (!res || !res.ok) {
+            setCreateStatus((res && res.error) || "Create failed.", true);
+            renderPrediction();
+            return;
+          }
+          setCreateStatus("Created " + (res.title || res.internalName || title) + ".", false);
+          titleEl.value = "";
+          loadContext().then(function () {
+            onCreated();
+            renderPrediction();
+          });
+        });
+      }).catch(function (err) {
+        if (submitBtn) submitBtn.disabled = false;
+        setCreateStatus((err && err.message) || "Create failed.", true);
       });
     }
 
