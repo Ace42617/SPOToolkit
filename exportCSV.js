@@ -474,8 +474,14 @@
   // List type: 101 = document library; set before export so owssvr URL can vary for lists
   var listBaseTemplate = null;
 
-  // Working view name (used for owssvr download - all columns + show all items without folders)
-  var RPC_VIEW_TITLE = String(params.vt || "RPC");
+  // Each export owns its working view. Reusing a fixed title can delete a user's
+  // real "RPC" view or let concurrent exports delete/mutate each other's view.
+  function buildTemporaryViewTitle(baseTitle) {
+    var base = String(baseTitle || "RPC").trim() || "RPC";
+    var suffix = "-SPOToolkit-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+    return base.slice(0, Math.max(1, 255 - suffix.length)) + suffix;
+  }
+  var RPC_VIEW_TITLE = buildTemporaryViewTitle(params.vt);
 
   // Delete working view at end? (default true unless keep=1)
   var DELETE_VIEW_AT_END = !(params.keep === 1 || params.keep === "1" || params.keep === true || params.keep === "true");
@@ -666,35 +672,10 @@
     }
   }
 
-  // Creates a temporary RPC view with ALL columns and "Show all items without folders" (Scope 1).
-  // Always creates fresh: deletes existing "RPC" view if present, then creates new one.
+  // Creates an export-owned temporary RPC view with ALL columns and
+  // "Show all items without folders" (Scope 1).
   async function getOrCreateRpcViewForDownload() {
-    var accept = { "Accept": "application/json;odata=nometadata" };
     var lb = listBaseUrl();
-
-    // Fetch all views and find by Title (more reliable than $filter which may not work on views)
-    var viewsResp = await fetch(lb + "/views?$select=Id,Title", { credentials: "include", headers: accept });
-    if (!viewsResp.ok) {
-      var t0 = "";
-      try { t0 = await viewsResp.text(); } catch (_) {}
-      return { ok: false, error: "List views failed: " + viewsResp.status, detail: t0 };
-    }
-
-    var viewsJson = await viewsResp.json();
-    var views = viewsJson.value || viewsJson.d?.results || [];
-    var rpcView = null;
-    for (var i = 0; i < views.length; i++) {
-      if ((views[i].Title || "").trim() === RPC_VIEW_TITLE) {
-        rpcView = views[i];
-        break;
-      }
-    }
-
-    // Delete existing RPC view so we always create fresh with correct Scope/fields
-    if (rpcView) {
-      await deleteViewById(normalizeGuid(rpcView.Id));
-      await sleep(200);
-    }
 
     // Create new view with Scope 2 (RecursiveAll). Retry on 403/503 (often timing/session not ready on first load).
     var createResp = null;
@@ -2855,8 +2836,13 @@
           await sleep(500);
           await exportViaOwssvrWithView(rpcViewId, itemCount);
         } finally {
-          if (DELETE_VIEW_AT_END && rpcViewId) {
-            try { await deleteViewById(rpcViewId); } catch (_) {}
+          if (rpcViewId) {
+            if (DELETE_VIEW_AT_END) {
+              try { await deleteViewById(rpcViewId); } catch (_) {}
+            } else {
+              // A retained working view must not keep the final ID-range filter.
+              try { await setViewQueryById(rpcViewId, ""); } catch (_) {}
+            }
           }
         }
       }
