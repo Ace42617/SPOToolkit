@@ -1438,6 +1438,13 @@
       "</And></Where>";
   }
 
+  function shouldStopAfterEmptyIdRange(startId, maxIdResolved, emptyStreak, maxEmptyStreak) {
+    // A resolved maximum is authoritative: sparse lists can have arbitrarily large
+    // gaps after bulk deletions, so only stop after scanning past that item ID.
+    if (maxIdResolved != null) return startId > maxIdResolved;
+    return emptyStreak >= maxEmptyStreak;
+  }
+
   async function exportViaOwssvrWithView(viewId, itemCount, retryCount) {
     retryCount = retryCount || 0;
     var allRows = [];
@@ -1462,7 +1469,7 @@
     }
 
     var emptyStreak = 0;
-    var maxEmptyStreak = maxIdResolved != null ? 50 : 2000;
+    var maxEmptyStreak = 2000;
 
     while (pageNum < MAX_PAGES) {
       pageNum++;
@@ -1516,8 +1523,7 @@
           return exportViaOwssvrWithView(viewId, itemCount, retryCount + 1);
         }
         emptyStreak++;
-        if (maxIdResolved != null && startId > maxIdResolved) break;
-        if (emptyStreak >= maxEmptyStreak) break;
+        if (shouldStopAfterEmptyIdRange(startId, maxIdResolved, emptyStreak, maxEmptyStreak)) break;
         continue;
       }
       emptyStreak = 0;
