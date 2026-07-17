@@ -35,6 +35,11 @@ for (const formatterPath of formatterPaths) {
       source,
       /const ctx = await sendToSpTab\(\{ action: "getViewFormatContext" \}\);[\s\S]*const viewId = targetViewId;/
     );
+    assert.match(
+      source,
+      /!sameGuid\(liveListId, contextListId\)[\s\S]*normalizedSitePath\(liveSitePath\) !== normalizedSitePath\(contextSitePath\)/
+    );
+    assert.match(source, /const listId = contextListId;[\s\S]*const sitePath = contextSitePath;/);
     assert.doesNotMatch(source, /selectedViewId \|\| ctx\.viewId/);
   });
 }

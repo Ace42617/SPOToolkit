@@ -406,6 +406,11 @@
     return !!left && left === right;
   }
 
+  function normalizedSitePath(path) {
+    const value = String(path || "/").replace(/\/+$/, "") || "/";
+    return (value.startsWith("/") ? value : "/" + value).toLowerCase();
+  }
+
   function restErrorMessage(payload) {
     if (payload == null) return "";
     if (typeof payload === "string") return payload;
@@ -1013,9 +1018,19 @@
       try {
         const ctx = await sendToSpTab({ action: "getViewFormatContext" });
         if (!ctx || !ctx.ok) throw new Error((ctx && ctx.error) || "Could not read list from the SharePoint tab.");
-        const listId = normGuid(ctx.listId || contextListId);
+        const liveListId = normGuid(ctx.listId);
+        const liveSitePath = String(ctx.sitePath || "/");
+        if (
+          !sameGuid(liveListId, contextListId) ||
+          normalizedSitePath(liveSitePath) !== normalizedSitePath(contextSitePath)
+        ) {
+          throw new Error(
+            "The SharePoint source tab changed lists or sites. Reopen View formatter from the view you want to update."
+          );
+        }
+        const listId = contextListId;
         const viewId = targetViewId;
-        const sitePath = String(ctx.sitePath || contextSitePath || "/");
+        const sitePath = contextSitePath;
         const patchPath =
           sitePath +
           "/_api/web/lists(guid'" +
