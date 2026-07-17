@@ -389,12 +389,26 @@
   let contextWebAbsoluteUrl = "";
   let codeSearchMatches = [];
   let codeSearchIndex = -1;
+  let viewLoadGeneration = 0;
+  let viewLoadPending = spTabId != null;
+  let viewSavePending = false;
 
   function normGuid(s) {
     return String(s || "")
       .replace(/[{}]/g, "")
       .replace(/%7B|%7D/gi, "")
       .trim();
+  }
+
+  function sameGuid(a, b) {
+    const left = normGuid(a).toLowerCase();
+    const right = normGuid(b).toLowerCase();
+    return !!left && left === right;
+  }
+
+  function normalizedSitePath(path) {
+    const value = String(path || "/").replace(/\/+$/, "") || "/";
+    return (value.startsWith("/") ? value : "/" + value).toLowerCase();
   }
 
   function restErrorMessage(payload) {
@@ -577,7 +591,11 @@
     const v = getJsonValidation(jsonEl.value);
     statusEl.textContent = "";
     statusEl.className = "vf-json-status";
-    if (v.valid && jsonEl.value.trim()) {
+    if (viewSavePending) {
+      statusEl.textContent = "Saving to view…";
+    } else if (viewLoadPending) {
+      statusEl.textContent = "Loading selected view…";
+    } else if (v.valid && jsonEl.value.trim()) {
       statusEl.textContent = "Valid JSON";
       statusEl.classList.add("ok");
     } else if (!v.valid) {
@@ -587,11 +605,21 @@
 
     if (btnRefresh) btnRefresh.disabled = !v.valid;
     if (btnSaveToView) {
-      const canSave = v.valid && spTabId != null;
+      const selectedOptionMatches =
+        !viewSelectEl || sameGuid(viewSelectEl.value, selectedViewId);
+      const canSave =
+        v.valid &&
+        spTabId != null &&
+        !!selectedViewId &&
+        selectedOptionMatches &&
+        !viewLoadPending &&
+        !viewSavePending;
       btnSaveToView.disabled = !canSave;
       if (spTabId == null) {
         btnSaveToView.title =
           "Open View formatter from the extension (popup or { } launcher) while the SharePoint list tab stays open.";
+      } else if (!selectedOptionMatches || viewLoadPending) {
+        btnSaveToView.title = "Wait for the selected view's formatter JSON to finish loading.";
       } else {
         btnSaveToView.title =
           "Write JSON to the current list view in SharePoint (valid JSON only). Uses the list tab you opened this from.";
@@ -668,6 +696,9 @@
   async function loadViewFormatterFor(viewId, refreshFrame) {
     if (!viewId || !contextListId || spTabId == null) return;
     const vid = normGuid(viewId);
+    const loadGeneration = ++viewLoadGeneration;
+    viewLoadPending = true;
+    applyValidationUi();
     const path =
       contextSitePath +
       "/_api/web/lists(guid'" +
@@ -675,8 +706,19 @@
       "')/views(guid'" +
       vid.replace(/'/g, "''") +
       "')?$select=Id,Title,CustomFormatter,DefaultView";
-    const res = await sendToSpTab({ action: "rest", method: "GET", path: path });
+    let res;
+    try {
+      res = await sendToSpTab({ action: "rest", method: "GET", path: path });
+    } catch (e) {
+      if (loadGeneration !== viewLoadGeneration) return false;
+      viewLoadPending = false;
+      applyValidationUi();
+      throw e;
+    }
+    if (loadGeneration !== viewLoadGeneration) return false;
     if (!res || !res.ok) {
+      viewLoadPending = false;
+      applyValidationUi();
       throw new Error(restErrorMessage(res && res.error) || "Failed to load view formatter JSON.");
     }
     const d = res.data || {};
@@ -706,11 +748,13 @@
       labelEl.textContent = title ? "View: " + title : (src ? src.replace(/^https:\/\//, "") : "");
       labelEl.title = src || "";
     }
+    viewLoadPending = false;
     applyValidationUi();
     if (refreshFrame) {
       const nextSrc = previewUrlForSelectedView();
       if (nextSrc) setPreviewFrameSrc(nextSrc);
     }
+    return true;
   }
 
   function refreshCodeSearchState(selectCurrent) {
@@ -784,6 +828,8 @@
         empty.textContent = "No views available";
         viewSelectEl.appendChild(empty);
         viewSelectEl.disabled = true;
+        viewLoadPending = false;
+        applyValidationUi();
         showBanner("No list views found to load formatter JSON.");
         return;
       }
@@ -796,6 +842,8 @@
       hideBanner();
       scheduleLivePreview(true);
     } catch (e) {
+      viewLoadPending = false;
+      applyValidationUi();
       showBanner((e && e.message) || "Could not initialize view selector.");
     }
   }
@@ -951,40 +999,38 @@
     (async function () {
       const v = getJsonValidation(jsonEl.value);
       if (!v.valid) return;
+      const targetViewId = normGuid(selectedViewId);
+      if (!targetViewId || (viewSelectEl && !sameGuid(viewSelectEl.value, targetViewId))) {
+        applyValidationUi();
+        return;
+      }
       let canonical;
       try {
         canonical = JSON.stringify(JSON.parse(jsonEl.value.trim()));
       } catch (_) {
         return;
       }
-      btnSaveToView.disabled = true;
-      statusEl.textContent = "Saving to view…";
-      statusEl.className = "vf-json-status";
+      viewSavePending = true;
+      if (viewSelectEl) viewSelectEl.disabled = true;
+      applyValidationUi();
       let doneMsg = "";
       let doneClass = "";
       try {
         const ctx = await sendToSpTab({ action: "getViewFormatContext" });
         if (!ctx || !ctx.ok) throw new Error((ctx && ctx.error) || "Could not read list from the SharePoint tab.");
-        const listId = normGuid(ctx.listId || contextListId);
-        let viewId = normGuid(selectedViewId || ctx.viewId || contextViewId);
-        const sitePath = String(ctx.sitePath || contextSitePath || "/");
-        if (!viewId) {
-          const defPath =
-            sitePath +
-            "/_api/web/lists(guid'" +
-            listId.replace(/'/g, "''") +
-            "')/DefaultView?$select=Id";
-          const defRes = await sendToSpTab({ action: "rest", method: "GET", path: defPath });
-          if (!defRes || !defRes.ok) {
-            throw new Error(
-              restErrorMessage(defRes && defRes.error) ||
-                "Could not resolve view id. Open the list view you want to format, or use a URL that includes View=."
-            );
-          }
-          const d = defRes.data || {};
-          viewId = normGuid(d.Id || d.id);
+        const liveListId = normGuid(ctx.listId);
+        const liveSitePath = String(ctx.sitePath || "/");
+        if (
+          !sameGuid(liveListId, contextListId) ||
+          normalizedSitePath(liveSitePath) !== normalizedSitePath(contextSitePath)
+        ) {
+          throw new Error(
+            "The SharePoint source tab changed lists or sites. Reopen View formatter from the view you want to update."
+          );
         }
-        if (!viewId) throw new Error("Could not determine view id.");
+        const listId = contextListId;
+        const viewId = targetViewId;
+        const sitePath = contextSitePath;
         const patchPath =
           sitePath +
           "/_api/web/lists(guid'" +
@@ -1016,6 +1062,8 @@
               : String(e);
         doneClass = "err";
       }
+      viewSavePending = false;
+      if (viewSelectEl && viewSelectEl.options.length) viewSelectEl.disabled = false;
       applyValidationUi();
       if (doneMsg) {
         statusEl.textContent = doneMsg;
@@ -1047,8 +1095,6 @@
   viewSelectEl?.addEventListener("change", function () {
     const nextId = normGuid(viewSelectEl.value);
     if (!nextId) return;
-    statusEl.textContent = "Loading selected view…";
-    statusEl.className = "vf-json-status";
     loadViewFormatterFor(nextId, true).catch((e) => {
       statusEl.textContent = (e && e.message) || "Could not load selected view.";
       statusEl.className = "vf-json-status err";
