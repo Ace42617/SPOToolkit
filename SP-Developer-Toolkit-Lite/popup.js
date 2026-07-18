@@ -1144,7 +1144,9 @@ async function renderQuickLinks() {
   addQuickLink(tenant, "Classic app catalog", `https://${host}/sites/AppCatalog`, "archive");
 
   filterQuickLinks();
-  renderQuickLinksBusy = false;
+  } finally {
+    renderQuickLinksBusy = false;
+  }
 }
 
 let contextData = null;
