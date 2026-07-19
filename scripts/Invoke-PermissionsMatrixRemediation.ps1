@@ -3093,7 +3093,6 @@ function Show-RemediationPicker {
     })
 
     $btnAllExt.Add_Click({
-        $script:RemediationPickerUncheckedKeys.External.Clear()
         Set-ListViewChecks -ListView $lvExternal -Checked $true -Trackers $script:RemediationPickerExternalItems
         Update-SelectionSummary
     })
@@ -3103,7 +3102,6 @@ function Show-RemediationPicker {
         Update-SelectionSummary
     })
     $btnAllLinks.Add_Click({
-        $script:RemediationPickerUncheckedKeys.Links.Clear()
         Set-ListViewChecks -ListView $lvLinks -Checked $true -Trackers $script:RemediationPickerLinkItems
         Update-SelectionSummary
     })
@@ -3120,18 +3118,10 @@ function Show-RemediationPicker {
             $t.ListItem.Checked = $Checked
         }
         $script:SuppressTargetSave = $false
-        if ($Checked) {
-            $script:RemediationPickerUncheckedKeys.Unique.Clear()
-            $script:RemediationPickerUncheckedKeys.UniqueChild.Clear()
-        }
-        else {
-            Save-UniqueTreeCheckState
-        }
+        Save-UniqueTreeCheckState
     }
 
     $btnAllUnique.Add_Click({
-        $script:RemediationPickerUncheckedKeys.Unique.Clear()
-        $script:RemediationPickerUncheckedKeys.UniqueChild.Clear()
         Set-UniqueTreeChecks -Checked $true
         Update-SelectionSummary
     })

@@ -51,4 +51,21 @@ test("remediation exclusions survive list sorting and filtering", () => {
     /-Checked \(-not \$unchecked\.Contains\(\[string\]\$row\.PlanKey\)\)/,
   );
   assert.doesNotMatch(render, /-Checked \$row\.Checked/);
+
+  const allExternal = between(
+    "$btnAllExt.Add_Click",
+    "$btnNoneExt.Add_Click",
+  );
+  const allLinks = between(
+    "$btnAllLinks.Add_Click",
+    "$btnNoneLinks.Add_Click",
+  );
+  const allUnique = between(
+    "function Set-UniqueTreeChecks",
+    "$btnNoneUnique.Add_Click",
+  );
+  for (const handler of [allExternal, allLinks, allUnique]) {
+    assert.doesNotMatch(handler, /RemediationPickerUncheckedKeys[\s\S]*\.Clear\(\)/);
+  }
+  assert.match(allUnique, /Save-UniqueTreeCheckState/);
 });
