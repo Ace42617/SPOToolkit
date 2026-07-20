@@ -1,13 +1,5 @@
 // Injected page script: site permissions matrix (aligned with Export-SitePermissionsMatrix.ps1 defaults).
 (function () {
-  try {
-    window.postMessage({
-      __spcsv: true,
-      type: "SPCSVExportStarted",
-      detail: { message: "Permissions matrix export started…", report: "permissionsMatrix" }
-    }, "*");
-  } catch (_) {}
-
   function readParams() {
     try {
       var el = document.getElementById("spcsv-params-json");
@@ -21,6 +13,18 @@
     console.error("Permissions matrix export – missing params.");
     return;
   }
+  var MATRIX_RUN_ID = String(params.matrixRunId || "");
+  try {
+    window.postMessage({
+      __spcsv: true,
+      type: "SPCSVExportStarted",
+      detail: {
+        message: "Permissions matrix export started…",
+        report: "permissionsMatrix",
+        matrixRunId: MATRIX_RUN_ID
+      }
+    }, "*");
+  } catch (_) {}
 
   var exportCancelled = false;
   window.__SPOToolkitExportCancel = false;
@@ -52,7 +56,12 @@
       lastProgressAt = Date.now();
       lastProgressMessage = message;
     }
-    var detail = { message: message, logLine: message, report: "permissionsMatrix" };
+    var detail = {
+      message: message,
+      logLine: message,
+      report: "permissionsMatrix",
+      matrixRunId: MATRIX_RUN_ID
+    };
     if (opts.logLine) detail.logLine = opts.logLine;
     if (isPulse) {
       detail.pulse = true;
@@ -116,7 +125,17 @@
     if (!success) {
       console.error("Permissions matrix:", message);
     }
-    window.postMessage({ __spcsv: true, type: "SPCSVExportDone", detail: { success: success, message: message, stopReason: "" } }, "*");
+    window.postMessage({
+      __spcsv: true,
+      type: "SPCSVExportDone",
+      detail: {
+        success: success,
+        message: message,
+        stopReason: "",
+        report: "permissionsMatrix",
+        matrixRunId: MATRIX_RUN_ID
+      }
+    }, "*");
   }
 
   function normalizeGuid(g) {

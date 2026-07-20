@@ -3303,6 +3303,7 @@ function setupListeners() {
 }
 
 let matrixWorkerUnloadHooked = false;
+let activeMatrixRunId = "";
 function enableMatrixWorkerUnloadWarning() {
   if (matrixWorkerUnloadHooked) return;
   matrixWorkerUnloadHooked = true;
@@ -3326,8 +3327,10 @@ function spotRefreshExportProgressUI() {
 }
 
 function onPageMessage(e) {
-  if (!e.data || e.data.__spcsv !== true) return;
+  if (e.source !== window || !e.data || e.data.__spcsv !== true) return;
   const d = e.data.detail || {};
+  const isMatrixLifecycle = d.report === "permissionsMatrix" || !!d.matrixRunId;
+  if (isMatrixLifecycle && (!activeMatrixRunId || d.matrixRunId !== activeMatrixRunId)) return;
   if (e.data.type === "SPCSVExportStarted") {
     const ribbon = document.getElementById(PROGRESS_BOX_ID);
     if (ribbon && ribbon.parentNode) ribbon.parentNode.removeChild(ribbon);
@@ -3335,6 +3338,7 @@ function onPageMessage(e) {
       chrome.runtime.sendMessage({
         type: "SPCSVExportStarted",
         report: d.report || "export",
+        matrixRunId: d.matrixRunId || undefined,
         message: d.message || "Export started…"
       });
     } catch (err) {}
@@ -3350,6 +3354,7 @@ function onPageMessage(e) {
       chrome.runtime.sendMessage({
         type: "SPCSVExportProgress",
         report: d.report || "export",
+        matrixRunId: d.matrixRunId || undefined,
         message: msg,
         logLine: logLine || undefined,
         percent,
@@ -3368,7 +3373,13 @@ function onPageMessage(e) {
       rs.className = "sp-toolkit-compass-reports-status" + (success ? " ok" : "");
     }
     try {
-      chrome.runtime.sendMessage({ type: "SPCSVExportDone", success, message });
+      chrome.runtime.sendMessage({
+        type: "SPCSVExportDone",
+        report: d.report || "export",
+        matrixRunId: d.matrixRunId || undefined,
+        success,
+        message
+      });
     } catch (err) {}
     spotRefreshExportProgressUI();
   } else if (e.data.type === "SPCSVExportCancel") {
@@ -3426,6 +3437,8 @@ function injectAndWait(scriptName, messageType, parseData, sendResponse, options
 
 function runExportInjection(message, sendResponse, options) {
   options = options || {};
+  const isMatrixReport = message.report === "permissionsMatrix";
+  if (isMatrixReport) activeMatrixRunId = String(message.matrixRunId || "");
   window.__SPOToolkitExportCancel = false;
   window.__SPOToolkitExportRunning = true;
   if (!options.skipStarted) {
@@ -3435,6 +3448,7 @@ function runExportInjection(message, sendResponse, options) {
       chrome.runtime.sendMessage({
         type: "SPCSVExportStarted",
         report: message.report === "permissionsMatrix" ? "permissionsMatrix" : (message.report || "export"),
+        matrixRunId: isMatrixReport ? activeMatrixRunId : undefined,
         message: message.report === "permissionsMatrix" ? "Permissions matrix export started…" : "Export started…"
       });
     } catch (_) {}
@@ -3442,7 +3456,6 @@ function runExportInjection(message, sendResponse, options) {
     setupListeners();
   }
   const { siteUrl, listId, viewId, exportFilename, pageLimit, includeVersions, selectedColumns, report, format, matrixIncludeSubsites, matrixIncludeAllInherited } = message;
-  const isMatrixReport = report === "permissionsMatrix";
   const exportScriptName = isMatrixReport ? "permissionsMatrixExport.js" : "exportCSV.js";
   const params = {
     u: (siteUrl || "").replace(/\/$/, ""),
@@ -3456,6 +3469,7 @@ function runExportInjection(message, sendResponse, options) {
   if (format) params.format = format;
   if (selectedColumns && Array.isArray(selectedColumns) && selectedColumns.length > 0) params.cols = selectedColumns;
   if (isMatrixReport) {
+    params.matrixRunId = activeMatrixRunId;
     params.matrixIncludeSubsites = matrixIncludeSubsites !== false;
     params.matrixIncludeAllInherited = matrixIncludeAllInherited === true;
     params.matrixExpandGroups = message.matrixExpandGroups === true;
@@ -3607,10 +3621,15 @@ function dispatchToolkitMessage(message, sendResponse) {
     return true;
   }
   if (message.action === "matrixWorkerFinish") {
+    if (message.matrixRunId && activeMatrixRunId && message.matrixRunId !== activeMatrixRunId) {
+      sendResponse({ ok: true, ignored: true });
+      return false;
+    }
     if (window.SPOToolkitMatrixWorkerLock) {
       window.SPOToolkitMatrixWorkerLock.finish(!!message.success, message.message || "", message.autoCloseMs || 5000);
     }
     window.__SPOToolkitExportRunning = false;
+    activeMatrixRunId = "";
     sendResponse({ ok: true });
     return false;
   }
