@@ -283,6 +283,34 @@ test("cancelling a pending start invalidates its tab callbacks", () => {
   );
 });
 
+test("cancel fallback retires a worker that never reports done", () => {
+  const bg = loadBackground();
+  bg.send({
+    type: "SPCSVStartMatrixExport",
+    exportMessage: {
+      report: "permissionsMatrix",
+      siteUrl: "https://contoso.sharepoint.com/sites/test",
+    },
+  });
+  bg.send({ type: "SPCSVExportCancel" });
+
+  bg.flushTimers(15000);
+  assert.equal(
+    bg.tabMessages.filter((entry) => entry.message.action === "matrixWorkerFinish").length,
+    1
+  );
+
+  const nextStartResponse = bg.send({
+    type: "SPCSVStartMatrixExport",
+    exportMessage: {
+      report: "permissionsMatrix",
+      siteUrl: "https://contoso.sharepoint.com/sites/test",
+    },
+  });
+  assert.equal(nextStartResponse.ok, true);
+  assert.equal(nextStartResponse.alreadyRunning, undefined);
+});
+
 test("a pending matrix start reserves the worker synchronously", () => {
   const bg = loadBackground({ deferTabGet: true });
   bg.send({

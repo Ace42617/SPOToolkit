@@ -477,11 +477,13 @@ chrome.runtime.onConnect.addListener((port) => {
 
 const EXPORT_PROGRESS_KEY = "spcsvExportProgress";
 const EXPORT_STALE_MS = 45000;
+const MATRIX_CANCEL_GRACE_MS = 15000;
 let exportProgressMemory = { log: [], active: false };
 let exportProgressSaveTimer = null;
 let exportReconnectInFlight = false;
 let exportProgressRestorePending = true;
 const pendingExportMessages = [];
+let matrixCancelCleanupTimer = null;
 
 function scheduleExportProgressSave() {
   if (exportProgressSaveTimer) return;
@@ -534,6 +536,10 @@ function createMatrixRunId() {
 }
 
 function clearMatrixExportWorker() {
+  if (matrixCancelCleanupTimer) {
+    clearTimeout(matrixCancelCleanupTimer);
+    matrixCancelCleanupTimer = null;
+  }
   matrixExportWorker.params = null;
   matrixExportWorker.runId = "";
   matrixExportWorker.workerTabId = null;
@@ -546,6 +552,49 @@ function hasMatrixReservation(runId, workerTabId) {
     matrixExportWorker.workerTabId === workerTabId &&
     matrixExportWorker.cancelPending !== true
   );
+}
+
+function retireCancelledMatrixRun(runId, workerTabId) {
+  if (
+    matrixExportWorker.cancelPending !== true ||
+    matrixExportWorker.runId !== runId ||
+    matrixExportWorker.workerTabId !== workerTabId
+  ) {
+    return;
+  }
+  matrixCancelCleanupTimer = null;
+  try {
+    chrome.tabs.sendMessage(workerTabId, {
+      action: "matrixWorkerFinish",
+      matrixRunId: runId,
+      success: false,
+      message: "Export cancelled.",
+      autoCloseMs: 5000
+    });
+  } catch (_) {}
+  clearMatrixExportWorker();
+  updateExportProgressMemory({
+    active: false,
+    success: false,
+    cancelled: true,
+    cancelPending: false,
+    message: "Export cancelled.",
+    finishedAt: Date.now(),
+    workerReady: false
+  });
+  setTimeout(function () {
+    if (matrixExportWorker.runId && matrixExportWorker.workerTabId === workerTabId) return;
+    chrome.tabs.remove(workerTabId, function () {
+      void chrome.runtime.lastError;
+    });
+  }, 5000);
+}
+
+function scheduleCancelledMatrixCleanup(runId, workerTabId, delayMs) {
+  if (matrixCancelCleanupTimer) clearTimeout(matrixCancelCleanupTimer);
+  matrixCancelCleanupTimer = setTimeout(function () {
+    retireCancelledMatrixRun(runId, workerTabId);
+  }, Math.max(0, delayMs == null ? MATRIX_CANCEL_GRACE_MS : delayMs));
 }
 
 function classifyExportLifecycleMessage(message, sender) {
@@ -584,6 +633,18 @@ chrome.storage.session.get(EXPORT_PROGRESS_KEY, function (data) {
       matrixExportWorker.runId = String(saved.matrixRunId || (saved.exportParams && saved.exportParams.matrixRunId) || "");
       matrixExportWorker.workerTabId = saved.workerTabId != null ? saved.workerTabId : null;
       matrixExportWorker.cancelPending = saved.cancelPending === true;
+      if (matrixExportWorker.cancelPending && matrixExportWorker.runId && matrixExportWorker.workerTabId != null) {
+        const cancelAge = Date.now() - (saved.cancelPendingAt || saved.updatedAt || Date.now());
+        if (cancelAge >= MATRIX_CANCEL_GRACE_MS) {
+          retireCancelledMatrixRun(matrixExportWorker.runId, matrixExportWorker.workerTabId);
+        } else {
+          scheduleCancelledMatrixCleanup(
+            matrixExportWorker.runId,
+            matrixExportWorker.workerTabId,
+            MATRIX_CANCEL_GRACE_MS - cancelAge
+          );
+        }
+      }
     }
   }
   exportProgressRestorePending = false;
@@ -621,6 +682,7 @@ function cancelMatrixExportInTab(notifyCancelled) {
     } catch (_) {}
   }
   if (notifyCancelled && exportProgressMemory.active) {
+    const cancelPendingAt = Date.now();
     updateExportProgressMemory({
       active: false,
       success: false,
@@ -629,8 +691,12 @@ function cancelMatrixExportInTab(notifyCancelled) {
       logLine: "Export cancelled.",
       finishedAt: Date.now(),
       workerReady: false,
-      cancelPending: preserveForCompletion
+      cancelPending: preserveForCompletion,
+      cancelPendingAt: preserveForCompletion ? cancelPendingAt : undefined
     });
+    if (preserveForCompletion) {
+      scheduleCancelledMatrixCleanup(matrixExportWorker.runId, matrixExportWorker.workerTabId, MATRIX_CANCEL_GRACE_MS);
+    }
   }
 }
 
@@ -949,6 +1015,7 @@ function handleBackgroundMessage(message, sender, sendResponse) {
           report: "permissionsMatrix",
           active: false,
           cancelPending: true,
+          cancelPendingAt: exportProgressMemory.cancelPendingAt || Date.now(),
           matrixRunId: matrixExportWorker.runId,
           workerTabId: matrixExportWorker.workerTabId,
           log: []
