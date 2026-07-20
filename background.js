@@ -522,7 +522,8 @@ function updateExportProgressMemory(patch) {
 const matrixExportWorker = {
   params: null,
   runId: "",
-  workerTabId: null
+  workerTabId: null,
+  cancelPending: false
 };
 
 function createMatrixRunId() {
@@ -536,6 +537,7 @@ function clearMatrixExportWorker() {
   matrixExportWorker.params = null;
   matrixExportWorker.runId = "";
   matrixExportWorker.workerTabId = null;
+  matrixExportWorker.cancelPending = false;
 }
 
 function classifyExportLifecycleMessage(message, sender) {
@@ -556,7 +558,9 @@ function classifyExportLifecycleMessage(message, sender) {
   const expectedWorkerTabId = matrixExportWorker.workerTabId != null
     ? matrixExportWorker.workerTabId
     : exportProgressMemory.workerTabId;
-  if (!activeMatrix || !expectedRunId) return "ignore";
+  const completingCancelledRun =
+    message && message.type === "SPCSVExportDone" && matrixExportWorker.cancelPending === true;
+  if ((!activeMatrix && !completingCancelledRun) || !expectedRunId) return "ignore";
   if (expectedRunId && runId !== expectedRunId) return "ignore";
   if (expectedWorkerTabId != null && senderTabId !== expectedWorkerTabId) return "ignore";
   return "matrix";
@@ -566,10 +570,11 @@ chrome.storage.session.get(EXPORT_PROGRESS_KEY, function (data) {
   const saved = data && data[EXPORT_PROGRESS_KEY];
   if (saved && typeof saved === "object") {
     exportProgressMemory = Object.assign({ log: [], active: false }, saved);
-    if (saved.active && saved.report === "permissionsMatrix") {
+    if ((saved.active || saved.cancelPending) && saved.report === "permissionsMatrix") {
       matrixExportWorker.params = saved.exportParams || null;
       matrixExportWorker.runId = String(saved.matrixRunId || (saved.exportParams && saved.exportParams.matrixRunId) || "");
       matrixExportWorker.workerTabId = saved.workerTabId != null ? saved.workerTabId : null;
+      matrixExportWorker.cancelPending = saved.cancelPending === true;
     }
   }
   exportProgressRestorePending = false;
@@ -589,8 +594,18 @@ function isMatrixSharePointUrl(url) {
 }
 
 function cancelMatrixExportInTab(notifyCancelled) {
-  clearMatrixExportWorker();
   const tabId = exportProgressMemory.workerTabId != null ? exportProgressMemory.workerTabId : exportProgressMemory.uiTabId;
+  const preserveForCompletion =
+    notifyCancelled &&
+    exportProgressMemory.active &&
+    exportProgressMemory.report === "permissionsMatrix" &&
+    !!matrixExportWorker.runId;
+  if (preserveForCompletion) {
+    matrixExportWorker.params = null;
+    matrixExportWorker.cancelPending = true;
+  } else {
+    clearMatrixExportWorker();
+  }
   if (tabId != null) {
     try {
       chrome.tabs.sendMessage(tabId, { action: "cancelExportCSV" });
@@ -604,7 +619,8 @@ function cancelMatrixExportInTab(notifyCancelled) {
       message: "Export cancelled.",
       logLine: "Export cancelled.",
       finishedAt: Date.now(),
-      workerReady: false
+      workerReady: false,
+      cancelPending: preserveForCompletion
     });
   }
 }
@@ -697,7 +713,9 @@ function handleBackgroundMessage(message, sender, sendResponse) {
       message.type === "SPCSVStartMatrixExport" ||
       message.type === "SPCSVExportStarted" ||
       message.type === "SPCSVExportProgress" ||
-      message.type === "SPCSVExportDone"
+      message.type === "SPCSVExportDone" ||
+      message.type === "SPCSVExportCancel" ||
+      message.type === "SPCSVExportProgressClear"
     )
   ) {
     pendingExportMessages.push({ message, sender, sendResponse });
@@ -711,7 +729,10 @@ function handleBackgroundMessage(message, sender, sendResponse) {
       sendResponse({ ok: false, error: "Invalid SharePoint site URL for export." });
       return false;
     }
-    if (exportProgressMemory.active && exportProgressMemory.report === "permissionsMatrix") {
+    if (
+      (exportProgressMemory.active && exportProgressMemory.report === "permissionsMatrix") ||
+      !!matrixExportWorker.runId
+    ) {
       sendResponse({
         ok: true,
         alreadyRunning: true,
@@ -724,17 +745,19 @@ function handleBackgroundMessage(message, sender, sendResponse) {
       sendResponse({ ok: false, error: "No tab available to start export." });
       return false;
     }
+    const matrixRunId = createMatrixRunId();
+    exportMessage.matrixRunId = matrixRunId;
+    matrixExportWorker.params = exportMessage;
+    matrixExportWorker.runId = matrixRunId;
+    matrixExportWorker.workerTabId = workerTabId;
+    matrixExportWorker.cancelPending = false;
     chrome.tabs.get(workerTabId, function (workerTab) {
       if (chrome.runtime.lastError || !workerTab || !workerTab.url || !isMatrixSharePointUrl(workerTab.url)) {
+        clearMatrixExportWorker();
         sendResponse({ ok: false, error: "Open a SharePoint page in this tab, then try again." });
         return;
       }
       const pageUrl = workerTab.url;
-      const matrixRunId = createMatrixRunId();
-      exportMessage.matrixRunId = matrixRunId;
-      matrixExportWorker.params = exportMessage;
-      matrixExportWorker.runId = matrixRunId;
-      matrixExportWorker.workerTabId = workerTabId;
       chrome.tabs.create({ url: pageUrl, active: true }, function (newTab) {
         if (chrome.runtime.lastError || !newTab || newTab.id == null) {
           clearMatrixExportWorker();
@@ -866,7 +889,8 @@ function handleBackgroundMessage(message, sender, sendResponse) {
       percent: success ? 100 : exportProgressMemory.percent,
       logLine: doneMessage,
       finishedAt: Date.now(),
-      workerReady: false
+      workerReady: false,
+      cancelPending: false
     });
     if (wasMatrix) {
       clearMatrixExportWorker();

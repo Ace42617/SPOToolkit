@@ -6,11 +6,12 @@ import vm from "node:vm";
 const root = new URL("../", import.meta.url);
 const backgroundSource = readFileSync(new URL("background.js", root), "utf8");
 
-function loadBackground() {
+function loadBackground(options = {}) {
   const runtimeMessages = [];
   const tabMessages = [];
   const removedTabs = [];
   const timers = [];
+  const pendingTabGets = [];
   const session = {};
   let runtimeListener = null;
   let nextTabId = 100;
@@ -57,6 +58,10 @@ function loadBackground() {
     tabs: {
       create(_options, callback) { callback?.({ id: nextTabId++ }); },
       get(id, callback) {
+        if (options.deferTabGet) {
+          pendingTabGets.push({ id, callback });
+          return;
+        }
         callback({ id, url: "https://contoso.sharepoint.com/sites/test/Lists/tasks/AllItems.aspx" });
       },
       onUpdated: event(),
@@ -111,6 +116,15 @@ function loadBackground() {
     }
   }
 
+  function flushTabGets() {
+    for (const pending of pendingTabGets.splice(0)) {
+      pending.callback({
+        id: pending.id,
+        url: "https://contoso.sharepoint.com/sites/test/Lists/tasks/AllItems.aspx",
+      });
+    }
+  }
+
   function progress() {
     flushTimers(120);
     let value;
@@ -120,7 +134,7 @@ function loadBackground() {
     return value;
   }
 
-  return { progress, removedTabs, send, tabMessages, flushTimers };
+  return { progress, removedTabs, send, tabMessages, flushTabGets, flushTimers };
 }
 
 test("late matrix lifecycle messages cannot terminate a newer run", () => {
@@ -213,4 +227,56 @@ test("matrix run id is preserved through page and content lifecycle messages", (
   assert.match(content, /d\.matrixRunId !== activeMatrixRunId/);
   assert.match(exporter, /matrixRunId: MATRIX_RUN_ID/);
   assert.match(exporter, /report: "permissionsMatrix"/);
+});
+
+test("matrix cancellation still accepts the matching terminal message", () => {
+  const bg = loadBackground();
+  bg.send({
+    type: "SPCSVStartMatrixExport",
+    exportMessage: {
+      report: "permissionsMatrix",
+      siteUrl: "https://contoso.sharepoint.com/sites/test",
+    },
+  });
+
+  bg.send({ type: "SPCSVExportCancel" });
+  assert.equal(bg.progress().active, false);
+
+  const doneResponse = bg.send({
+    type: "SPCSVExportDone",
+    report: "permissionsMatrix",
+    matrixRunId: "run-1",
+    success: false,
+  });
+  assert.equal(doneResponse.ignored, undefined);
+  assert.equal(
+    bg.tabMessages.filter((entry) => entry.message.action === "matrixWorkerFinish").length,
+    1
+  );
+});
+
+test("a pending matrix start reserves the worker synchronously", () => {
+  const bg = loadBackground({ deferTabGet: true });
+  bg.send({
+    type: "SPCSVStartMatrixExport",
+    exportMessage: {
+      report: "permissionsMatrix",
+      siteUrl: "https://contoso.sharepoint.com/sites/test",
+    },
+  });
+
+  const duplicateResponse = bg.send({
+    type: "SPCSVStartMatrixExport",
+    exportMessage: {
+      report: "permissionsMatrix",
+      siteUrl: "https://contoso.sharepoint.com/sites/test",
+    },
+  });
+  assert.equal(duplicateResponse.alreadyRunning, true);
+
+  bg.flushTabGets();
+  assert.equal(
+    bg.tabMessages.filter((entry) => entry.message.action === "matrixWorkerLockAndRun").length,
+    1
+  );
 });
