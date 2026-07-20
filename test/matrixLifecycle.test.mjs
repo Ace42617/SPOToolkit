@@ -242,6 +242,16 @@ test("matrix cancellation still accepts the matching terminal message", () => {
   bg.send({ type: "SPCSVExportCancel" });
   assert.equal(bg.progress().active, false);
 
+  const csvDoneResponse = bg.send({
+    type: "SPCSVExportDone",
+    report: "exportCSV",
+    success: true,
+  }, 3);
+  assert.equal(csvDoneResponse.ignored, true);
+
+  bg.send({ type: "SPCSVExportProgressClear" });
+  assert.equal(bg.progress().cancelPending, true);
+
   const doneResponse = bg.send({
     type: "SPCSVExportDone",
     report: "permissionsMatrix",
@@ -252,6 +262,24 @@ test("matrix cancellation still accepts the matching terminal message", () => {
   assert.equal(
     bg.tabMessages.filter((entry) => entry.message.action === "matrixWorkerFinish").length,
     1
+  );
+});
+
+test("cancelling a pending start invalidates its tab callbacks", () => {
+  const bg = loadBackground({ deferTabGet: true });
+  bg.send({
+    type: "SPCSVStartMatrixExport",
+    exportMessage: {
+      report: "permissionsMatrix",
+      siteUrl: "https://contoso.sharepoint.com/sites/test",
+    },
+  });
+
+  bg.send({ type: "SPCSVExportCancel" });
+  bg.flushTabGets();
+  assert.equal(
+    bg.tabMessages.filter((entry) => entry.message.action === "matrixWorkerLockAndRun").length,
+    0
   );
 });
 

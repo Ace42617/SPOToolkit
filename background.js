@@ -540,10 +540,19 @@ function clearMatrixExportWorker() {
   matrixExportWorker.cancelPending = false;
 }
 
+function hasMatrixReservation(runId, workerTabId) {
+  return (
+    matrixExportWorker.runId === runId &&
+    matrixExportWorker.workerTabId === workerTabId &&
+    matrixExportWorker.cancelPending !== true
+  );
+}
+
 function classifyExportLifecycleMessage(message, sender) {
   const report = String(message && message.report || "export");
   const activeMatrix = exportProgressMemory.active && exportProgressMemory.report === "permissionsMatrix";
-  if (report !== "permissionsMatrix") return activeMatrix ? "ignore" : "other";
+  const matrixLifecycleOwned = activeMatrix || matrixExportWorker.cancelPending === true;
+  if (report !== "permissionsMatrix") return matrixLifecycleOwned ? "ignore" : "other";
 
   const runId = String(message && message.matrixRunId || "");
   const senderTabId = sender && sender.tab && sender.tab.id;
@@ -600,9 +609,9 @@ function cancelMatrixExportInTab(notifyCancelled) {
     exportProgressMemory.active &&
     exportProgressMemory.report === "permissionsMatrix" &&
     !!matrixExportWorker.runId;
-  if (preserveForCompletion) {
+  if (preserveForCompletion || matrixExportWorker.cancelPending) {
     matrixExportWorker.params = null;
-    matrixExportWorker.cancelPending = true;
+    matrixExportWorker.cancelPending = preserveForCompletion || matrixExportWorker.cancelPending;
   } else {
     clearMatrixExportWorker();
   }
@@ -752,6 +761,10 @@ function handleBackgroundMessage(message, sender, sendResponse) {
     matrixExportWorker.workerTabId = workerTabId;
     matrixExportWorker.cancelPending = false;
     chrome.tabs.get(workerTabId, function (workerTab) {
+      if (!hasMatrixReservation(matrixRunId, workerTabId)) {
+        sendResponse({ ok: false, error: "Export start was cancelled." });
+        return;
+      }
       if (chrome.runtime.lastError || !workerTab || !workerTab.url || !isMatrixSharePointUrl(workerTab.url)) {
         clearMatrixExportWorker();
         sendResponse({ ok: false, error: "Open a SharePoint page in this tab, then try again." });
@@ -759,6 +772,10 @@ function handleBackgroundMessage(message, sender, sendResponse) {
       }
       const pageUrl = workerTab.url;
       chrome.tabs.create({ url: pageUrl, active: true }, function (newTab) {
+        if (!hasMatrixReservation(matrixRunId, workerTabId)) {
+          sendResponse({ ok: false, error: "Export start was cancelled." });
+          return;
+        }
         if (chrome.runtime.lastError || !newTab || newTab.id == null) {
           clearMatrixExportWorker();
           sendResponse({ ok: false, error: "Could not open a continuation tab." });
@@ -785,6 +802,10 @@ function handleBackgroundMessage(message, sender, sendResponse) {
           action: "matrixWorkerLockAndRun",
           exportMessage: exportMessage
         }, function () {
+          if (!hasMatrixReservation(matrixRunId, workerTabId)) {
+            sendResponse({ ok: false, error: "Export start was cancelled." });
+            return;
+          }
           if (chrome.runtime.lastError) {
             updateExportProgressMemory({
               active: false,
@@ -923,13 +944,29 @@ function handleBackgroundMessage(message, sender, sendResponse) {
     return true;
   }
   if (message.type === "SPCSVExportProgressClear") {
+    const cancelledRun = matrixExportWorker.cancelPending
+      ? {
+          report: "permissionsMatrix",
+          active: false,
+          cancelPending: true,
+          matrixRunId: matrixExportWorker.runId,
+          workerTabId: matrixExportWorker.workerTabId,
+          log: []
+        }
+      : null;
     cancelMatrixExportInTab(false);
-    exportProgressMemory = { log: [], active: false };
+    exportProgressMemory = cancelledRun || { log: [], active: false };
     if (exportProgressSaveTimer) {
       clearTimeout(exportProgressSaveTimer);
       exportProgressSaveTimer = null;
     }
-    chrome.storage.session.remove(EXPORT_PROGRESS_KEY);
+    if (cancelledRun) {
+      chrome.storage.session.set({
+        [EXPORT_PROGRESS_KEY]: Object.assign({}, cancelledRun, { updatedAt: Date.now() })
+      });
+    } else {
+      chrome.storage.session.remove(EXPORT_PROGRESS_KEY);
+    }
     sendResponse({ ok: true });
     return false;
   }
