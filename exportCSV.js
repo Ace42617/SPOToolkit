@@ -1438,6 +1438,11 @@
       "</And></Where>";
   }
 
+  function owssvrIncompleteMessage(detail, rowsRead) {
+    return "Export incomplete after " + Number(rowsRead || 0).toLocaleString() +
+      " rows: " + detail + " No file was downloaded; retry the export.";
+  }
+
   async function exportViaOwssvrWithView(viewId, itemCount, retryCount) {
     retryCount = retryCount || 0;
     var allRows = [];
@@ -1477,26 +1482,20 @@
 
       var uq = await setViewQueryById(viewId, viewQuery);
       if (!uq.ok) {
-        if (pageNum === 1) {
-          reportDone(false, "View filter failed: " + (uq.error || "unknown"));
-          return;
-        }
-        break;
+        reportDone(false, owssvrIncompleteMessage("View filter failed: " + (uq.error || "unknown") + ".", allRows.length));
+        return;
       }
       await sleep(500);
 
       var url = buildOwssvrUrl(viewId);
       var resp = await fetch(url, { credentials: "include", redirect: "follow" });
-      if (!resp.ok && resp.status === 404) {
-        if (pageNum === 1) {
-          reportDone(false, "owssvr returned 404 (view may not be supported on this site)");
-          return;
-        }
-        break;
-      }
       if (!resp.ok) {
-        if (resp.status === 503 && allRows.length > 0) break;
-        reportDone(false, "owssvr.dll HTTP " + resp.status + ": " + resp.statusText);
+        reportDone(false, owssvrIncompleteMessage(
+          resp.status === 404
+            ? "owssvr returned 404 (view may not be supported on this site)."
+            : "owssvr.dll HTTP " + resp.status + ": " + resp.statusText + ".",
+          allRows.length
+        ));
         return;
       }
       var xmlText = await resp.text();
@@ -1504,11 +1503,8 @@
       try {
         parsed = parseOwssvrXml(xmlText);
       } catch (e) {
-        if (pageNum === 1) {
-          reportDone(false, "owssvr XML parse error: " + (e.message || String(e)));
-          return;
-        }
-        break;
+        reportDone(false, owssvrIncompleteMessage("owssvr XML parse error: " + (e.message || String(e)) + ".", allRows.length));
+        return;
       }
       if (parsed.rows.length === 0) {
         if (pageNum === 1 && retryCount < 1) {
@@ -1629,7 +1625,11 @@
         var idUrl = listBaseUrl() + "/items?$select=ID&$orderby=ID&$top=" + PAGE_LIMIT;
         if (lastId > 0) idUrl += "&$filter=ID gt " + lastId;
         var idResp = await fetch(idUrl, { credentials: "include", headers: accept });
-        if (!idResp.ok) break;
+        if (!idResp.ok) {
+          reportDone(false, "Export incomplete while enumerating item IDs (HTTP " + idResp.status + ": " +
+            idResp.statusText + "). No file was downloaded; retry the export.");
+          return;
+        }
         var idJson = await idResp.json();
         var idItems = idJson.value || idJson.d?.results || [];
         if (idItems.length === 0) break;
