@@ -50,4 +50,3 @@ for (const relativePath of variants) {
     });
   });
 }
-
