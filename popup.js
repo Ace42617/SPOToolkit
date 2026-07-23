@@ -1846,6 +1846,12 @@ async function runExport(selectedColumns = null) {
       const matrixMaxItems = document.getElementById("matrixMaxItems");
       const matrixPageSize = document.getElementById("matrixPageSize");
       const matrixPrefs = saveMatrixPrefs();
+      const matrixSelectedPaths = getSelectedMatrixSitePaths();
+      const matrixSelectionLoaded = Array.isArray(window.__matrixSitePlan) && window.__matrixSitePlan.length > 0;
+      if (reportType === "permissionsMatrix" && matrixSelectionLoaded && matrixSelectedPaths.length === 0) {
+        setStatus("Select at least one site before running the Permissions Matrix export.", "error");
+        return;
+      }
       const msg = {
         action: "runExportCSV",
         siteUrl,
@@ -1864,7 +1870,8 @@ async function runExport(selectedColumns = null) {
         matrixSharingLinkFetchAll: !!(document.getElementById("chkMatrixSharingLinkFetchAll") && document.getElementById("chkMatrixSharingLinkFetchAll").checked),
         matrixMaxListItems: matrixMaxItems ? parseInt(matrixMaxItems.value, 10) || 2000 : matrixPrefs.maxListItems,
         matrixListItemPageSize: matrixPageSize ? parseInt(matrixPageSize.value, 10) || 5000 : matrixPrefs.listItemPageSize,
-        matrixSelectedPaths: getSelectedMatrixSitePaths()
+        matrixSelectionLoaded,
+        matrixSelectedPaths
       };
       response = await chrome.tabs.sendMessage(tab.id, msg);
     } catch (sendErr) {
@@ -1981,7 +1988,10 @@ async function loadMatrixPrefs() {
   window.__matrixSiteKey = siteKey;
 
   const list = document.getElementById("matrixSitesList");
-  if (siteKey && p.siteKey === siteKey && Array.isArray(p.selectedPaths) && p.selectedPaths.length) {
+  const hasLoadedSitePlan =
+    (p.selectionLoaded === true || (Array.isArray(p.sitePlan) && p.sitePlan.length > 0)) &&
+    Array.isArray(p.selectedPaths);
+  if (siteKey && p.siteKey === siteKey && hasLoadedSitePlan) {
     renderMatrixSitesList(p.sitePlan || [], p.selectedPaths);
   } else if (list) {
     list.innerHTML = '<span class="form-hint">Click Load sites for this site.</span>';
@@ -2004,6 +2014,7 @@ function saveMatrixPrefs(extra) {
     sharingLinkFetchAll: !!(document.getElementById("chkMatrixSharingLinkFetchAll") && document.getElementById("chkMatrixSharingLinkFetchAll").checked),
     maxListItems: maxItems ? parseInt(maxItems.value, 10) || 2000 : 2000,
     listItemPageSize: pageSize ? parseInt(pageSize.value, 10) || 5000 : 5000,
+    selectionLoaded: Array.isArray(window.__matrixSitePlan) && window.__matrixSitePlan.length > 0,
     selectedPaths: getSelectedMatrixSitePaths(),
     sitePlan: window.__matrixSitePlan || []
   }, extra || {});
