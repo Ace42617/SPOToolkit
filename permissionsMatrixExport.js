@@ -797,7 +797,7 @@
       }
     }
 
-    if (SELECTED_SITE_PATHS && SELECTED_SITE_PATHS.length) {
+    if (SELECTED_SITE_PATHS) {
       for (var spi = 0; spi < SELECTED_SITE_PATHS.length; spi++) {
         await addWebByPath(SELECTED_SITE_PATHS[spi], false);
       }
@@ -1456,6 +1456,10 @@
     try {
       if (!siteUrl) {
         reportDone(false, "Could not detect site. Open a SharePoint site, list, or library page.");
+        return;
+      }
+      if (SELECTED_SITE_PATHS && SELECTED_SITE_PATHS.length === 0) {
+        reportDone(false, "No sites selected. Select at least one site before exporting.");
         return;
       }
 

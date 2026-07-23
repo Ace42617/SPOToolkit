@@ -1844,6 +1844,7 @@
         sharingLinkFetchAll: !!(chkMatrixSharingFetchAll && chkMatrixSharingFetchAll.checked),
         maxListItems: matrixMaxItems ? parseInt(matrixMaxItems.value, 10) || 2000 : 2000,
         listItemPageSize: matrixPageSize ? parseInt(matrixPageSize.value, 10) || 5000 : 5000,
+        selectionLoaded: matrixSitePlan.length > 0,
         sitePlan: matrixSitePlan || [],
         selectedPaths: getSelectedMatrixPaths()
       }, extra || {});
@@ -2074,6 +2075,12 @@
       const includeVersions = !!(host.querySelector(".sp-toolkit-chk-versions") && host.querySelector(".sp-toolkit-chk-versions").checked);
       const pageLimit = await getPageSizePromise();
       const exportFormat = reportType === "permissionsMatrix" ? "xlsx" : (formatSelect.value || "xlsx");
+      const matrixSelectedPaths = getSelectedMatrixPaths();
+      const matrixSelectionLoaded = matrixSitePlan.length > 0;
+      if (reportType === "permissionsMatrix" && matrixSelectionLoaded && matrixSelectedPaths.length === 0) {
+        setStatus("Select at least one site before running the Permissions Matrix export.", "error");
+        return;
+      }
       const msg = {
         action: "runExportCSV",
         siteUrl: siteUrl,
@@ -2092,7 +2099,8 @@
         matrixSharingLinkFetchAll: !!(chkMatrixSharingFetchAll && chkMatrixSharingFetchAll.checked),
         matrixMaxListItems: matrixMaxItems ? parseInt(matrixMaxItems.value, 10) || 2000 : 2000,
         matrixListItemPageSize: matrixPageSize ? parseInt(matrixPageSize.value, 10) || 5000 : 5000,
-        matrixSelectedPaths: getSelectedMatrixPaths()
+        matrixSelectionLoaded: matrixSelectionLoaded,
+        matrixSelectedPaths: matrixSelectedPaths
       };
       const response = await invoke(msg);
       const statusMessage =

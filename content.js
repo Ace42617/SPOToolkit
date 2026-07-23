@@ -3463,7 +3463,10 @@ function runExportInjection(message, sendResponse, options) {
     if (message.matrixSharingLinkFetchAll === false) params.matrixSharingLinkFetchAll = false;
     if (message.matrixMaxListItems != null) params.matrixMaxListItems = parseInt(message.matrixMaxListItems, 10) || 2000;
     if (message.matrixListItemPageSize != null) params.matrixListItemPageSize = parseInt(message.matrixListItemPageSize, 10) || 5000;
-    if (Array.isArray(message.matrixSelectedPaths) && message.matrixSelectedPaths.length) {
+    if (
+      Array.isArray(message.matrixSelectedPaths) &&
+      (message.matrixSelectionLoaded === true || message.matrixSelectedPaths.length > 0)
+    ) {
       params.matrixSelectedPaths = message.matrixSelectedPaths;
     }
   }
