@@ -585,11 +585,32 @@
   var sharingLinkUrlSet = {};
   var requestDigestCache = {};
   var sharingApiSkipCache = {};
-  var SHARING_API_BODY = JSON.stringify({ request: { populateInheritedLinks: true } });
+  // Do not populate inherited/ancestor links onto the current item. Those links
+  // belong to the parent path; attributing them here + URL-deduping causes the
+  // Sharing Links sheet (and remediation) to target the wrong RelativeUrl.
+  var SHARING_API_BODY = JSON.stringify({ request: { populateInheritedLinks: false } });
   var SHARING_HEADERS_VERBOSE = {
     Accept: "application/json;odata=verbose",
     "Content-Type": "application/json;odata=verbose"
   };
+
+  function isInheritedSharingLink(link) {
+    if (!link || typeof link !== "object") return false;
+    var details = link.linkDetails || link.LinkDetails || {};
+    var candidates = [
+      link.isInherited, link.IsInherited,
+      details.isInherited, details.IsInherited,
+      link.inheritedFrom, link.InheritedFrom,
+      details.inheritedFrom, details.InheritedFrom
+    ];
+    for (var ci = 0; ci < candidates.length; ci++) {
+      var v = candidates[ci];
+      if (v === true) return true;
+      if (typeof v === "string" && v.trim()) return true;
+      if (v && typeof v === "object") return true;
+    }
+    return false;
+  }
 
   var NON_INHERITABLE_ROLES = {
     "Limited Access": 1, "Restricted View": 1, "Restricted Read": 1, "Web-Only Limited Access": 1
@@ -1167,6 +1188,7 @@
       var added = false;
       for (var li = 0; li < links.length; li++) {
         var link = links[li];
+        if (isInheritedSharingLink(link)) continue;
         var details = link.linkDetails || link.LinkDetails || link;
         var linkUrl = String(details.url || details.Url || details.webUrl || details.WebUrl || link.shareUrl || link.ShareUrl || "").trim();
         if (!linkUrl || sharingLinkUrlSet[linkUrl.toLowerCase()]) continue;
