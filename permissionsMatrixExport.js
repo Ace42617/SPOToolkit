@@ -583,8 +583,11 @@
   var groupUsersCache = {};
   var sharingQueue = [];
   var sharingLinkUrlSet = {};
+  /** Cache entries: { digest, expiresAt }. Never keep digests past FormDigestTimeoutSeconds. */
   var requestDigestCache = {};
   var sharingApiSkipCache = {};
+  var DEFAULT_DIGEST_TTL_MS = 25 * 60 * 1000;
+  var DIGEST_TTL_SAFETY_RATIO = 0.8;
   var SHARING_API_BODY = JSON.stringify({ request: { populateInheritedLinks: true } });
   var SHARING_HEADERS_VERBOSE = {
     Accept: "application/json;odata=verbose",
@@ -1020,9 +1023,17 @@
     sharingQueue.push(entry);
   }
 
-  async function getRequestDigest(webUrl) {
+  async function getRequestDigest(webUrl, forceRefresh) {
     var key = String(webUrl || "").toLowerCase();
-    if (requestDigestCache[key]) return requestDigestCache[key];
+    var now = Date.now();
+    if (!forceRefresh) {
+      var cached = requestDigestCache[key];
+      if (cached && cached.digest && !(typeof cached.expiresAt === "number" && now >= cached.expiresAt)) {
+        return cached.digest;
+      }
+    } else {
+      delete requestDigestCache[key];
+    }
     var r = await fetch(webUrl + "/_api/contextinfo", {
       method: "POST",
       credentials: "include",
@@ -1030,9 +1041,14 @@
     });
     if (!r.ok) throw new Error("ContextInfo HTTP " + r.status);
     var j = await r.json();
-    var digest = j.d && j.d.GetContextWebInformation && j.d.GetContextWebInformation.FormDigestValue;
+    var info = j.d && j.d.GetContextWebInformation;
+    var digest = info && info.FormDigestValue;
     if (!digest) throw new Error("No FormDigestValue");
-    requestDigestCache[key] = digest;
+    var timeoutSec = info && Number(info.FormDigestTimeoutSeconds);
+    var ttlMs = (isFinite(timeoutSec) && timeoutSec > 0)
+      ? Math.max(1000, Math.floor(timeoutSec * 1000 * DIGEST_TTL_SAFETY_RATIO))
+      : DEFAULT_DIGEST_TTL_MS;
+    requestDigestCache[key] = { digest: digest, expiresAt: now + ttlMs };
     return digest;
   }
 
@@ -1093,23 +1109,34 @@
   async function fetchSharingLinksForItem(webUrl, listId, itemId) {
     var cacheKey = listId + "|" + itemId;
     if (sharingApiSkipCache[cacheKey] === "skip") return [];
+    var digestRetried = false;
     try {
-      var digest = await getRequestDigest(webUrl);
-      var expand = "$expand=permissionsInformation,pickerSettings";
-      var urls = [
-        webUrl + "/_api/web/lists(guid'" + listId + "')/items(" + itemId + ")/GetSharingInformation?" + expand,
-        webUrl + "/_api/web/lists(guid'" + listId + "')/GetItemById(" + itemId + ")/GetSharingInformation?" + expand
-      ];
-      for (var ui = 0; ui < urls.length; ui++) {
-        var r = await fetchSharingPostWithRetry(urls[ui], digest, 12);
-        if (!r) continue;
-        if (r.status === 400 || r.status === 403 || r.status === 404) continue;
-        if (!r.ok) continue;
-        var links = parseSharingLinksFromResponse(await r.json());
-        return links;
+      while (true) {
+        var digest = await getRequestDigest(webUrl, digestRetried);
+        var expand = "$expand=permissionsInformation,pickerSettings";
+        var urls = [
+          webUrl + "/_api/web/lists(guid'" + listId + "')/items(" + itemId + ")/GetSharingInformation?" + expand,
+          webUrl + "/_api/web/lists(guid'" + listId + "')/GetItemById(" + itemId + ")/GetSharingInformation?" + expand
+        ];
+        var saw403 = false;
+        for (var ui = 0; ui < urls.length; ui++) {
+          var r = await fetchSharingPostWithRetry(urls[ui], digest, 12);
+          if (!r) continue;
+          if (r.status === 403) { saw403 = true; continue; }
+          if (r.status === 400 || r.status === 404) continue;
+          if (!r.ok) continue;
+          var links = parseSharingLinksFromResponse(await r.json());
+          return links;
+        }
+        // Stale FormDigest often surfaces as 403; refresh once before permanent skip.
+        if (saw403 && !digestRetried) {
+          digestRetried = true;
+          delete requestDigestCache[String(webUrl || "").toLowerCase()];
+          continue;
+        }
+        sharingApiSkipCache[cacheKey] = "skip";
+        return [];
       }
-      sharingApiSkipCache[cacheKey] = "skip";
-      return [];
     } catch (_) {
       sharingApiSkipCache[cacheKey] = "skip";
       return [];
