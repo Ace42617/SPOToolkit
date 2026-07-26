@@ -814,25 +814,40 @@
     return webs;
   }
 
+  function orderRoleNames(fetchedNames) {
+    var roleNames = Array.isArray(fetchedNames) ? fetchedNames.slice() : [];
+    var ordered = [];
+    PREFERRED_ROLES.forEach(function (r) { if (roleNames.indexOf(r) >= 0) ordered.push(r); });
+    roleNames.forEach(function (r) { if (ordered.indexOf(r) < 0) ordered.push(r); });
+    return ordered;
+  }
+
+  /** Fail closed: never substitute PREFERRED_ROLES when roledefinitions cannot be loaded. */
   async function fetchRoleNames(webUrl) {
     var accept = "application/json;odata=nometadata";
-    var roleNames = [];
+    var j;
     try {
-      var j = await fetchJson(webUrl + "/_api/web/roledefinitions?$select=Name,Order&$filter=Hidden eq false&$orderby=Order asc", accept);
-      var defs = j.value || j.results || [];
-      for (var i = 0; i < defs.length; i++) {
-        var name = (defs[i].Name || "").trim();
-        if (name && roleNames.indexOf(name) < 0) roleNames.push(name);
-      }
-    } catch (_) {}
-    if (roleNames.length === 0) roleNames = PREFERRED_ROLES.slice();
-    else {
-      var ordered = [];
-      PREFERRED_ROLES.forEach(function (r) { if (roleNames.indexOf(r) >= 0) ordered.push(r); });
-      roleNames.forEach(function (r) { if (ordered.indexOf(r) < 0) ordered.push(r); });
-      roleNames = ordered;
+      j = await fetchJson(webUrl + "/_api/web/roledefinitions?$select=Name,Order&$filter=Hidden eq false&$orderby=Order asc", accept);
+    } catch (e) {
+      throw new Error("Failed to load role definitions: " + ((e && e.message) || e) + ". No file downloaded.");
     }
-    return roleNames;
+    var roleNames = [];
+    var defs = (j && (j.value || j.results)) || [];
+    for (var i = 0; i < defs.length; i++) {
+      var name = (defs[i].Name || "").trim();
+      if (name && roleNames.indexOf(name) < 0) roleNames.push(name);
+    }
+    if (roleNames.length === 0) {
+      throw new Error("No role definitions returned for this site. No file downloaded.");
+    }
+    return orderRoleNames(roleNames);
+  }
+
+  function formatMatrixListScanFailureMessage(listTitle, err) {
+    var title = String(listTitle || "list").trim() || "list";
+    var detail = err && err.message ? err.message : String(err || "unknown error");
+    return 'Permissions matrix failed while scanning "' + title + '": ' + detail +
+      ". No file downloaded. Resolve access or throttling, then retry.";
   }
 
   async function fetchRoleAssignments(raUrl, accept) {
@@ -1660,9 +1675,10 @@
             progressPlan.currentListLoaded = 0;
             setProgress("Permissions matrix: Finished " + listTitle, itemProgressPct(0));
           } catch (listErr) {
-            progressPlan.doneItems += itemCount;
+            // Fail closed: do not continue to other lists or download a partial workbook
+            // that would report success while omitting this list's unique permissions.
             progressPlan.currentListLoaded = 0;
-            setProgress("Permissions matrix: Skipped " + listTitle + " (" + ((listErr && listErr.message) || listErr) + ")", itemProgressPct(0));
+            throw new Error(formatMatrixListScanFailureMessage(listTitle, listErr));
           }
         }
         siteDetails.push(siteDetail);
