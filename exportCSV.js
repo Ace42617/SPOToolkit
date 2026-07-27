@@ -1164,12 +1164,45 @@
     return { ok: true, fields: eligible };
   }
 
+  // Keep in sync with lib/owssvrVersionRowLimit.mjs
+  function computeOwssvrRowLimit(pageLimit, includeVersions, isDocLib) {
+    var pl = Math.max(1, parseInt(pageLimit, 10) || 1000);
+    if (includeVersions && !isDocLib) return 0;
+    return Math.max(pl * 20, 50000);
+  }
+  function versionedDocLibIdPageLimit(pageLimit, rowLimit) {
+    var pl = Math.max(1, parseInt(pageLimit, 10) || 1000);
+    var rl = Number(rowLimit);
+    if (!(rl > 0)) return pl;
+    var capped = Math.max(50, Math.floor(rl / 100));
+    return Math.min(pl, capped);
+  }
+  function isOwssvrVersionPageTruncated(opts) {
+    var includeVersions = !!(opts && opts.includeVersions);
+    var isDocLib = !!(opts && opts.isDocLib);
+    if (!includeVersions || !isDocLib) return false;
+    var limit = Number(opts && opts.rowLimit);
+    var count = Number(opts && opts.rowCount);
+    if (!(limit > 0) || !(count >= 0)) return false;
+    return count >= limit;
+  }
+  function formatOwssvrVersionTruncationMessage(rowLimit, pageLimit) {
+    return (
+      "Version history export hit the OWSSVR RowLimit (" +
+      String(rowLimit) +
+      " rows) for an ID page of " +
+      String(pageLimit) +
+      " items. Older versions were likely omitted. No file downloaded. " +
+      "Retry with a smaller page size, or export without versions."
+    );
+  }
+
   function buildOwssvrUrl(viewId) {
     var guid = function (g) { return "{" + normalizeGuid(g).toUpperCase() + "}"; };
     var incVer = params.incVer !== false;
     var isDocLib = listBaseTemplate === 101;
     // For lists (not doc lib), version expansion often needs RootFolder=* and RowLimit=0
-    var rowLimit = (incVer && !isDocLib) ? 0 : Math.max(PAGE_LIMIT * 20, 50000);
+    var rowLimit = computeOwssvrRowLimit(PAGE_LIMIT, incVer, isDocLib);
     var url = siteUrl + "/_vti_bin/owssvr.dll?Cmd=Display&XMLDATA=1&List=" + encodeURIComponent(guid(listId)) +
       "&View=" + encodeURIComponent(guid(viewId)) + "&IncludeVersions=" + (incVer ? "TRUE" : "FALSE") + "&RowLimit=" + rowLimit;
     if (incVer && !isDocLib) url += "&RootFolder=*";
@@ -1444,6 +1477,13 @@
     var allColumns = { ID: true, Title: true, FileLeafRef: true, FSObjType: true };
     var pageNum = 0;
     var totalCount = (itemCount != null && itemCount > 0) ? itemCount : null;
+    var incVer = params.incVer !== false;
+    var isDocLib = listBaseTemplate === 101;
+    var owssvrRowLimit = computeOwssvrRowLimit(PAGE_LIMIT, incVer, isDocLib);
+    var idPageLimit = PAGE_LIMIT;
+    if (incVer && isDocLib) {
+      idPageLimit = versionedDocLibIdPageLimit(PAGE_LIMIT, owssvrRowLimit);
+    }
 
     var minId = null;
     var maxIdResolved = null;
@@ -1458,7 +1498,7 @@
     var MAX_PAGES = 500;
     if (maxIdResolved != null && maxIdResolved >= baseStartId) {
       var spanIds = maxIdResolved - baseStartId;
-      MAX_PAGES = Math.min(500000, Math.ceil(spanIds / PAGE_LIMIT) + 10);
+      MAX_PAGES = Math.min(500000, Math.ceil(spanIds / idPageLimit) + 10);
     }
 
     var emptyStreak = 0;
@@ -1466,8 +1506,8 @@
 
     while (pageNum < MAX_PAGES) {
       pageNum++;
-      var startId = baseStartId + (pageNum - 1) * PAGE_LIMIT;
-      var endId = baseStartId + pageNum * PAGE_LIMIT;
+      var startId = baseStartId + (pageNum - 1) * idPageLimit;
+      var endId = baseStartId + pageNum * idPageLimit;
 
       if (maxIdResolved != null && startId > maxIdResolved) {
         break;
@@ -1519,6 +1559,15 @@
         if (maxIdResolved != null && startId > maxIdResolved) break;
         if (emptyStreak >= maxEmptyStreak) break;
         continue;
+      }
+      if (isOwssvrVersionPageTruncated({
+        includeVersions: incVer,
+        isDocLib: isDocLib,
+        rowCount: parsed.rows.length,
+        rowLimit: owssvrRowLimit
+      })) {
+        reportDone(false, formatOwssvrVersionTruncationMessage(owssvrRowLimit, idPageLimit));
+        return;
       }
       emptyStreak = 0;
       for (var i = 0; i < parsed.rows.length; i++) {
