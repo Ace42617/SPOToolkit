@@ -998,8 +998,14 @@
       var r = await addViewField(viewId, names[i]);
       if (!r.ok) failed++;
     }
-    if (failed > names.length / 2) {
-      return { ok: false, error: "View field setup failed (403 or permission denied). Try refreshing the page and run the export again." };
+    // Fail closed on any addViewField failure. Tolerating up to half failures
+    // silently omits selected columns from the owssvr export while still
+    // reporting success. Keep in sync with lib/viewFieldsBatchIntegrity.mjs.
+    if (names.length <= 0) {
+      return { ok: false, error: "View field setup failed: no columns to attach. No file downloaded. Try refreshing the page and run the export again." };
+    }
+    if (failed > 0) {
+      return { ok: false, error: "View field setup failed for " + failed + " of " + names.length + " columns (403 or permission denied). No file downloaded. Try refreshing the page and run the export again." };
     }
     return { ok: true };
   }
