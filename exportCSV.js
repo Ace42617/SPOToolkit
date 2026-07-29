@@ -573,6 +573,20 @@
     return all;
   }
 
+  // Keep in sync with lib/restVersionFetchIntegrity.mjs
+  function isRestVersionsFetchFailure(versions) {
+    return versions == null;
+  }
+
+  function formatRestVersionsFetchFailureMessage(itemId) {
+    var id = itemId != null && String(itemId).trim() !== "" ? String(itemId) : "?";
+    return (
+      "Version history export failed while fetching versions for item " +
+      id +
+      ". No file downloaded. Resolve access or throttling, then retry."
+    );
+  }
+
   function buildBatchBody(itemIds, selectQuery) {
     var boundary = "batch_" + Math.random().toString(36).slice(2) + "_" + Date.now();
     var lb = listBaseUrl();
@@ -1645,6 +1659,10 @@
       for (var idx = 0; idx < itemIds.length; idx++) {
         var itemId = itemIds[idx];
         var versions = await fetchAllVersionsForItem(itemId, selectWithVersion);
+        if (isRestVersionsFetchFailure(versions)) {
+          reportDone(false, formatRestVersionsFetchFailureMessage(itemId));
+          return;
+        }
         if (versions && versions.length > 0) {
           for (var vi = 0; vi < versions.length; vi++) {
             var row = restItemToRow(versions[vi]);
