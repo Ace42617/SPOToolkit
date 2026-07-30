@@ -1847,19 +1847,39 @@
       throw new Error("Throttled too many times.");
     }
 
+    // Keep in sync with lib/exportCsvMatrixIntegrity.mjs
+    function formatMatrixRoleDefsLoadFailureMessage(detail) {
+      var d = detail != null && String(detail).trim() !== "" ? String(detail).trim() : "unknown error";
+      return "Failed to load role definitions: " + d + ". No file downloaded.";
+    }
+    function formatMatrixRoleDefsEmptyMessage() {
+      return "No role definitions returned for this site. No file downloaded.";
+    }
+    function formatMatrixItemScanFailureMessage(itemLabel, err) {
+      var label = String(itemLabel || "item").trim() || "item";
+      var detail = err && err.message ? err.message : String(err || "unknown error");
+      return 'Permissions matrix failed while loading permissions for "' + label + '": ' + detail +
+        ". No file downloaded. Resolve access or throttling, then retry.";
+    }
+
     if (params.matrixWholeSite) {
       reportProgress("Permissions matrix: Loading role definitions…");
       var roleDefRespWs = await fetch(siteUrl + "/_api/web/roledefinitions?$select=Name,Order&$filter=Hidden eq false&$orderby=Order asc", { credentials: "include", headers: accept });
-      var roleNamesWs = [];
-      if (roleDefRespWs.ok) {
-        var roleDefDataWs = await roleDefRespWs.json();
-        var defsWs = roleDefDataWs.value || roleDefDataWs.results || [];
-        for (var rdw = 0; rdw < defsWs.length; rdw++) {
-          var nw = (defsWs[rdw].Name || "").trim();
-          if (nw && roleNamesWs.indexOf(nw) < 0) roleNamesWs.push(nw);
-        }
+      if (!roleDefRespWs.ok) {
+        reportDone(false, formatMatrixRoleDefsLoadFailureMessage("HTTP " + roleDefRespWs.status));
+        return;
       }
-      if (roleNamesWs.length === 0) roleNamesWs = ["Full Control", "Design", "Contribute", "Edit", "Read", "View Only", "Restricted Read", "Approve", "Manage Hierarchy", "Restricted View", "Restricted Interfaces for Translation"];
+      var roleNamesWs = [];
+      var roleDefDataWs = await roleDefRespWs.json();
+      var defsWs = roleDefDataWs.value || roleDefDataWs.results || [];
+      for (var rdw = 0; rdw < defsWs.length; rdw++) {
+        var nw = (defsWs[rdw].Name || "").trim();
+        if (nw && roleNamesWs.indexOf(nw) < 0) roleNamesWs.push(nw);
+      }
+      if (roleNamesWs.length === 0) {
+        reportDone(false, formatMatrixRoleDefsEmptyMessage());
+        return;
+      }
       reportProgress("Permissions matrix: Loading site lists…");
       var listsResp = await fetch(siteUrl + "/_api/web/lists?$select=Id,Title,BaseTemplate,HasUniqueRoleAssignments,ItemCount&$filter=Hidden eq false&$top=5000", { credentials: "include", headers: accept });
       if (!listsResp.ok) {
@@ -2205,16 +2225,21 @@
     var listHasUnique = listData.HasUniqueRoleAssignments === true;
     reportProgress("Permissions matrix: Loading role definitions…");
     var roleDefResp = await fetch(siteUrl + "/_api/web/roledefinitions?$select=Name,Order&$filter=Hidden eq false&$orderby=Order asc", { credentials: "include", headers: accept });
-    var roleNames = [];
-    if (roleDefResp.ok) {
-      var roleDefData = await roleDefResp.json();
-      var defs = roleDefData.value || roleDefData.results || [];
-      for (var rd = 0; rd < defs.length; rd++) {
-        var name = (defs[rd].Name || "").trim();
-        if (name && roleNames.indexOf(name) < 0) roleNames.push(name);
-      }
+    if (!roleDefResp.ok) {
+      reportDone(false, formatMatrixRoleDefsLoadFailureMessage("HTTP " + roleDefResp.status));
+      return;
     }
-    if (roleNames.length === 0) roleNames = ["Full Control", "Design", "Contribute", "Edit", "Read", "View Only", "Restricted Read", "Approve", "Manage Hierarchy", "Restricted View", "Restricted Interfaces for Translation"];
+    var roleNames = [];
+    var roleDefData = await roleDefResp.json();
+    var defs = roleDefData.value || roleDefData.results || [];
+    for (var rd = 0; rd < defs.length; rd++) {
+      var name = (defs[rd].Name || "").trim();
+      if (name && roleNames.indexOf(name) < 0) roleNames.push(name);
+    }
+    if (roleNames.length === 0) {
+      reportDone(false, formatMatrixRoleDefsEmptyMessage());
+      return;
+    }
     var inheritedSourcePath = "";
     try {
       if (listHasUnique) {
@@ -2417,19 +2442,29 @@
     var matrixRows = [];
     var resultIdx = 0;
     var completedCount = 0;
+    var itemScanError = null;
+    var itemScanFailedItem = "";
     reportProgress("Permissions matrix: Loading permissions…", { currentCount: 0, totalCount: exceptions.length });
     function runWorker() {
       return new Promise(function (resolve) {
         function work() {
+          if (itemScanError) { resolve(); return; }
           var i = resultIdx++;
           if (i >= exceptions.length) { resolve(); return; }
           var ex = exceptions[i];
           getMatrixRowsForItem(ex.Id, ex.Item).then(function (itemRows) {
+            if (itemScanError) { resolve(); return; }
             for (var ir = 0; ir < itemRows.length; ir++) matrixRows.push(itemRows[ir]);
             completedCount++;
             reportProgress("Permissions matrix: Loading permissions…", { currentCount: completedCount, totalCount: exceptions.length });
             work();
-          }).catch(function () { completedCount++; work(); });
+          }).catch(function (err) {
+            if (!itemScanError) {
+              itemScanError = err || new Error("unknown error");
+              itemScanFailedItem = ex.Item || ("ID " + ex.Id);
+            }
+            resolve();
+          });
         }
         work();
       });
@@ -2437,6 +2472,10 @@
     var workers = [];
     for (var w = 0; w < CONCURRENCY; w++) workers.push(runWorker());
     await Promise.all(workers);
+    if (itemScanError) {
+      reportDone(false, formatMatrixItemScanFailureMessage(itemScanFailedItem, itemScanError));
+      return;
+    }
     reportProgress("Permissions matrix: Adding inherited items…");
     for (var ii = 0; ii < inheritedItems.length; ii++) {
       var path = inheritedItems[ii].Item;
