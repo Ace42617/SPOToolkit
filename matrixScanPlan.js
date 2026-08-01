@@ -42,6 +42,19 @@
     return r.json();
   }
 
+  /** Follow @odata.nextLink for /_api/web/webs (keep in sync with lib/websDiscovery.mjs). */
+  async function fetchAllChildWebs(webUrl, accept) {
+    var all = [];
+    var next = String(webUrl || "").replace(/\/$/, "") + "/_api/web/webs?$select=Title,ServerRelativeUrl,Url&$top=500";
+    while (next) {
+      var j = await fetchJson(next, accept);
+      var page = j.value || j.results || [];
+      for (var pi = 0; pi < page.length; pi++) all.push(page[pi]);
+      next = j["@odata.nextLink"] || j["odata.nextLink"] || null;
+    }
+    return all;
+  }
+
   async function buildPlan() {
     var accept = "application/json;odata=nometadata";
     var plan = [];
@@ -65,8 +78,7 @@
         itemCount: 0
       });
       if (!includeSubsites) return;
-      var subs = await fetchJson(webUrl + "/_api/web/webs?$select=Title,ServerRelativeUrl,Url&$top=500", accept);
-      var items = subs.value || subs.results || [];
+      var items = await fetchAllChildWebs(webUrl, accept);
       for (var i = 0; i < items.length; i++) {
         var subPath = items[i].ServerRelativeUrl || items[i].serverRelativeUrl;
         if (!subPath && (items[i].Url || items[i].url)) subPath = normalizePath(items[i].Url || items[i].url);
