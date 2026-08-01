@@ -5,12 +5,21 @@ Thumbs.db
 # IDE
 .idea/
 .vscode/
+.cursor/
 *.sublime-*
+
+# Chrome unpacked extension metadata (local only)
+_metadata/
 
 # Build / temp
 node_modules/
 *.log
 *.tmp
+
+# Level Up vendor build intermediates (committed output is /levelup)
+vendor/levelup/node_modules/
+vendor/levelup/build/
+vendor/levelup/release/
 
 # Release build artifacts (zips generated for releases, not committed)
 release/*.zip

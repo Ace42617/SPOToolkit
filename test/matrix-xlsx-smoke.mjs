@@ -5,7 +5,14 @@ import vm from "vm";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const jszipCode = fs.readFileSync(path.join(__dirname, "..", "jszip.min.js"), "utf8");
-const ctx = { console, Buffer, setTimeout, clearTimeout };
+const ctx = {
+  console,
+  Buffer,
+  setTimeout,
+  clearTimeout,
+  setImmediate,
+  clearImmediate,
+};
 vm.runInNewContext(jszipCode + "\nthis.JSZip = JSZip;", ctx);
 const JSZip = ctx.JSZip;
 

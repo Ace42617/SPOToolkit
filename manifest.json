@@ -1,14 +1,24 @@
 {
   "manifest_version": 3,
   "name": "SPO Dev Toolkit",
-  "version": "1.0.7.0",
-  "description": "Export list/library data, run reports, manage views, and quick links on SharePoint.",
+  "version": "1.1.0.0",
+  "description": "SharePoint Online toolkit with Power Apps / Dynamics Level Up tools on Power Platform sites.",
   "icons": {
     "16": "icon.png",
     "48": "icon.png",
     "128": "icon.png"
   },
-  "permissions": ["activeTab", "scripting", "storage", "history", "declarativeNetRequest", "webNavigation"],
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "history",
+    "declarativeNetRequest",
+    "webNavigation",
+    "downloads",
+    "sidePanel",
+    "contextMenus"
+  ],
   "declarative_net_request": {
     "rule_resources": [
       {
@@ -19,9 +29,18 @@
     ]
   },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "sw.js",
+    "type": "module"
   },
-  "host_permissions": ["*://*.sharepoint.com/*"],
+  "host_permissions": [
+    "*://*.sharepoint.com/*",
+    "*://*.powerapps.com/*",
+    "*://*.powerautomate.com/*",
+    "*://*.powerplatform.com/*",
+    "*://*.powerplatformusercontent.com/*",
+    "*://*.dynamics.com/*",
+    "*://make.powerpages.microsoft.com/*"
+  ],
   "content_scripts": [
     {
       "matches": ["*://*.sharepoint.com/*"],
@@ -43,16 +62,82 @@
       "js": ["view-formatter-iframe-bridge.js"],
       "run_at": "document_idle",
       "all_frames": true
+    },
+    {
+      "matches": [
+        "*://*.powerapps.com/*",
+        "*://*.powerautomate.com/*",
+        "*://*.powerplatform.com/*",
+        "*://*.powerplatformusercontent.com/*",
+        "*://*.dynamics.com/*",
+        "*://make.powerpages.microsoft.com/*"
+      ],
+      "js": ["levelup/content.js", "powerAppsToolkitPopout.js"],
+      "run_at": "document_end",
+      "all_frames": false
     }
   ],
+  "side_panel": {
+    "default_path": "levelup/sidebar.html"
+  },
   "web_accessible_resources": [
     {
-      "resources": ["exportCSV.js","permissionsMatrixExport.js","permissionsMatrixStyles.js","matrixScanPlan.js","getFields.js","getSearchSchema.js","getColumnCreatorContext.js","createColumn.js","checkListPage.js","getListType.js","getRefinableMappings.js","getViewsData.js","getPageContext.js","getPageContextFull.js","getPageContextJson.js","getViewFormatContext.js","getSiteLists.js","jszip.min.js","jszip-preload.js","jszip-restore.js","icon.png","lib/columnInternalName.mjs","lib/columnFieldSchema.mjs","lib/columnCreatorPanel.mjs"],
+      "resources": [
+        "exportCSV.js",
+        "permissionsMatrixExport.js",
+        "permissionsMatrixStyles.js",
+        "matrixScanPlan.js",
+        "reportListPlan.js",
+        "getFields.js",
+        "getSearchSchema.js",
+        "getColumnCreatorContext.js",
+        "createColumn.js",
+        "checkListPage.js",
+        "getListType.js",
+        "getRefinableMappings.js",
+        "getViewsData.js",
+        "getPageContext.js",
+        "getPageContextFull.js",
+        "getPageContextJson.js",
+        "getViewFormatContext.js",
+        "getSiteLists.js",
+        "jszip.min.js",
+        "jszip-preload.js",
+        "jszip-restore.js",
+        "jszip-restore-define.js",
+        "icon.png",
+        "lib/columnInternalName.mjs",
+        "lib/columnFieldSchema.mjs",
+        "lib/columnCreatorPanel.mjs"
+      ],
       "matches": ["*://*.sharepoint.com/*"]
+    },
+    {
+      "resources": [
+        "levelup/levelup-extension.js",
+        "levelup/sidebar.html",
+        "levelup/sidebar.js",
+        "levelup/sidebar.css",
+        "levelup/spo-theme.css",
+        "levelup/actions.js",
+        "levelup/CustomCommandsService.js",
+        "levelup/popup.html",
+        "levelup/popup.js",
+        "levelup/icons/*"
+      ],
+      "matches": [
+        "*://*.powerapps.com/*",
+        "*://*.powerautomate.com/*",
+        "*://*.powerplatform.com/*",
+        "*://*.powerplatformusercontent.com/*",
+        "*://*.dynamics.com/*",
+        "*://make.powerpages.microsoft.com/*"
+      ]
     }
   ],
   "action": {
     "default_popup": "popup.html",
+    "default_title": "SPO Dev Toolkit",
     "default_icon": {
       "16": "icon.png",
       "32": "icon.png",

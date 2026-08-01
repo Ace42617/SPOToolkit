@@ -42,24 +42,6 @@
     return r.json();
   }
 
-  async function listCountForWeb(webUrl) {
-    try {
-      var j = await fetchJson(webUrl + "/_api/web/lists?$select=BaseTemplate,ItemCount,Title&$filter=Hidden eq false&$top=5000");
-      var lists = j.value || j.results || [];
-      var total = 0;
-      var count = 0;
-      for (var i = 0; i < lists.length; i++) {
-        var t = (lists[i].Title || lists[i].title || "").trim();
-        if (!t || t === "Access Requests") continue;
-        count++;
-        total += parseInt(lists[i].ItemCount || lists[i].itemCount || 0, 10) || 0;
-      }
-      return { lists: count, items: total };
-    } catch (_) {
-      return { lists: 0, items: 0 };
-    }
-  }
-
   async function buildPlan() {
     var accept = "application/json;odata=nometadata";
     var plan = [];
@@ -74,14 +56,13 @@
       var webUrl = webUrlFromPath(p);
       var j = await fetchJson(webUrl + "/_api/web?$select=Title,ServerRelativeUrl,Url,HasUniqueRoleAssignments", accept);
       var sr = normalizePath(j.ServerRelativeUrl || j.serverRelativeUrl || p);
-      var inv = await listCountForWeb(webUrl);
       plan.push({
         title: (j.Title || j.title || sr || "Site").trim(),
         path: sr,
         url: (j.Url || j.url || webUrl).trim(),
         hasUnique: j.HasUniqueRoleAssignments === true,
-        listCount: inv.lists,
-        itemCount: inv.items
+        listCount: 0,
+        itemCount: 0
       });
       if (!includeSubsites) return;
       var subs = await fetchJson(webUrl + "/_api/web/webs?$select=Title,ServerRelativeUrl,Url&$top=500", accept);

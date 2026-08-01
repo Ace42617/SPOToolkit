@@ -24,6 +24,7 @@
 
   var exportReport = params.report || "exportCSV";
   var exportOverallPct = 0;
+  var multiListCtx = null;
 
   try {
     window.postMessage({
@@ -59,28 +60,125 @@
     opts = opts || {};
     var detail = { message: message || "", logLine: message || "", report: exportReport };
     if (opts.logLine) detail.logLine = opts.logLine;
-    var pct = opts.percent;
-    if (pct == null && opts.currentCount != null && opts.totalCount != null && opts.totalCount > 0) {
-      pct = Math.min(99, Math.round((opts.currentCount / opts.totalCount) * 100));
+
+    var innerPct = null;
+    var rowProgress = null;
+    if (opts.percent != null) {
+      innerPct = Math.min(100, Math.round(opts.percent));
+    } else if (opts.currentCount != null && opts.totalCount != null && opts.totalCount > 0) {
+      innerPct = Math.min(100, Math.round((opts.currentCount / opts.totalCount) * 100));
+      if (multiListCtx && multiListCtx.listTotal > 0 &&
+          (opts.totalCount > multiListCtx.listTotal || (!message && opts.totalCount !== multiListCtx.listTotal))) {
+        rowProgress = { current: opts.currentCount, total: opts.totalCount };
+      }
     }
-    if (pct != null) {
-      exportOverallPct = Math.max(exportOverallPct, Math.min(99, Math.round(pct)));
+
+    if (multiListCtx && multiListCtx.listTotal > 0) {
+      var inListFrac;
+      if (innerPct != null) {
+        inListFrac = innerPct / 100;
+      } else if (exportOverallPct >= 95) {
+        inListFrac = 1;
+      } else {
+        inListFrac = Math.max(0, exportOverallPct / 100);
+      }
+      exportOverallPct = Math.min(
+        99,
+        Math.round(((multiListCtx.listIndex - 1) + inListFrac) / multiListCtx.listTotal * 99)
+      );
       detail.percent = exportOverallPct;
-    } else if (exportOverallPct) {
-      detail.percent = exportOverallPct;
-    }
-    if (opts.currentCount != null && opts.totalCount != null && opts.totalCount > 0) {
-      var headline = exportOverallPct + "% — " + fmtExportCount(opts.currentCount) + " of " + fmtExportCount(opts.totalCount);
+      var headline = exportOverallPct + "% — " + fmtExportCount(multiListCtx.listIndex) + " of " + fmtExportCount(multiListCtx.listTotal) + " lists";
       if (message) headline += " — " + message;
+      else if (rowProgress) {
+        headline += " — " + fmtExportCount(rowProgress.current) + " of " + fmtExportCount(rowProgress.total) + " rows";
+      }
       detail.message = headline;
-      if (!opts.logLine && message) detail.logLine = message;
-    } else if (message) {
-      detail.message = message;
+      if (message && !opts.logLine) detail.logLine = message;
+    } else {
+      if (innerPct != null) {
+        exportOverallPct = Math.min(99, innerPct);
+        detail.percent = exportOverallPct;
+      } else if (exportOverallPct) {
+        detail.percent = exportOverallPct;
+      }
+      if (opts.currentCount != null && opts.totalCount != null && opts.totalCount > 0) {
+        var singleHeadline = exportOverallPct + "% — " + fmtExportCount(opts.currentCount) + " of " + fmtExportCount(opts.totalCount);
+        if (message) singleHeadline += " — " + message;
+        detail.message = singleHeadline;
+        if (!opts.logLine && message) detail.logLine = message;
+      } else if (message) {
+        detail.message = message;
+      }
     }
     window.postMessage({ __spcsv: true, type: "SPCSVExportProgress", detail: detail }, "*");
   }
 
+  function filterFieldsToList(fieldNames, validNames) {
+    if (!Array.isArray(fieldNames)) return ["ID"];
+    var out = [];
+    var seen = {};
+    for (var i = 0; i < fieldNames.length; i++) {
+      var n = String(fieldNames[i] || "").trim();
+      if (!n || seen[n]) continue;
+      if (n === "ID" || (validNames && validNames[n])) {
+        seen[n] = true;
+        out.push(n);
+      }
+    }
+    if (out.indexOf("ID") < 0) out.unshift("ID");
+    return out;
+  }
+
+  function parseMissingRestField(errorText) {
+    if (!errorText) return null;
+    var m = /field or property '([^']+)' does not exist/i.exec(String(errorText));
+    return m ? m[1] : null;
+  }
+
+  async function buildRestFieldNames(preferredNames) {
+    var valid = await getListFieldInternalNames();
+    var validSet = valid.ok && valid.names ? valid.names : null;
+    var names = filterFieldsToList(preferredNames || ["ID"], validSet);
+    if (names.length <= 1 && validSet) {
+      var fr = await getEligibleFieldNames();
+      if (fr.ok && fr.fields && fr.fields.length) {
+        names = filterFieldsToList(["ID"].concat(fr.fields.slice(0, 80)), validSet);
+      }
+    }
+    if (names.length <= 1) names = ["ID"];
+    var restNeedsPathCols =
+      params.report === "folderCount" ||
+      params.report === "pathLengths" ||
+      params.report === "exportCSV";
+    if (restNeedsPathCols && validSet) {
+      if (names.indexOf("FileRef") < 0 && validSet["FileRef"]) names.push("FileRef");
+      if ((params.report === "folderCount" || params.report === "pathLengths") && names.indexOf("ContentTypeId") < 0 && validSet["ContentTypeId"]) {
+        names.push("ContentTypeId");
+      }
+      if (names.indexOf("FileDirRef") < 0 && validSet["FileDirRef"]) names.push("FileDirRef");
+      names = filterFieldsToList(names, validSet);
+    }
+    names = filterLookupFieldsForRest(names, valid.lookupSet);
+    return { names: names, valid: valid };
+  }
+
+  function isRecoverableMultiListError(err) {
+    var msg = String(err && err.message || err || "").toLowerCase();
+    return msg.indexOf("no rows found") >= 0 ||
+      msg.indexOf("no rows to export") >= 0 ||
+      msg.indexOf("no data to export") >= 0 ||
+      msg.indexOf("document libraries") >= 0 ||
+      msg.indexOf("rest api http 400") >= 0 ||
+      msg.indexOf("does not exist") >= 0 ||
+      msg.indexOf("rpc view") >= 0 ||
+      msg.indexOf("owssvr") >= 0;
+  }
+
   function reportDone(success, message, stopReason) {
+    if (exportCaptureMode) {
+      if (!success) throw new Error(message || "Export failed");
+      return;
+    }
     if (!success) {
       console.error("SharePoint CSV Export:", message);
       try { alert("SharePoint CSV Export failed:\n\n" + message); } catch (_) {}
@@ -212,6 +310,14 @@
         var cells = [];
         for (var c = 0; c < nc; c++) {
           var v = row[c];
+          var ref = colToLetter(c) + (r + 1);
+          if (v && typeof v === "object" && v.hyperlink) {
+            var href = String(v.hyperlink).replace(/"/g, "\"\"");
+            var linkText = String(v.text != null ? v.text : v.hyperlink).replace(/"/g, "\"\"");
+            var formula = "HYPERLINK(\"" + href + "\",\"" + linkText + "\")";
+            cells.push("<c r=\"" + ref + "\"><f>" + escXml(formula) + "</f></c>");
+            continue;
+          }
           if (typeof v === "string" && v.trim() !== "") {
             var s = v.trim();
             if (/^-?\d+$/.test(s)) v = parseInt(s, 10);
@@ -227,6 +333,7 @@
       return { rows: sheetRows, nr: nr, nc: nc };
     }
     var sheetXmls = [];
+    ensureUniqueSheetNames(sheets);
     for (var s = 0; s < sheets.length; s++) {
       var sh = sheets[s];
       var aoa = sh.aoa || [];
@@ -264,8 +371,15 @@
     return zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   }
 
+  var exportCaptureMode = false;
+  var exportCaptureQueue = [];
+
   function downloadExport(data, filenameBase, opts) {
     opts = opts || {};
+    if (exportCaptureMode) {
+      exportCaptureQueue.push({ data: data, filenameBase: filenameBase, opts: opts });
+      return;
+    }
     var isXls = params.format === "xls";
     var isXlsx = params.format === "xlsx";
     var ext = isXlsx ? ".xlsx" : (isXls ? ".xls" : ".csv");
@@ -490,13 +604,16 @@
   function sanitizeFilenamePart(s) {
     return String(s).replace(/[\s\\/:*?"<>|]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "") || "Export";
   }
+  function buildExportDateStamp() {
+    var d = new Date();
+    var pad = function (n) { n = parseInt(n, 10); return (n >= 0 && n <= 9) ? "0" + n : String(n); };
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "_" + pad(d.getHours()) + "-" + pad(d.getMinutes());
+  }
   function buildDefaultExportFilename() {
     var siteName = sanitizeFilenamePart(getSiteNameFromUrl(siteUrl));
     var listTitle = getListTitleFromContext();
     var listPart = (listTitle && String(listTitle).trim()) ? sanitizeFilenamePart(String(listTitle).trim()) : "";
-    var d = new Date();
-    var pad = function (n) { n = parseInt(n, 10); return (n >= 0 && n <= 9) ? "0" + n : String(n); };
-    var dt = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "_" + pad(d.getHours()) + "-" + pad(d.getMinutes());
+    var dt = buildExportDateStamp();
     return listPart ? siteName + "_" + listPart + "_" + dt : siteName + "_" + dt;
   }
   var exportFilename = (params.f && String(params.f).trim())
@@ -523,6 +640,32 @@
 
   function listBaseUrl() {
     return siteUrl + "/_api/web/lists(guid'" + listId + "')";
+  }
+
+  var cachedListRootUrl = null;
+
+  async function resolveListRootServerRelativeUrl() {
+    if (cachedListRootUrl) return cachedListRootUrl;
+    var spi = window._spPageContextInfo;
+    if (spi && listId && normalizeGuid(spi.pageListId || spi.listId || "") === normalizeGuid(listId)) {
+      var lr = (spi.listUrl || spi.listServerRelativeUrl || "").trim();
+      if (lr) {
+        cachedListRootUrl = lr;
+        return lr;
+      }
+    }
+    try {
+      var r = await fetch(listBaseUrl() + "/rootfolder?$select=ServerRelativeUrl", {
+        credentials: "include",
+        headers: { Accept: "application/json;odata=nometadata" }
+      });
+      if (r.ok) {
+        var j = await r.json();
+        cachedListRootUrl = (j.ServerRelativeUrl || j.serverRelativeUrl || "").trim();
+        return cachedListRootUrl;
+      }
+    } catch (_) {}
+    return "";
   }
 
   async function getItemCount() {
@@ -666,93 +809,18 @@
     }
   }
 
-  // Creates a temporary RPC view with ALL columns and "Show all items without folders" (Scope 1).
-  // Always creates fresh: deletes existing "RPC" view if present, then creates new one.
-  async function getOrCreateRpcViewForDownload() {
-    var accept = { "Accept": "application/json;odata=nometadata" };
-    var lb = listBaseUrl();
-
-    // Fetch all views and find by Title (more reliable than $filter which may not work on views)
-    var viewsResp = await fetch(lb + "/views?$select=Id,Title", { credentials: "include", headers: accept });
-    if (!viewsResp.ok) {
-      var t0 = "";
-      try { t0 = await viewsResp.text(); } catch (_) {}
-      return { ok: false, error: "List views failed: " + viewsResp.status, detail: t0 };
-    }
-
-    var viewsJson = await viewsResp.json();
-    var views = viewsJson.value || viewsJson.d?.results || [];
-    var rpcView = null;
-    for (var i = 0; i < views.length; i++) {
-      if ((views[i].Title || "").trim() === RPC_VIEW_TITLE) {
-        rpcView = views[i];
-        break;
-      }
-    }
-
-    // Delete existing RPC view so we always create fresh with correct Scope/fields
-    if (rpcView) {
-      await deleteViewById(normalizeGuid(rpcView.Id));
-      await sleep(200);
-    }
-
-    // Create new view with Scope 2 (RecursiveAll). Retry on 403/503 (often timing/session not ready on first load).
-    var createResp = null;
-    var lastStatus = 0;
-    var lastDetail = "";
-    var maxAttempts = 5;
-    var retryDelayMs = 1500;
-    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
-      var digest = await getDigest(attempt > 1);
-      if (!digest) return { ok: false, error: "Could not get request digest" };
-
-      createResp = await fetch(lb + "/views", {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Accept": "application/json;odata=nometadata",
-          "Content-Type": "application/json;odata=nometadata",
-          "X-RequestDigest": digest
-        },
-        body: JSON.stringify({
-          Title: RPC_VIEW_TITLE,
-          PersonalView: false,
-          RowLimit: Math.min(PAGE_LIMIT, 5000000),
-          Scope: 2,  // RecursiveAll = Show all items (files + folders)
-          ViewQuery: ""
-        })
-      });
-
-      lastStatus = createResp.status;
-      if (createResp.ok) break;
-      try { lastDetail = await createResp.text(); } catch (_) {}
-      if (createResp.status !== 403 && createResp.status !== 503) break;
-      await sleep(attempt * retryDelayMs);
-    }
-
-    if (!createResp || !createResp.ok) {
-      return { ok: false, error: "Create RPC view failed: " + lastStatus, detail: lastDetail };
-    }
-
-    var created = await createResp.json();
-    var viewId = normalizeGuid(created.Id);
-
-    // Use custom columns from picker, or default view fields
+  // Creates or reuses an owssvr RPC view. Falls back to library default views when create is forbidden (403).
+  async function resolveRpcExportFieldNames() {
     var fieldNames;
     if (params.cols && Array.isArray(params.cols) && params.cols.length > 0) {
       fieldNames = mergeRequiredFields(params.cols);
-      var valid = await getListFieldInternalNames();
-      if (valid.ok && valid.names) {
-        var filtered = [];
-        for (var fi = 0; fi < fieldNames.length; fi++) {
-          if (valid.names[fieldNames[fi]]) filtered.push(fieldNames[fi]);
-        }
-        if (filtered.length > 0) fieldNames = filtered;
-      }
+      var validRpc = await getListFieldInternalNames();
+      if (validRpc.ok && validRpc.names) fieldNames = filterFieldsToList(fieldNames, validRpc.names);
     } else {
       var vf = await getViewFieldsFromDefaultView();
       if (!vf.ok) return vf;
-      fieldNames = vf.fields;
+      var validRpc2 = await getListFieldInternalNames();
+      fieldNames = filterFieldsToList(vf.fields, validRpc2.ok ? validRpc2.names : null);
     }
     var reportNeedsPathCols =
       params.report === "folderCount" ||
@@ -767,16 +835,185 @@
         fieldNames.push("ContentTypeId");
       }
       if (fieldNames.indexOf("FileDirRef") < 0 && vnPath["FileDirRef"]) fieldNames.push("FileDirRef");
+      fieldNames = filterFieldsToList(fieldNames, vnPath);
     }
     if (!fieldNames || fieldNames.length === 0) {
       return { ok: false, error: "No columns selected" };
     }
+    return { ok: true, fieldNames: fieldNames };
+  }
 
+  async function listLibraryViewsDetailed() {
+    var accept = { "Accept": "application/json;odata=nometadata" };
+    var r = await fetch(listBaseUrl() + "/views?$select=Id,Title,Scope,PersonalView&$top=500", {
+      credentials: "include",
+      headers: accept
+    });
+    if (!r.ok) {
+      var t = "";
+      try { t = await r.text(); } catch (_) {}
+      return { ok: false, error: "List views failed: " + r.status, detail: t };
+    }
+    var j = await r.json();
+    return { ok: true, views: j.value || j.d?.results || [] };
+  }
+
+  async function findViewByTitle(title) {
+    var lv = await listLibraryViewsDetailed();
+    if (!lv.ok) return null;
+    var want = String(title || "").trim().toLowerCase();
+    for (var i = 0; i < lv.views.length; i++) {
+      var v = lv.views[i];
+      if (String(v.Title || "").trim().toLowerCase() === want) {
+        return { id: normalizeGuid(v.Id || v.id), title: v.Title || title };
+      }
+    }
+    return null;
+  }
+
+  async function createRpcViewRecord(personalView) {
+    var accept = { "Accept": "application/json;odata=nometadata" };
+    var lb = listBaseUrl();
+    var createResp = null;
+    var lastStatus = 0;
+    var lastDetail = "";
+    var maxAttempts = 5;
+    var retryDelayMs = 1500;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      var digest = await getDigest(attempt > 1);
+      if (!digest) return { ok: false, error: "Could not get request digest" };
+      createResp = await fetch(lb + "/views", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Accept": "application/json;odata=nometadata",
+          "Content-Type": "application/json;odata=nometadata",
+          "X-RequestDigest": digest
+        },
+        body: JSON.stringify({
+          Title: RPC_VIEW_TITLE,
+          PersonalView: !!personalView,
+          RowLimit: Math.min(PAGE_LIMIT, 5000000),
+          Scope: 2,
+          ViewQuery: ""
+        })
+      });
+      lastStatus = createResp.status;
+      if (createResp.ok) {
+        var created = await createResp.json();
+        return { ok: true, viewId: normalizeGuid(created.Id) };
+      }
+      try { lastDetail = await createResp.text(); } catch (_) {}
+      if (createResp.status !== 403 && createResp.status !== 503) break;
+      await sleep(attempt * retryDelayMs);
+    }
+    return { ok: false, status: lastStatus, detail: lastDetail, error: "Create RPC view failed: " + lastStatus };
+  }
+
+  async function resolveBorrowedOwssvrViewId() {
+    var accept = { "Accept": "application/json;odata=nometadata" };
+    try {
+      var dv = await fetch(listBaseUrl() + "/DefaultView?$select=Id,Title,Scope", {
+        credentials: "include",
+        headers: accept
+      });
+      if (dv.ok) {
+        var dj = await dv.json();
+        var dvId = normalizeGuid(dj.Id || dj.id);
+        if (dvId) return { ok: true, viewId: dvId, title: dj.Title || "DefaultView" };
+      }
+    } catch (_) {}
+    var lv = await listLibraryViewsDetailed();
+    if (!lv.ok) return lv;
+    var views = lv.views || [];
+    var preferred = null;
+    var fallback = null;
+    for (var i = 0; i < views.length; i++) {
+      var v = views[i];
+      if (v.PersonalView === true) continue;
+      var vid = normalizeGuid(v.Id || v.id);
+      if (!vid) continue;
+      var title = String(v.Title || "").trim();
+      var scope = v.Scope != null ? parseInt(v.Scope, 10) : null;
+      if (!fallback) fallback = { viewId: vid, title: title };
+      if (scope === 2) preferred = { viewId: vid, title: title };
+      if (/all documents|all items|recursive/i.test(title)) preferred = { viewId: vid, title: title };
+    }
+    if (preferred) return { ok: true, viewId: preferred.viewId, title: preferred.title };
+    if (fallback) return { ok: true, viewId: fallback.viewId, title: fallback.title };
+    return { ok: false, error: "No library view available for export." };
+  }
+
+  async function tryConfigureRpcView(viewId, fieldNames) {
     var sf = await setViewFieldsBatch(viewId, fieldNames);
-    if (!sf.ok) return { ok: false, error: "Failed setting ViewFields: " + (sf.error || "unknown") };
-    await sleep(300);
+    if (sf.ok) return { ok: true, fieldsConfigured: true };
+    return { ok: true, fieldsConfigured: false, error: sf.error || "View field setup skipped" };
+  }
 
-    return { ok: true, viewId: viewId, fieldNames: fieldNames };
+  async function getOrCreateRpcViewForDownload() {
+    var fn = await resolveRpcExportFieldNames();
+    if (!fn.ok) return fn;
+    var fieldNames = fn.fieldNames;
+    var existingRpc = await findViewByTitle(RPC_VIEW_TITLE);
+
+    if (existingRpc) {
+      await tryConfigureRpcView(existingRpc.id, fieldNames);
+      return {
+        ok: true,
+        viewId: existingRpc.id,
+        ownView: true,
+        readOnlyView: false,
+        fieldNames: fieldNames
+      };
+    }
+
+    var created = await createRpcViewRecord(false);
+    if (created.ok) {
+      await tryConfigureRpcView(created.viewId, fieldNames);
+      return {
+        ok: true,
+        viewId: created.viewId,
+        ownView: true,
+        readOnlyView: false,
+        fieldNames: fieldNames
+      };
+    }
+
+    created = await createRpcViewRecord(true);
+    if (created.ok) {
+      await tryConfigureRpcView(created.viewId, fieldNames);
+      return {
+        ok: true,
+        viewId: created.viewId,
+        ownView: true,
+        readOnlyView: false,
+        fieldNames: fieldNames,
+        personalView: true
+      };
+    }
+
+    var borrowed = await resolveBorrowedOwssvrViewId();
+    if (!borrowed.ok) {
+      return {
+        ok: false,
+        error: "RPC view unavailable: " + (created.error || "Create RPC view failed: " + (created.status || "403")),
+        detail: created.detail || ""
+      };
+    }
+
+    await tryConfigureRpcView(borrowed.viewId, fieldNames);
+    reportProgress(
+      "Using library view \"" + (borrowed.title || "default") + "\" (read-only)…",
+      { logLine: "Cannot create RPC view here — using existing library view via owssvr." }
+    );
+    return {
+      ok: true,
+      viewId: borrowed.viewId,
+      ownView: false,
+      readOnlyView: true,
+      fieldNames: fieldNames,
+      borrowedTitle: borrowed.title
+    };
   }
 
   function mergeRequiredFields(fieldNames) {
@@ -864,14 +1101,9 @@
     }
     if (!seen["ID"]) { seen["ID"] = true; fields.unshift("ID"); }
 
-    // Always include: Title, FileLeafRef (name), Version, Created, Modified, Created By, Modified By
-    var required = ["ID", "Title", "FileLeafRef", "FSObjType", "Created", "Modified", "Author", "Editor", "_UIVersionString"];
-    for (var ri = 0; ri < required.length; ri++) {
-      if (!seen[normKey(required[ri])]) {
-        seen[normKey(required[ri])] = true;
-        fields.push(required[ri]);
-      }
-    }
+    var validView = await getListFieldInternalNames();
+    fields = filterFieldsToList(fields, validView.ok ? validView.names : null);
+    if (fields.length <= 1) fields = filterFieldsToList(["ID", "Title"], validView.ok ? validView.names : null);
 
     return { ok: true, fields: fields };
   }
@@ -1064,23 +1296,24 @@
 
   async function getListFieldInternalNames() {
     var accept = { "Accept": "application/json;odata=nometadata" };
-    var r = await fetch(
-      listBaseUrl() + "/fields?$select=InternalName,TypeAsString&$top=5000",
-      { credentials: "include", headers: accept }
-    );
-    if (!r.ok) return { ok: false, error: "Get fields failed: " + r.status };
-    var j = await r.json();
-    var fields = j.value || j.d?.results || [];
     var names = {};
     var lookupSet = {};
-    for (var i = 0; i < fields.length; i++) {
-      var f = fields[i];
-      var n = f && f.InternalName;
-      if (n) {
-        names[n] = true;
-        var t = (f.TypeAsString || f.Type || "").toLowerCase();
-        if (t.indexOf("lookup") >= 0 || t === "user" || t.indexOf("user") >= 0) lookupSet[n] = true;
+    var url = listBaseUrl() + "/fields?$select=InternalName,TypeAsString&$top=5000";
+    while (url) {
+      var r = await fetch(url, { credentials: "include", headers: accept });
+      if (!r.ok) return { ok: false, error: "Get fields failed: " + r.status };
+      var j = await r.json();
+      var fields = j.value || j.d?.results || [];
+      for (var i = 0; i < fields.length; i++) {
+        var f = fields[i];
+        var n = f && f.InternalName;
+        if (n) {
+          names[n] = true;
+          var t = (f.TypeAsString || f.Type || "").toLowerCase();
+          if (t.indexOf("lookup") >= 0 || t === "user" || t.indexOf("user") >= 0) lookupSet[n] = true;
+        }
       }
+      url = j["@odata.nextLink"] || null;
     }
     return { ok: true, names: names, lookupSet: lookupSet };
   }
@@ -1120,13 +1353,16 @@
 
   async function getEligibleFieldNames() {
     var accept = { "Accept": "application/json;odata=nometadata" };
-    var r = await fetch(
-      listBaseUrl() + "/fields?$select=InternalName,Hidden,ReadOnlyField,Sealed,ShowInListDefault,TypeAsString",
-      { credentials: "include", headers: accept }
-    );
-    if (!r.ok) return { ok: false, error: "Get fields failed: " + r.status };
-    var j = await r.json();
-    var fields = j.value || j.d?.results || [];
+    var fields = [];
+    var url = listBaseUrl() + "/fields?$select=InternalName,Hidden,ReadOnlyField,Sealed,ShowInListDefault,TypeAsString&$top=5000";
+    while (url) {
+      var r = await fetch(url, { credentials: "include", headers: accept });
+      if (!r.ok) return { ok: false, error: "Get fields failed: " + r.status };
+      var j = await r.json();
+      var page = j.value || j.d?.results || [];
+      for (var pi = 0; pi < page.length; pi++) fields.push(page[pi]);
+      url = j["@odata.nextLink"] || null;
+    }
     var skip = {
       "Attachments": 1, "ContentTypeId": 1, "ComplianceAssetId": 1, "MetaInfo": 1, "Edit": 1,
       "AppAuthor": 1, "AppEditor": 1, "MediaServiceImageTags": 1, "MediaServiceAutoTags": 1,
@@ -1164,18 +1400,16 @@
     return { ok: true, fields: eligible };
   }
 
-  function buildOwssvrUrl(viewId) {
+  async function buildOwssvrUrl(viewId) {
     var guid = function (g) { return "{" + normalizeGuid(g).toUpperCase() + "}"; };
     var incVer = params.incVer !== false;
     var isDocLib = listBaseTemplate === 101;
-    // For lists (not doc lib), version expansion often needs RootFolder=* and RowLimit=0
     var rowLimit = (incVer && !isDocLib) ? 0 : Math.max(PAGE_LIMIT * 20, 50000);
     var url = siteUrl + "/_vti_bin/owssvr.dll?Cmd=Display&XMLDATA=1&List=" + encodeURIComponent(guid(listId)) +
       "&View=" + encodeURIComponent(guid(viewId)) + "&IncludeVersions=" + (incVer ? "TRUE" : "FALSE") + "&RowLimit=" + rowLimit;
     if (incVer && !isDocLib) url += "&RootFolder=*";
     if (isDocLib) {
-      // Use list root path so RecursiveAll view returns all items in all folders; RootFolder=* can limit to one folder with ID-range paging
-      var listRoot = (window._spPageContextInfo && (window._spPageContextInfo.listUrl || window._spPageContextInfo.listServerRelativeUrl)) || "";
+      var listRoot = await resolveListRootServerRelativeUrl();
       if (listRoot) url += "&RootFolder=" + encodeURIComponent(listRoot);
       else url += "&RootFolder=*";
     }
@@ -1438,8 +1672,63 @@
       "</And></Where>";
   }
 
-  async function exportViaOwssvrWithView(viewId, itemCount, retryCount) {
+  async function exportViaOwssvrReadOnly(viewId, itemCount) {
+    var url = await buildOwssvrUrl(viewId);
+    var resp = await fetch(url, { credentials: "include", redirect: "follow" });
+    if (!resp.ok) {
+      if (!exportCaptureMode) {
+        if (resp.status === 404) {
+          reportDone(false, "owssvr returned 404 (view may not be supported on this site)");
+        } else {
+          reportDone(false, "owssvr.dll HTTP " + resp.status + ": " + resp.statusText);
+        }
+      }
+      return false;
+    }
+    var xmlText = await resp.text();
+    var parsed;
+    try {
+      parsed = parseOwssvrXml(xmlText);
+    } catch (e) {
+      if (!exportCaptureMode) reportDone(false, "owssvr XML parse error: " + (e.message || String(e)));
+      return false;
+    }
+    if (!parsed.rows.length) return false;
+    var rowsToExport = parsed.rows;
+    if (params.incVer === false) {
+      var byId = {};
+      function versionNum(v) {
+        var s = String(v || "0").split(".")[0];
+        return parseInt(s, 10) || 0;
+      }
+      for (var i = 0; i < parsed.rows.length; i++) {
+        var r = parsed.rows[i];
+        var id = r.ID || r.Id || "";
+        if (!id) continue;
+        var cur = byId[id];
+        var vCur = cur ? versionNum(cur._UIVersionString || cur.Version) : 0;
+        var vNew = versionNum(r._UIVersionString || r.Version);
+        if (!cur || vNew >= vCur) byId[id] = r;
+      }
+      rowsToExport = Object.keys(byId).sort(function (a, b) { return parseInt(a, 10) - parseInt(b, 10); }).map(function (id) { return byId[id]; });
+    }
+    if (!rowsToExport.length) return false;
+    if (itemCount != null && itemCount > rowsToExport.length) {
+      reportProgress("", {
+        logLine: "Read-only view returned " + rowsToExport.length + " of ~" + itemCount + " items (library view limits apply)."
+      });
+    }
+    finishOwssvrExport({ rows: rowsToExport, columns: [] });
+    return true;
+  }
+
+  async function exportViaOwssvrWithView(viewId, itemCount, retryCount, options) {
     retryCount = retryCount || 0;
+    options = options || {};
+    if (options.readOnlyView) {
+      return exportViaOwssvrReadOnly(viewId, itemCount);
+    }
+    var fastFail = !!multiListCtx;
     var allRows = [];
     var allColumns = { ID: true, Title: true, FileLeafRef: true, FSObjType: true };
     var pageNum = 0;
@@ -1459,10 +1748,15 @@
     if (maxIdResolved != null && maxIdResolved >= baseStartId) {
       var spanIds = maxIdResolved - baseStartId;
       MAX_PAGES = Math.min(500000, Math.ceil(spanIds / PAGE_LIMIT) + 10);
+    } else if (itemCount != null && itemCount > 0) {
+      MAX_PAGES = Math.min(MAX_PAGES, Math.ceil(itemCount / PAGE_LIMIT) + 15);
+    } else {
+      MAX_PAGES = Math.min(MAX_PAGES, 100);
     }
 
     var emptyStreak = 0;
-    var maxEmptyStreak = maxIdResolved != null ? 50 : 2000;
+    var maxEmptyStreak = fastFail ? 5 : 50;
+    var pageDelayMs = fastFail ? 100 : 500;
 
     while (pageNum < MAX_PAGES) {
       pageNum++;
@@ -1483,9 +1777,9 @@
         }
         break;
       }
-      await sleep(500);
+      await sleep(pageDelayMs);
 
-      var url = buildOwssvrUrl(viewId);
+      var url = await buildOwssvrUrl(viewId);
       var resp = await fetch(url, { credentials: "include", redirect: "follow" });
       if (!resp.ok && resp.status === 404) {
         if (pageNum === 1) {
@@ -1511,7 +1805,7 @@
         break;
       }
       if (parsed.rows.length === 0) {
-        if (pageNum === 1 && retryCount < 1) {
+        if (pageNum === 1 && retryCount < 1 && !fastFail) {
           await sleep(2000);
           return exportViaOwssvrWithView(viewId, itemCount, retryCount + 1);
         }
@@ -1532,8 +1826,7 @@
     }
 
     if (allRows.length === 0) {
-      reportDone(false, "No rows found.");
-      return;
+      return false;
     }
 
     var rowsToExport = allRows;
@@ -1556,57 +1849,34 @@
     }
 
     if (rowsToExport.length === 0) {
-      reportDone(false, "No data to export; view setup may have failed (check permissions). Try refreshing the page and run again.");
-      return;
+      return false;
     }
     finishOwssvrExport({ rows: rowsToExport, columns: [] });
+    return true;
   }
 
   async function exportViaRest(itemCountParam) {
     var itemCount = itemCountParam;
     if (itemCount == null) itemCount = await getItemCount();
-    var fieldNames;
+    var preferred;
     if (params.cols && Array.isArray(params.cols) && params.cols.length > 0) {
-      fieldNames = mergeRequiredFields(params.cols);
-      var valid = await getListFieldInternalNames();
-      if (valid.ok && valid.names) {
-        var filtered = [];
-        for (var fi = 0; fi < fieldNames.length; fi++) {
-          if (valid.names[fieldNames[fi]]) filtered.push(fieldNames[fi]);
-        }
-        if (filtered.length > 0) fieldNames = filtered;
-      }
-      fieldNames = filterLookupFieldsForRest(fieldNames, valid && valid.lookupSet);
+      preferred = mergeRequiredFields(params.cols);
     } else {
       var fr = await getEligibleFieldNames();
       if (!fr.ok) {
         reportDone(false, fr.error || "Failed to get list fields");
         return;
       }
-      var valid = await getListFieldInternalNames();
-      var validSet = (valid.ok && valid.names) ? valid.names : null;
-      var base = ["ID"];
-      if (!validSet || validSet["FSObjType"]) base.push("FSObjType");
-      var rest = fr.fields.filter(function (n) { return n !== "ID" && n !== "FSObjType" && (!validSet || validSet[n]); });
-      fieldNames = base.concat(rest);
-      if (fieldNames.length <= 1) fieldNames = ["ID", "Title"].concat(fr.fields.filter(function (n) { return n !== "ID" && n !== "Title"; }).slice(0, 50));
+      preferred = ["ID"].concat(fr.fields || []);
     }
-    var vrest = (typeof valid !== "undefined" && valid && valid.names) ? valid.names : {};
-    var restNeedsPathCols =
-      params.report === "folderCount" ||
-      params.report === "pathLengths" ||
-      params.report === "exportCSV";
-    if (restNeedsPathCols) {
-      if (fieldNames.indexOf("FileRef") < 0 && vrest["FileRef"]) fieldNames = fieldNames.concat(["FileRef"]);
-      if ((params.report === "folderCount" || params.report === "pathLengths") && fieldNames.indexOf("ContentTypeId") < 0 && vrest["ContentTypeId"]) {
-        fieldNames = fieldNames.concat(["ContentTypeId"]);
-      }
-      if (fieldNames.indexOf("FileDirRef") < 0 && vrest["FileDirRef"]) fieldNames = fieldNames.concat(["FileDirRef"]);
+    var built = await buildRestFieldNames(preferred);
+    var fieldNames = built.names;
+    var valid = built.valid;
+    var versionFieldList = fieldNames.slice();
+    if (valid.ok && valid.names && valid.names["VersionLabel"] && versionFieldList.indexOf("VersionLabel") < 0) {
+      versionFieldList.push("VersionLabel");
     }
-    var select = fieldNames.join(",");
-    var selectWithVersion = (select.indexOf("VersionLabel") >= 0 || select.indexOf("_UIVersionString") >= 0)
-      ? select
-      : select + ",VersionLabel";
+    var selectWithVersion = versionFieldList.join(",");
     var accept = { "Accept": "application/json;odata=nometadata" };
     var rowMap = {};
     var allColumns = { ID: true, Title: true, FileLeafRef: true, FSObjType: true };
@@ -1616,6 +1886,35 @@
     var MAX_PAGES = 200;
     if (maxItemIdResolved != null && maxItemIdResolved >= 1) {
       MAX_PAGES = Math.min(500000, Math.ceil(maxItemIdResolved / PAGE_LIMIT) + 10);
+    }
+
+    async function fetchRestPage(selectFields, useLastId) {
+      var activeSelect = selectFields.slice();
+      while (activeSelect.length >= 1) {
+        var selectStr = activeSelect.join(",");
+        var url = listBaseUrl() + "/items?$select=" + encodeURIComponent(selectStr) +
+          "&$orderby=ID&$top=" + PAGE_LIMIT;
+        if (useLastId > 0) url += "&$filter=ID gt " + useLastId;
+        var resp = await fetch(url, { credentials: "include", headers: accept });
+        if (resp.ok) {
+          return { ok: true, json: await resp.json(), selectFields: activeSelect };
+        }
+        if (resp.status === 400) {
+          var errBody = "";
+          try { errBody = await resp.text(); } catch (_) {}
+          var missing = parseMissingRestField(errBody);
+          if (missing && activeSelect.indexOf(missing) >= 0) {
+            activeSelect = activeSelect.filter(function (n) { return n !== missing; });
+            if (activeSelect.indexOf("ID") < 0) activeSelect.unshift("ID");
+            continue;
+          }
+          throw new Error("REST API HTTP " + resp.status + ": " + resp.statusText + (errBody && errBody.length < 300 ? "\n" + errBody : ""));
+        }
+        var errText = "";
+        try { errText = await resp.text(); } catch (_) {}
+        throw new Error("REST API HTTP " + resp.status + ": " + resp.statusText + (errText && errText.length < 300 ? "\n" + errText : ""));
+      }
+      throw new Error("REST API HTTP 400: No selectable fields remain for this list.");
     }
 
     if (params.incVer !== false) {
@@ -1715,18 +2014,9 @@
 
     while (pageNum < MAX_PAGES) {
       pageNum++;
-      var url = listBaseUrl() + "/items?$select=" + encodeURIComponent(select) +
-        "&$orderby=ID&$top=" + PAGE_LIMIT;
-      if (lastId > 0) url += "&$filter=ID gt " + lastId;
-
-      var resp = await fetch(url, { credentials: "include", headers: accept });
-      if (!resp.ok) {
-        var errBody = "";
-        try { errBody = await resp.text(); } catch (_) {}
-        reportDone(false, "REST API HTTP " + resp.status + ": " + resp.statusText + (errBody && errBody.length < 300 ? "\n" + errBody : ""));
-        return;
-      }
-      var j = await resp.json();
+      var pageResult = await fetchRestPage(fieldNames, lastId);
+      fieldNames = pageResult.selectFields;
+      var j = pageResult.json;
       var items = j.value || j.d?.results || [];
       if (items.length === 0) break;
 
@@ -2804,6 +3094,605 @@
     reportDone(true, "Done! Permissions matrix downloaded (" + matrixRows.length + " rows).");
   }
 
+  function buildExportFolderName(rootSiteName, reportName) {
+    return sanitizeFilenamePart(rootSiteName) + "-" + reportName + "-" + buildExportDateStamp();
+  }
+
+  function buildSyntheticReportTarget() {
+    return {
+      siteUrl: siteUrl,
+      listId: listId,
+      listTitle: getListTitleFromContext() || "List",
+      siteTitle: getSiteNameFromUrl(siteUrl),
+      sitePath: "",
+      baseTemplate: listBaseTemplate,
+      viewUrl: ""
+    };
+  }
+
+  function isFolderBundleReport(report) {
+    return report === "exportCSV" || report === "folderCount" || report === "pathLengths";
+  }
+
+  function getReportExportLabel(report) {
+    var map = {
+      exportCSV: "Export",
+      folderCount: "FolderCounts",
+      pathLengths: "PathLengths",
+      permissions: "Permissions",
+      permissionsMatrix: "PermissionsMatrix"
+    };
+    return map[report] || sanitizeFilenamePart(report || "Export");
+  }
+
+  function getRootSiteNameForExport(targets) {
+    if (params.rootSiteTitle) return String(params.rootSiteTitle).trim();
+    if (params.u) return getSiteNameFromUrl(params.u);
+    if (targets && targets.length) return getSiteNameFromUrl(targets[0].siteUrl);
+    return getSiteNameFromUrl(siteUrl);
+  }
+
+  function countCsvRows(csvText) {
+    if (!csvText) return 0;
+    var s = String(csvText).replace(/^\ufeff/, "");
+    if (!s.trim()) return 0;
+    var lines = s.split(/\r?\n/);
+    while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+    return lines.length > 1 ? lines.length - 1 : 0;
+  }
+
+  function captureExportDataToCsv(data, target) {
+    if (!data) return null;
+    var csv = null;
+    if (data.csv != null) {
+      csv = String(data.csv);
+    } else if (data.rows && data.columns) {
+      csv = toCSVFromRows(data.rows, data.columns);
+    } else if (data.sheets && data.sheets.length && data.sheets[0].aoa) {
+      csv = aoaToCsvString(data.sheets[0].aoa).replace(/^\ufeff/, "");
+    }
+    if (csv == null) return null;
+    if (params.report === "folderCount" || params.report === "pathLengths") {
+      var aoa = parseCSVToAoa(csv.indexOf("\ufeff") === 0 ? csv : "\ufeff" + csv);
+      aoa = prefixAoaWithSiteList(aoa, target.siteTitle || target.siteUrl, target.listTitle || "Library");
+      csv = aoaToCsvString(aoa).replace(/^\ufeff/, "");
+    }
+    if (csv.indexOf("\ufeff") !== 0) csv = "\ufeff" + csv;
+    return csv;
+  }
+
+  function buildListCsvFileName(target, rootSiteName, reportName, titleCounts, usedCsvNames) {
+    var listPart = sanitizeFilenamePart(target.listTitle || "List");
+    var sitePart = sanitizeFilenamePart(rootSiteName);
+    var stKey = (target.siteTitle || getSiteNameFromUrl(target.siteUrl || "")).toLowerCase();
+    if (titleCounts[stKey] > 1) {
+      sitePart = sanitizeFilenamePart(siteLabelForSheet(target, titleCounts));
+    }
+    var base = sitePart + "-" + listPart + "-" + reportName;
+    var name = base + ".csv";
+    if (usedCsvNames[name]) {
+      var shortId = normalizeGuid(target.listId || "").replace(/[{}]/g, "").slice(0, 8);
+      if (shortId) name = sanitizeFilenamePart(base + "-" + shortId) + ".csv";
+    }
+    var n = 2;
+    while (usedCsvNames[name]) {
+      name = sanitizeFilenamePart(base + "-" + n) + ".csv";
+      n++;
+    }
+    usedCsvNames[name] = true;
+    return name;
+  }
+
+  function buildSummaryExportAoa(exportLog) {
+    var rows = [["Site", "List", "List ID", "Status", "Rows", "File", "Notes"]];
+    for (var i = 0; i < exportLog.length; i++) {
+      var entry = exportLog[i];
+      var fileCell = entry[5] || "";
+      if (entry[3] === "Exported" && fileCell) {
+        fileCell = { hyperlink: "./" + fileCell, text: fileCell };
+      }
+      rows.push([entry[0], entry[1], entry[2], entry[3], entry[4], fileCell, entry[6] || ""]);
+    }
+    return rows;
+  }
+
+  var exportDownloadRequestSeq = 0;
+
+  function exportDownloadTimeoutMs(payload) {
+    var bytes = exportDownloadPayloadBytes(payload);
+    return Math.min(120000, Math.max(45000, 45000 + Math.floor(bytes / (512 * 1024)) * 5000));
+  }
+
+  function exportDownloadPayloadBytes(payload) {
+    if (payload && payload.text != null) return String(payload.text).length;
+    if (payload && payload.bufferBase64) return Math.floor(String(payload.bufferBase64).length * 0.75);
+    if (payload && payload.buffer) return payload.buffer.byteLength || 0;
+    return 0;
+  }
+
+  function arrayBufferToBase64(buffer) {
+    var bytes = new Uint8Array(buffer);
+    var chunk = 8192;
+    var parts = [];
+    for (var i = 0; i < bytes.length; i += chunk) {
+      parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + chunk)));
+    }
+    return btoa(parts.join(""));
+  }
+
+  var EXPORT_DOWNLOAD_CHUNK_BYTES = 512 * 1024;
+
+  function postExportDownloadBufferChunks(reqId, path, mime, buffer) {
+    var bytes = new Uint8Array(buffer);
+    var totalBytes = bytes.length;
+    var chunkSize = EXPORT_DOWNLOAD_CHUNK_BYTES;
+    var totalChunks = Math.max(1, Math.ceil(totalBytes / chunkSize));
+    for (var i = 0; i < totalChunks; i++) {
+      var start = i * chunkSize;
+      var end = Math.min(start + chunkSize, totalBytes);
+      var slice = bytes.subarray(start, end);
+      var chunkBuffer = slice.buffer.slice(slice.byteOffset, slice.byteOffset + slice.byteLength);
+      window.postMessage({
+        __spcsv: true,
+        type: "SPCSVExportDownloadChunk",
+        detail: {
+          requestId: reqId,
+          path: path,
+          mime: mime,
+          chunkIndex: i,
+          totalChunks: totalChunks,
+          totalBytes: totalBytes,
+          buffer: chunkBuffer
+        }
+      }, "*");
+    }
+    window.postMessage({
+      __spcsv: true,
+      type: "SPCSVExportDownloadChunkEnd",
+      detail: { requestId: reqId }
+    }, "*");
+  }
+
+  function downloadViaExtension(relativePath, payload) {
+    return new Promise(function (resolve, reject) {
+      var reqId = "dl-" + (++exportDownloadRequestSeq) + "-" + Date.now();
+      var path = String(relativePath || "export.dat").replace(/\\/g, "/");
+      var settled = false;
+      function finish(err) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        window.removeEventListener("message", onResult);
+        if (err) reject(err);
+        else resolve();
+      }
+      function onResult(ev) {
+        if (!ev.data || ev.data.__spcsv !== true || ev.data.type !== "SPCSVExportDownloadResult") return;
+        if (!ev.data.detail || ev.data.detail.requestId !== reqId) return;
+        if (ev.data.detail.ok) finish(null);
+        else finish(new Error(ev.data.detail.error || "Download failed"));
+      }
+      var mime = payload.mime || "application/octet-stream";
+      var detail = { requestId: reqId, path: path, mime: mime };
+      if (payload.text != null) detail.text = payload.text;
+      else if (payload.bufferBase64) detail.bufferBase64 = payload.bufferBase64;
+      else if (payload.buffer) detail.buffer = payload.buffer;
+      else {
+        finish(new Error("Empty download payload"));
+        return;
+      }
+      var timer = setTimeout(function () { finish(new Error("Download timed out")); }, exportDownloadTimeoutMs(detail));
+      window.addEventListener("message", onResult);
+      if (payload.buffer) {
+        postExportDownloadBufferChunks(reqId, path, mime, payload.buffer);
+      } else {
+        window.postMessage({ __spcsv: true, type: "SPCSVExportDownloadRequest", detail: detail }, "*");
+      }
+    });
+  }
+
+  async function downloadBlobAs(blob, relativePath) {
+    var buf = await blob.arrayBuffer();
+    await downloadViaExtension(relativePath, {
+      buffer: buf,
+      mime: blob.type || "application/octet-stream"
+    });
+  }
+
+  async function downloadTextAs(relativePath, text, mimeType) {
+    await downloadViaExtension(relativePath, { text: text, mime: mimeType || "text/csv;charset=utf-8" });
+  }
+
+  async function downloadMultiListReportBundle(opts) {
+    opts = opts || {};
+    if (!window.JSZip) throw new Error("JSZip not loaded");
+    var folder = opts.folderName || "Export";
+    var summaryName = opts.summaryFileName || "SUMMARY-Export.xlsx";
+    var files = opts.files || [];
+    var summaryAoa = opts.summaryAoa || [["Status"], ["No data"]];
+    var zipName = folder + ".zip";
+    reportProgress(
+      "Building " + zipName + " (" + files.length + " CSV file(s))…",
+      { logLine: "Creating zip bundle…", percent: 96 }
+    );
+    var zip = new window.JSZip();
+    var root = zip.folder(folder);
+    if (!root) root = zip;
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      root.file(f.fileName, f.csv);
+      if (i === 0 || (i + 1) % 10 === 0 || i === files.length - 1) {
+        reportProgress(
+          "Adding file " + (i + 1) + " of " + files.length + " to zip…",
+          { percent: Math.min(98, 96 + Math.round(((i + 1) / Math.max(files.length, 1)) * 2)) }
+        );
+      }
+    }
+    reportProgress("Adding " + summaryName + " to zip…", {
+      percent: 98,
+      logLine: "Writing summary workbook into zip…"
+    });
+    var summaryBlob = await aoaToXlsxBlobMulti([{ name: "Summary", aoa: summaryAoa }]);
+    root.file(summaryName, await summaryBlob.arrayBuffer());
+    reportProgress("Compressing " + zipName + "…", { percent: 99, logLine: "Compressing zip archive…" });
+    var zipBlob = await zip.generateAsync({
+      type: "blob",
+      mimeType: "application/zip",
+      compression: "DEFLATE",
+      compressionOptions: { level: 6 }
+    });
+    var zipSizeMb = (zipBlob.size / (1024 * 1024)).toFixed(2);
+    reportProgress("Downloading " + zipName + " (" + zipSizeMb + " MB)…", {
+      percent: 99,
+      logLine: "Starting download for " + zipName + " (" + zipSizeMb + " MB)…"
+    });
+    await downloadBlobAs(zipBlob, zipName);
+    reportProgress("Download started for " + zipName + ".", {
+      percent: 100,
+      logLine: "Zip download complete."
+    });
+  }
+
+  function sanitizeSheetName(name, maxLen) {
+    maxLen = maxLen == null ? 31 : maxLen;
+    var s = String(name || "Sheet").replace(/[\[\]\:*?\/\\]/g, " ").replace(/\s+/g, " ").trim();
+    if (s.length > maxLen) s = s.slice(0, maxLen).replace(/\s+$/, "");
+    return s || "Sheet";
+  }
+
+  function countTargetsBySiteTitle(targets) {
+    var counts = {};
+    for (var i = 0; i < targets.length; i++) {
+      var t = targets[i];
+      var label = (t.siteTitle || getSiteNameFromUrl(t.siteUrl || "")).toLowerCase();
+      counts[label] = (counts[label] || 0) + 1;
+    }
+    return counts;
+  }
+
+  function siteLabelForSheet(target, titleCounts) {
+    var siteTitle = (target.siteTitle || getSiteNameFromUrl(target.siteUrl || "")).trim();
+    var titleKey = siteTitle.toLowerCase();
+    if (titleCounts[titleKey] > 1) {
+      var path = String(target.sitePath || "").trim();
+      if (path) {
+        var segs = path.split("/").filter(Boolean);
+        if (segs.length >= 2) {
+          return sanitizeSheetName(segs.slice(-2).join(" - "), 22);
+        }
+        if (segs.length) return sanitizeSheetName(segs[segs.length - 1], 22);
+      }
+      try {
+        var u = new URL(String(target.siteUrl || ""));
+        var urlSegs = u.pathname.split("/").filter(Boolean);
+        if (urlSegs.length >= 2) {
+          return sanitizeSheetName(urlSegs.slice(-2).join(" - "), 22);
+        }
+        if (urlSegs.length) return sanitizeSheetName(urlSegs[urlSegs.length - 1], 22);
+      } catch (_) {}
+    }
+    return sanitizeSheetName(siteTitle, 22);
+  }
+
+  function buildMultiListSheetName(target, titleCounts, usedNames) {
+    var listPart = sanitizeSheetName(String(target.listTitle || "Export").trim(), 18);
+    var sitePart = siteLabelForSheet(target, titleCounts);
+    var maxSiteLen = Math.max(8, 22 - listPart.length - 3);
+    sitePart = sanitizeSheetName(sitePart, maxSiteLen);
+    var base = sanitizeSheetName(sitePart + " - " + listPart, 22);
+    var listId = normalizeGuid(target.listId || "");
+    var shortId = listId.replace(/[{}]/g, "").slice(0, 8);
+    var name = base;
+    if (usedNames[name]) {
+      name = sanitizeSheetName(base, 31 - 1 - shortId.length) + "-" + shortId;
+    }
+    var n = 2;
+    while (usedNames[name]) {
+      var suffix = " (" + n + ")";
+      name = sanitizeSheetName(base, 31 - suffix.length) + suffix;
+      n++;
+    }
+    usedNames[name] = true;
+    return name;
+  }
+
+  function ensureUniqueSheetNames(sheets) {
+    var used = {};
+    for (var i = 0; i < sheets.length; i++) {
+      var sh = sheets[i];
+      var base = sanitizeSheetName(sh.name || "Sheet", 22);
+      var listId = normalizeGuid(sh.listId || "");
+      var shortId = listId.replace(/[{}]/g, "").slice(0, 8);
+      var name = base;
+      if (used[name]) {
+        name = shortId
+          ? sanitizeSheetName(base, 31 - 1 - shortId.length) + "-" + shortId
+          : sanitizeSheetName(base, 28) + " (2)";
+      }
+      var n = used[name] ? 2 : 0;
+      while (used[name]) {
+        var suffix = " (" + n + ")";
+        name = sanitizeSheetName(base, 31 - suffix.length) + suffix;
+        n++;
+      }
+      used[name] = true;
+      sh.name = name;
+    }
+    return sheets;
+  }
+
+  function normalizeReportTargets(p) {
+    if (!p || !Array.isArray(p.reportSelectedLists) || !p.reportSelectedLists.length) return [];
+    return p.reportSelectedLists.map(function (entry) {
+      return {
+        siteUrl: String(entry.siteUrl || p.u || "").replace(/\/$/, ""),
+        listId: normalizeGuid(entry.listId || ""),
+        listTitle: String(entry.listTitle || "").trim(),
+        siteTitle: String(entry.siteTitle || "").trim(),
+        sitePath: String(entry.sitePath || "").trim(),
+        baseTemplate: entry.baseTemplate != null ? parseInt(entry.baseTemplate, 10) : null,
+        viewUrl: String(entry.viewUrl || "").trim()
+      };
+    }).filter(function (t) { return t.siteUrl && t.listId; });
+  }
+
+  function prefixAoaWithSiteList(aoa, siteTitle, listTitle) {
+    if (!aoa || !aoa.length) return [["Site", "Library"], [siteTitle, listTitle]];
+    var header = ["Site", "Library"].concat(aoa[0] || []);
+    var rows = [header];
+    for (var i = 1; i < aoa.length; i++) rows.push([siteTitle, listTitle].concat(aoa[i]));
+    return rows;
+  }
+
+  function aoaToCsvString(aoa) {
+    if (!aoa || !aoa.length) return "\ufeff";
+    var lines = aoa.map(function (row) {
+      return row.map(function (cell) { return escapeCSV(cell); }).join(",");
+    });
+    return "\ufeff" + lines.join("\r\n");
+  }
+
+  async function runExportForCurrentList() {
+    listBaseTemplate = listId ? await getListBaseTemplate() : null;
+    cachedListRootUrl = null;
+    if ((params.report === "folderCount" || params.report === "pathLengths") && listBaseTemplate !== 101) {
+      throw new Error("Folder count and path lengths reports are only available for document libraries.");
+    }
+    var itemCount = await getItemCount();
+    if (itemCount === 0) {
+      throw new Error("No rows found.");
+    }
+    var isDocLib = listBaseTemplate === 101;
+
+    // Non-libraries: REST is much faster than owssvr ID-range paging (Events, Tasks, etc.).
+    if (!isDocLib) {
+      var savedIncVer = params.incVer;
+      if (multiListCtx) params.incVer = false;
+      try {
+        await exportViaRest(itemCount);
+      } finally {
+        params.incVer = savedIncVer;
+      }
+      return;
+    }
+
+    var vr = await getOrCreateRpcViewForDownload();
+    if (!vr.ok) throw new Error("RPC view creation failed: " + (vr.error || "unknown"));
+    var rpcViewIdLocal = vr.viewId;
+    var rpcOwnView = vr.ownView !== false;
+    try {
+      await sleep(multiListCtx ? 200 : 500);
+      var owssvrOk = await exportViaOwssvrWithView(rpcViewIdLocal, itemCount, 0, { readOnlyView: !!vr.readOnlyView });
+      if (!owssvrOk) {
+        throw new Error("No rows found.");
+      }
+    } finally {
+      if (DELETE_VIEW_AT_END && rpcOwnView && rpcViewIdLocal) {
+        try { await deleteViewById(rpcViewIdLocal); } catch (_) {}
+      }
+    }
+  }
+
+  async function runMultiListExport(targets) {
+    var listFiles = [];
+    var processed = 0;
+    var skipped = 0;
+    var skippedNames = [];
+    var exportLog = [];
+    var usedCsvNames = {};
+    var siteTitleCounts = countTargetsBySiteTitle(targets);
+    var rootSiteName = getRootSiteNameForExport(targets);
+    var reportName = getReportExportLabel(params.report);
+    var libOnly = params.report === "folderCount" || params.report === "pathLengths";
+    multiListCtx = { listIndex: 0, listTotal: targets.length };
+    for (var ti = 0; ti < targets.length; ti++) {
+      var t = targets[ti];
+      if (libOnly && t.baseTemplate != null && t.baseTemplate !== 101) {
+        skipped++;
+        exportLog.push([
+          t.siteTitle || t.sitePath || t.siteUrl,
+          t.listTitle || t.listId,
+          t.listId || "",
+          "Skipped",
+          "0",
+          "",
+          "Not a document library"
+        ]);
+        continue;
+      }
+      siteUrl = String(t.siteUrl || "").replace(/\/$/, "");
+      listId = normalizeGuid(t.listId || "");
+      cachedListRootUrl = null;
+      exportFilename = buildDefaultExportFilename();
+      var quickCount = await getItemCount();
+      if (quickCount === 0) {
+        skipped++;
+        skippedNames.push(t.listTitle || t.listId || "list");
+        exportLog.push([
+          t.siteTitle || t.sitePath || t.siteUrl,
+          t.listTitle || t.listId,
+          t.listId || "",
+          "Skipped",
+          "0",
+          "",
+          "Empty list"
+        ]);
+        reportProgress(
+          "Skipped " + (t.listTitle || "list") + " — empty list",
+          { logLine: "Skipped " + (t.listTitle || "list") + " — empty list" }
+        );
+        continue;
+      }
+      exportOverallPct = Math.min(99, Math.round((ti / targets.length) * 99));
+      multiListCtx = { listIndex: ti + 1, listTotal: targets.length };
+      reportProgress(
+        (t.listTitle || "List") + " (" + (t.siteTitle || siteUrl) + ")…",
+        { percent: 0 }
+      );
+      exportCaptureMode = true;
+      exportCaptureQueue = [];
+      try {
+        await runExportForCurrentList();
+      } catch (err) {
+        exportCaptureMode = false;
+        if (libOnly && err && String(err.message || "").indexOf("document libraries") >= 0) {
+          skipped++;
+          skippedNames.push(t.listTitle || t.listId || "list");
+          exportLog.push([
+            t.siteTitle || t.sitePath || t.siteUrl,
+            t.listTitle || t.listId,
+            t.listId || "",
+            "Skipped",
+            "0",
+            "",
+            err.message || "Not a document library"
+          ]);
+          continue;
+        }
+        if (isRecoverableMultiListError(err)) {
+          skipped++;
+          skippedNames.push(t.listTitle || t.listId || "list");
+          exportLog.push([
+            t.siteTitle || t.sitePath || t.siteUrl,
+            t.listTitle || t.listId,
+            t.listId || "",
+            "Skipped",
+            "0",
+            "",
+            err.message || "no data"
+          ]);
+          reportProgress(
+            "Skipped " + (t.listTitle || "list") + " — " + (err.message || "no data"),
+            { logLine: "Skipped " + (t.listTitle || "list") + " — " + (err.message || "no data") }
+          );
+          continue;
+        }
+        multiListCtx = null;
+        reportDone(false, err && err.message ? err.message : String(err));
+        return;
+      }
+      exportCaptureMode = false;
+      var cap = exportCaptureQueue[0];
+      if (!cap || !cap.data) {
+        skipped++;
+        skippedNames.push(t.listTitle || t.listId || "list");
+        exportLog.push([
+          t.siteTitle || t.sitePath || t.siteUrl,
+          t.listTitle || t.listId,
+          t.listId || "",
+          "Skipped",
+          "0",
+          "",
+          "No export data captured"
+        ]);
+        reportProgress(
+          "Skipped " + (t.listTitle || "list") + " — no export data captured",
+          { logLine: "Skipped " + (t.listTitle || "list") + " — no export data captured" }
+        );
+        continue;
+      }
+      processed++;
+      var csvText = captureExportDataToCsv(cap.data, t);
+      if (!csvText) {
+        processed--;
+        skipped++;
+        skippedNames.push(t.listTitle || t.listId || "list");
+        exportLog.push([
+          t.siteTitle || t.sitePath || t.siteUrl,
+          t.listTitle || t.listId,
+          t.listId || "",
+          "Skipped",
+          "0",
+          "",
+          "Could not build CSV"
+        ]);
+        continue;
+      }
+      var csvFileName = buildListCsvFileName(t, rootSiteName, reportName, siteTitleCounts, usedCsvNames);
+      var rowCount = countCsvRows(csvText);
+      listFiles.push({ fileName: csvFileName, csv: csvText });
+      exportLog.push([
+        t.siteTitle || t.sitePath || t.siteUrl,
+        t.listTitle || t.listId,
+        t.listId || "",
+        "Exported",
+        String(rowCount),
+        csvFileName,
+        ""
+      ]);
+    }
+    if (processed === 0) {
+      multiListCtx = null;
+      reportDone(false, libOnly
+        ? "No document libraries selected. Folder count and path length reports require libraries (BaseTemplate 101)."
+        : "No lists were exported.");
+      return;
+    }
+    multiListCtx = { listIndex: targets.length, listTotal: targets.length };
+    reportProgress("Building multi-list export…", { percent: 95 });
+    var folderName = buildExportFolderName(rootSiteName, reportName);
+    var zipName = folderName + ".zip";
+    var summaryFileName = "SUMMARY-" + sanitizeFilenamePart(rootSiteName) + "-" + reportName + ".xlsx";
+    var summaryAoa = buildSummaryExportAoa(exportLog);
+    try {
+      await downloadMultiListReportBundle({
+        folderName: folderName,
+        summaryFileName: summaryFileName,
+        files: listFiles,
+        summaryAoa: summaryAoa
+      });
+    } catch (bundleErr) {
+      multiListCtx = null;
+      reportDone(false, bundleErr && bundleErr.message ? bundleErr.message : String(bundleErr));
+      return;
+    }
+    multiListCtx = null;
+    var skipSummary = skipped
+      ? " (" + skipped + " skipped" + (skippedNames.length ? ": " + skippedNames.slice(0, 8).join(", ") + (skippedNames.length > 8 ? "…" : "") : "") + ")"
+      : "";
+    reportDone(true, "Done! Downloaded " + zipName + " with " + processed + " CSV file(s) and " + summaryFileName + skipSummary + ". Extract the zip to get the folder layout.");
+  }
+
   // -----------------------------
   // Main
   // -----------------------------
@@ -2820,13 +3709,13 @@
         var resolved = await resolveListIdFromListUrl();
         if (resolved) listId = resolved;
       }
-      if (!listId && !params.matrixWholeSite) {
-        reportDone(false, "Could not detect list. Ensure you are on a SharePoint list/library view page (URL should have List= or pageListId), or use Permissions matrix with Include whole site.");
-        return;
-      }
-
-      listBaseTemplate = listId ? await getListBaseTemplate() : null;
+      var reportTargets = normalizeReportTargets(params);
       if (params.report === "permissions") {
+        if (!listId && !params.matrixWholeSite) {
+          reportDone(false, "Could not detect list. Open a list/library page to export permissions.");
+          return;
+        }
+        listBaseTemplate = listId ? await getListBaseTemplate() : null;
         await exportPermissionsReport();
         return;
       }
@@ -2834,32 +3723,25 @@
         reportDone(false, "Permissions matrix now runs via permissionsMatrixExport.js. Reload the extension and try again.");
         return;
       }
+      if (reportTargets.length === 0 && listId && !params.matrixWholeSite) {
+        listBaseTemplate = await getListBaseTemplate();
+        reportTargets = [buildSyntheticReportTarget()];
+      }
+      if (isFolderBundleReport(params.report) && reportTargets.length >= 1) {
+        await runMultiListExport(reportTargets);
+        return;
+      }
+      if (!listId && !params.matrixWholeSite) {
+        reportDone(false, "Could not detect list. Open a list/library page, load lists in Reports, and select at least one — or use Permissions matrix for site-wide scans.");
+        return;
+      }
+
+      listBaseTemplate = listId ? await getListBaseTemplate() : null;
       if ((params.report === "folderCount" || params.report === "pathLengths") && listBaseTemplate !== 101) {
         reportDone(false, "Folder count and path lengths reports are only available for document libraries.");
         return;
       }
-      var itemCount = await getItemCount();
-
-      var isDocLib = listBaseTemplate === 101;
-      var useRestForVersions = !isDocLib && params.incVer !== false;
-      if (useRestForVersions) {
-        await exportViaRest(itemCount);
-      } else {
-        var vr = await getOrCreateRpcViewForDownload();
-        if (!vr.ok) {
-          reportDone(false, "RPC view creation failed: " + (vr.error || "unknown"));
-          return;
-        }
-        rpcViewId = vr.viewId;
-        try {
-          await sleep(500);
-          await exportViaOwssvrWithView(rpcViewId, itemCount);
-        } finally {
-          if (DELETE_VIEW_AT_END && rpcViewId) {
-            try { await deleteViewById(rpcViewId); } catch (_) {}
-          }
-        }
-      }
+      await runExportForCurrentList();
     } catch (e) {
       console.error("SharePoint CSV Export – Error:", e);
       reportDone(false, "Error: " + (e.message || String(e)));

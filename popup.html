@@ -294,6 +294,94 @@ body.not-on-sharepoint .not-on-sp-panel { display: flex; }
 body.not-on-sharepoint .tab-bar,
 body.not-on-sharepoint .tab-content { display: none !important; }
 
+/* ── Power Apps / Dynamics mode ────────────────────────────────────── */
+body[data-mode="powerapps"] {
+  --brand:       #742774;
+  --brand-dark:  #5a1d5a;
+  --brand-mid:   #8e4a8e;
+  --brand-soft:  #f3e8f8;
+  --brand-faint: #faf5fc;
+  --border:      #e8dff0;
+  --border-mid:  #d4c2de;
+}
+html.dark-mode body[data-mode="powerapps"] {
+  --brand:       #b794f6;
+  --brand-dark:  #8a4fbc;
+  --brand-mid:   #dbb2ff;
+  --brand-soft:  #3b2a4a;
+  --brand-faint: #2a2035;
+  --border:      #4a3a58;
+  --border-mid:  #6b5578;
+}
+body[data-mode="powerapps"] .popup-header {
+  background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+}
+body[data-mode="powerapps"] #btnUniversalSearch,
+body[data-mode="powerapps"] .tab-bar,
+body[data-mode="powerapps"] .tab-content,
+body[data-mode="powerapps"] #notOnSharePointPanel {
+  display: none !important;
+}
+body[data-mode="powerapps"] #powerAppsPanel {
+  display: flex;
+}
+#powerAppsPanel {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--bg);
+  padding: 18px var(--panel-inline) 20px;
+}
+.powerapps-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 16px 16px 14px;
+}
+.powerapps-card-title {
+  font-size: .9rem;
+  font-weight: 700;
+  color: var(--txt);
+  letter-spacing: -.01em;
+  margin-bottom: 6px;
+}
+.powerapps-card-body {
+  font-size: .8rem;
+  color: var(--txt-mid);
+  line-height: 1.45;
+  margin-bottom: 14px;
+}
+.powerapps-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.powerapps-open-sidebar {
+  border: none;
+  border-radius: var(--r-md);
+  background: var(--brand);
+  color: #fff;
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 600;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background .15s, transform .12s;
+}
+.powerapps-open-sidebar:hover { background: var(--brand-dark); }
+.powerapps-open-sidebar:active { transform: scale(0.98); }
+.powerapps-open-sidebar[hidden] { display: none !important; }
+.powerapps-card-note {
+  font-size: .72rem;
+  color: var(--txt-soft);
+  line-height: 1.4;
+}
+body[data-mode="powerapps"]:not(.powerapps-runtime) .powerapps-open-sidebar { display: none !important; }
+body.not-on-sharepoint:not([data-mode="powerapps"]) #powerAppsPanel { display: none !important; }
+
 .not-on-sp-message {
   padding: 16px 18px;
   border: 1.5px solid var(--brand);
@@ -1226,6 +1314,7 @@ body.reports-settings-visible #reportsPanel { min-height: 260px; }
 #downloadMain.hidden { display: none; }
 
 #reportOptions { display: none; flex-direction: column; gap: var(--field-stack-gap); }
+#reportListsRow { display: none; }
 #matrixWholeSiteRow { display: none; }
 #matrixOptionsPanel { display: none; flex-direction: column; gap: var(--field-stack-gap); }
 #matrixOptionsPanel.visible { display: flex; }
@@ -1249,10 +1338,11 @@ body.reports-settings-visible #reportsPanel { min-height: 260px; }
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
-  margin: 0 0 var(--field-label-gap);
+  margin: 0 0 8px;
 }
 .matrix-sites-toolbar button {
-  padding: 4px 8px;
+  flex: 0 0 auto;
+  padding: 4px 10px;
   font-size: .72rem;
   border-radius: var(--r-sm);
   border: 1px solid var(--border);
@@ -2117,13 +2207,29 @@ body.universal-search-open .universal-search-dialog {
 <!-- Shown only when current tab is not a SharePoint page -->
 <div id="notOnSharePointPanel" class="not-on-sp-panel" aria-live="polite">
   <div class="not-on-sp-message">
-    Navigate to a SharePoint Online site or select a recently visited site below.
+    Navigate to a SharePoint Online site or a Power Apps / Dynamics model-driven app, or select a recently visited SharePoint site below.
   </div>
   <div class="not-on-sp-recent">
     <label for="recentSharePointSelect" class="not-on-sp-label">Recently visited SharePoint pages</label>
     <select id="recentSharePointSelect" class="not-on-sp-select">
       <option value="">Choose a page…</option>
     </select>
+  </div>
+</div>
+
+<!-- Power Apps / Dynamics toolkit -->
+<div id="powerAppsPanel" aria-live="polite">
+  <div class="powerapps-card">
+    <div class="powerapps-card-title" id="powerAppsCardTitle">Power Apps</div>
+    <div class="powerapps-card-body" id="powerAppsCardBody">
+      Open a model-driven app to use form tools, navigation helpers, and the in-page toolkit popout.
+    </div>
+    <div class="powerapps-card-actions">
+      <button type="button" class="powerapps-open-sidebar" id="btnOpenPowerAppsSidebar" hidden>
+        Open popout
+      </button>
+      <span class="powerapps-card-note" id="powerAppsCardNote"></span>
+    </div>
   </div>
 </div>
 
@@ -2238,6 +2344,19 @@ body.universal-search-open .universal-search-dialog {
     </div>
 
     <div id="reportOptions" class="form-stack">
+      <div id="reportListsRow">
+        <div class="form-field">
+          <label class="form-label">Lists / libraries</label>
+          <div class="matrix-sites-toolbar">
+            <button type="button" id="btnReportListsLoad">Load lists</button>
+            <button type="button" id="btnReportListsAll">All</button>
+            <button type="button" id="btnReportListsNone">None</button>
+          </div>
+          <div id="reportListsList" class="matrix-sites-list" aria-live="polite">
+            <span class="form-hint">Click Load lists to choose site lists and libraries.</span>
+          </div>
+        </div>
+      </div>
       <div id="matrixWholeSiteRow">
         <div id="matrixOptionsPanel">
           <div class="form-field">

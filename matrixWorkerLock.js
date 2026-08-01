@@ -288,19 +288,32 @@
     gameLoopId = setInterval(tick, TICK_MS);
   }
 
-  function show() {
+  function reportTitle(reportKey) {
+    const map = {
+      permissionsMatrix: "Permissions matrix export",
+      exportCSV: "List / library export",
+      folderCount: "Folder count report",
+      pathLengths: "Path length report"
+    };
+    return map[reportKey] || "Report export";
+  }
+
+  function show(reportKey) {
     injectStyles();
+    const title = reportTitle(reportKey);
     if (overlayEl && overlayEl.parentNode) {
       overlayEl.classList.remove("spot-mwl-done", "spot-mwl-failed");
+      const titleEl = overlayEl.querySelector(".spot-mwl-title");
+      if (titleEl) titleEl.textContent = title;
       return;
     }
     overlayEl = document.createElement("div");
     overlayEl.id = OVERLAY_ID;
     overlayEl.innerHTML =
       '<div class="spot-mwl-card">' +
-      '<h1 class="spot-mwl-title">Permissions matrix export</h1>' +
-      '<p class="spot-mwl-warn">Processing — do not close this tab</p>' +
-      '<p class="spot-mwl-hint">Your page was opened in a new tab so you can keep working. This tab runs the export and will close automatically when finished.</p>' +
+      '<h1 class="spot-mwl-title">' + title + '</h1>' +
+      '<p class="spot-mwl-warn">Background export tab</p>' +
+      '<p class="spot-mwl-hint">This tab runs your export in the background so your original tab stays free. Play Auto-Snake while you wait — this tab closes automatically when finished.</p>' +
       '<div class="spot-mwl-bar-wrap"><div class="spot-mwl-bar"></div></div>' +
       '<div class="spot-mwl-head"><span class="spot-mwl-msg">Starting…</span><span class="spot-mwl-pct">0%</span></div>' +
       '<pre class="spot-mwl-log"></pre>' +

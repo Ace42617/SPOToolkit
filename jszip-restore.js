@@ -1,7 +1,19 @@
-/* Restore define and load the export script. URL is in this script's query param "url". */
+/* Restore SharePoint's define and load the export script. URL is in this script's query param "url". */
 (function () {
   if (typeof window === "undefined") return;
-  try { window.define = window.__spcsv_define; } catch (e) {}
+  if (typeof window.__spcsv_define === "function") {
+    window.define = window.__spcsv_define;
+    if (window.__spcsv_define_amd !== undefined) {
+      window.define.amd = window.__spcsv_define_amd;
+    }
+    try {
+      delete window.__spcsv_define;
+      delete window.__spcsv_define_amd;
+    } catch (_) {
+      window.__spcsv_define = undefined;
+      window.__spcsv_define_amd = undefined;
+    }
+  }
   var script = document.currentScript;
   var url = "";
   if (script && script.src) {

@@ -4,7 +4,8 @@
   "description": "SP Developer Toolkit — extension; run npm test before changing View Manager REST logic",
   "type": "module",
   "scripts": {
-    "test": "node --test test/**/*.mjs tests/**/*.test.js"
+    "test": "node --test test/**/*.test.mjs",
+    "sync-levelup": "pwsh -File scripts/sync-levelup.ps1"
   },
   "engines": {
     "node": ">=18"

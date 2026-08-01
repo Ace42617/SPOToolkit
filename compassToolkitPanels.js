@@ -428,6 +428,22 @@
     }
   }
 
+  function applyReportsPaneLayout(panel) {
+    if (!panel) return;
+    const host = panel.querySelector(".sp-toolkit-compass-reports-host");
+    const reportSelect = host && host.querySelector(".sp-toolkit-compass-report-select");
+    if (!host || !reportSelect) return;
+    const reportType = reportSelect.value || "exportCSV";
+    const showReportLists = reportType === "exportCSV" || reportType === "folderCount" || reportType === "pathLengths";
+    host.classList.toggle("sp-toolkit-reports-lists-mode", showReportLists);
+    host.classList.toggle("sp-toolkit-reports-matrix-mode", reportType === "permissionsMatrix");
+    const reportsScroll = host.closest(".sp-toolkit-compass-scroll");
+    if (reportsScroll) {
+      reportsScroll.classList.toggle("sp-toolkit-reports-lists-scroll", showReportLists);
+      reportsScroll.classList.toggle("sp-toolkit-reports-matrix-scroll", reportType === "permissionsMatrix");
+    }
+  }
+
   function showCompassPane(panel, paneId) {
     if (!panel || !paneId) return;
     if (!panel._compassPaneRegistry) {
@@ -455,9 +471,10 @@
     }
     reg.activeId = paneId;
     panel.dataset.compassActivePane = paneId;
-    requestAnimationFrame(function () {
-      updateTabIndicator(panel);
-    });
+    if (paneId === "reports") {
+      applyReportsPaneLayout(panel);
+    }
+    scheduleTabIndicatorUpdate(panel);
   }
 
   function prefetchCompassPaneData(panel, invoke, siteUrl, onSiteContentsPage, onListOrLibraryView, currentListId) {
@@ -580,29 +597,73 @@
     return;
   }
 
-  function updateTabIndicator(panel) {
-    const bar = panel.querySelector(".sp-toolkit-compass-nav-tabs");
-    if (!bar) return;
-    const active = bar.querySelector(".sp-toolkit-compass-pane-tab.active");
-    const indicator = bar.querySelector(".sp-toolkit-tab-indicator");
-    if (!active || !indicator) {
-      if (indicator) {
-        indicator.style.opacity = "0";
-        indicator.style.transform = "";
-        indicator.style.left = "0";
-      }
+  function ensureCompassTabIndicator(panel) {
+    const bar = panel && panel.querySelector(".sp-toolkit-compass-nav-tabs");
+    if (!bar) return null;
+    let indicator = bar.querySelector(".sp-toolkit-tab-indicator");
+    if (!indicator) {
+      indicator = document.createElement("div");
+      indicator.className = "sp-toolkit-tab-indicator";
+      indicator.setAttribute("aria-hidden", "true");
+      bar.appendChild(indicator);
+    }
+    if (!bar.dataset.spotIndicatorScrollBound) {
+      bar.dataset.spotIndicatorScrollBound = "1";
+      bar.addEventListener(
+        "scroll",
+        function () {
+          updateTabIndicator(panel, true);
+        },
+        { passive: true }
+      );
+    }
+    return indicator;
+  }
+
+  function scheduleTabIndicatorUpdate(panel, instant) {
+    if (!panel) return;
+    ensureCompassTabIndicator(panel);
+    if (instant) {
+      updateTabIndicator(panel, true);
       return;
     }
-    if (active.offsetParent === null) {
+    requestAnimationFrame(function () {
+      updateTabIndicator(panel, false);
+      requestAnimationFrame(function () {
+        updateTabIndicator(panel, false);
+      });
+    });
+  }
+
+  function updateTabIndicator(panel, instant) {
+    const bar = panel && panel.querySelector(".sp-toolkit-compass-nav-tabs");
+    if (!bar) return;
+    const indicator = ensureCompassTabIndicator(panel);
+    if (!indicator) return;
+    const activeId =
+      panel.dataset.compassActivePane ||
+      (panel._compassPaneRegistry && panel._compassPaneRegistry.activeId) ||
+      "";
+    let active = activeId
+      ? bar.querySelector('.sp-toolkit-compass-pane-tab[data-compass-pane="' + activeId + '"]')
+      : null;
+    if (!active) active = bar.querySelector(".sp-toolkit-compass-pane-tab.active");
+    if (!active || active.disabled || active.offsetParent === null) {
       indicator.style.opacity = "0";
       return;
     }
-    const x = active.offsetLeft;
-    const w = active.offsetWidth;
-    indicator.style.opacity = "1";
-    indicator.style.transform = "";
-    indicator.style.left = Math.max(0, x) + "px";
-    indicator.style.width = Math.max(24, Math.round(w)) + "px";
+    const barRect = bar.getBoundingClientRect();
+    const tabRect = active.getBoundingClientRect();
+    const left = tabRect.left - barRect.left;
+    const width = tabRect.width;
+    if (instant) indicator.classList.add("sp-toolkit-tab-indicator-instant");
+    indicator.style.opacity = width > 0 ? "1" : "0";
+    indicator.style.left = Math.max(0, Math.round(left)) + "px";
+    indicator.style.width = Math.max(24, Math.round(width)) + "px";
+    if (instant) {
+      void indicator.offsetWidth;
+      indicator.classList.remove("sp-toolkit-tab-indicator-instant");
+    }
   }
 
   function getCompassPanelSizeCaps() {
@@ -628,7 +689,11 @@
   }
 
   function noteCompassPanelContentChanged(panel) {
-    applyCompassPanelSize(panel);
+    if (!panel) return;
+    const paneId = panel.dataset.compassActivePane || "";
+    if (paneId === "siteContents") {
+      applyCompassPanelSize(panel);
+    }
   }
 
   function addQuickLink(ul, label, href, icon) {
@@ -1535,10 +1600,20 @@
     return { siteUrl: siteUrl, listId: listId, viewId: viewId };
   }
 
+  async function resolveReportSelectionContext(invoke, fallbackSiteUrl, fallbackListId) {
+    var ctx = await resolveReportContext(invoke, fallbackSiteUrl, fallbackListId);
+    var onListPage = false;
+    try {
+      var chk = await invoke({ action: "checkListPage" });
+      onListPage = !!(chk && chk.isListPage);
+    } catch (_) {}
+    return { siteUrl: ctx.siteUrl, listId: ctx.listId, viewId: ctx.viewId, onListPage: onListPage };
+  }
+
   function buildReportsPane(panel, invoke, siteUrlFromCtx, currentListIdFromCtx) {
     const host = panel.querySelector(".sp-toolkit-compass-reports-host");
     if (!host) return;
-    if (host.dataset.built === "10") {
+    if (host.dataset.built === "18") {
       return;
     }
     if (host.dataset.building === "1") return;
@@ -1569,6 +1644,18 @@
       "<option value=\"permissionsMatrix\">Permissions Matrix</option>" +
       "</select></div>" +
       "<div class=\"sp-toolkit-compass-report-opts sp-toolkit-compass-form-stack\">" +
+      "<div class=\"sp-toolkit-report-lists-row sp-toolkit-compass-matrix-card\" style=\"display:none\">" +
+      "<div class=\"sp-toolkit-compass-field sp-toolkit-report-lists-block sp-toolkit-matrix-sites-block\">" +
+      "<label class=\"sp-toolkit-compass-label\">Lists / libraries</label>" +
+      "<div class=\"sp-toolkit-report-lists-toolbar sp-toolkit-matrix-sites-toolbar\">" +
+      "<button type=\"button\" class=\"sp-toolkit-compass-secondary sp-toolkit-btn-report-lists-load\">Load lists</button>" +
+      "<button type=\"button\" class=\"sp-toolkit-compass-secondary sp-toolkit-btn-report-lists-expand\">Expand all</button>" +
+      "<button type=\"button\" class=\"sp-toolkit-compass-secondary sp-toolkit-btn-report-lists-collapse\">Collapse all</button>" +
+      "<button type=\"button\" class=\"sp-toolkit-compass-secondary sp-toolkit-btn-report-lists-all\">All</button>" +
+      "<button type=\"button\" class=\"sp-toolkit-compass-secondary sp-toolkit-btn-report-lists-none\">None</button>" +
+      "<span class=\"sp-toolkit-report-lists-count\" aria-live=\"polite\"></span></div>" +
+      "<input type=\"search\" class=\"sp-toolkit-report-lists-filter sp-toolkit-compass-context-filter\" placeholder=\"Filter by subsite path or list name…\" autocomplete=\"off\" />" +
+      "<div class=\"sp-toolkit-report-lists-list\">Click Load lists to choose site lists and libraries.</div></div></div>" +
       "<div class=\"sp-toolkit-matrix-row sp-toolkit-compass-matrix-card\" style=\"display:none\">" +
       "<div class=\"sp-toolkit-compass-field sp-toolkit-matrix-sites-block\">" +
       "<label class=\"sp-toolkit-compass-label\">Sites to scan</label>" +
@@ -1576,14 +1663,16 @@
       "<button type=\"button\" class=\"sp-toolkit-compass-secondary sp-toolkit-btn-matrix-load\">Load sites</button>" +
       "<button type=\"button\" class=\"sp-toolkit-compass-secondary sp-toolkit-btn-matrix-all\">All</button>" +
       "<button type=\"button\" class=\"sp-toolkit-compass-secondary sp-toolkit-btn-matrix-none\">None</button></div>" +
-      "<div class=\"sp-toolkit-matrix-sites-list\">Click Load sites to choose root site and subsites.</div></div>" +
+      "<div class=\"sp-toolkit-matrix-sites-list\">Click Load sites to choose root site and subsites.</div></div></div>" +
       "</div>" +
+      "<div class=\"sp-toolkit-compass-reports-footer\">" +
       "<div class=\"sp-toolkit-compass-field sp-toolkit-export-row\"><label class=\"sp-toolkit-compass-label\">Format</label>" +
-      "<select class=\"sp-toolkit-compass-format-select\"><option value=\"xlsx\">Excel (.xlsx)</option><option value=\"csv\">CSV (.csv)</option></select></div></div>" +
+      "<select class=\"sp-toolkit-compass-format-select\"><option value=\"xlsx\">Excel (.xlsx)</option><option value=\"csv\">CSV (.csv)</option></select></div>" +
+      "<p class=\"sp-toolkit-compass-muted sp-toolkit-report-bundle-hint\">Multi-list exports download as one .zip folder bundle.</p>" +
       "<div class=\"sp-toolkit-compass-btnrow\">" +
       "<button type=\"button\" class=\"sp-toolkit-compass-primary sp-toolkit-btn-run-export\">Run</button>" +
       "<button type=\"button\" class=\"sp-toolkit-compass-secondary sp-toolkit-btn-cols\">Choose columns</button>" +
-      "<button type=\"button\" class=\"sp-toolkit-compass-secondary sp-toolkit-btn-rpt-settings\">Settings</button></div>" +
+      "<button type=\"button\" class=\"sp-toolkit-compass-secondary sp-toolkit-btn-rpt-settings\">Settings</button></div></div>" +
       "</div></div>" +
       "<div class=\"sp-toolkit-compass-picker\">" +
       "<div class=\"sp-toolkit-compass-picker-hd\"><button type=\"button\" class=\"sp-toolkit-compass-secondary sp-toolkit-btn-pick-back\">← Back</button><span>Choose columns</span></div>" +
@@ -1612,6 +1701,10 @@
     const reportSelect = host.querySelector(".sp-toolkit-compass-report-select");
     const formatSelect = host.querySelector(".sp-toolkit-compass-format-select");
     const matrixRow = host.querySelector(".sp-toolkit-matrix-row");
+    const reportListsRow = host.querySelector(".sp-toolkit-report-lists-row");
+    const reportListsList = host.querySelector(".sp-toolkit-report-lists-list");
+    const reportListsFilter = host.querySelector(".sp-toolkit-report-lists-filter");
+    const reportListsCount = host.querySelector(".sp-toolkit-report-lists-count");
     const exportRow = host.querySelector(".sp-toolkit-export-row");
     const chkMatrix = host.querySelector(".sp-toolkit-chk-matrix");
     const chkMatrixExpand = host.querySelector(".sp-toolkit-chk-matrix-expand");
@@ -1620,7 +1713,7 @@
     const chkMatrixSharingFetchAll = host.querySelector(".sp-toolkit-chk-matrix-sharing-fetch-all");
     const matrixMaxItems = host.querySelector(".sp-toolkit-matrix-max-items");
     const matrixPageSize = host.querySelector(".sp-toolkit-matrix-page-size");
-    const matrixSitesList = host.querySelector(".sp-toolkit-matrix-sites-list");
+    const matrixSitesList = matrixRow.querySelector(".sp-toolkit-matrix-sites-list");
     const progressConsole = host.querySelector(".sp-toolkit-export-progress-console");
     const progressBarWrap = host.querySelector(".sp-toolkit-export-progress-bar-wrap");
     const progressBar = host.querySelector(".sp-toolkit-export-progress-bar");
@@ -1628,6 +1721,10 @@
     const progressMsg = host.querySelector(".sp-toolkit-export-progress-msg");
     const progressLog = host.querySelector(".sp-toolkit-export-progress-log");
     let matrixSitePlan = [];
+    let reportListPlan = [];
+    let reportListsExpandedPaths = new Set();
+    let reportListsTreeIndex = {};
+    const REPORT_EXPORT_PREFS_KEY = "reportExportPrefs";
     const reportsMain = host.querySelector(".sp-toolkit-compass-reports-main");
     const picker = host.querySelector(".sp-toolkit-compass-picker");
     const settings = host.querySelector(".sp-toolkit-compass-settings");
@@ -1639,6 +1736,375 @@
       if (!statusEl) return;
       statusEl.textContent = msg || "";
       statusEl.className = "sp-toolkit-compass-reports-status" + (kind ? " " + kind : "");
+    }
+
+    function normalizeListGuid(g) {
+      return String(g || "").replace(/[{}]/g, "").toUpperCase();
+    }
+
+    function reportListEntryKey(entry) {
+      return (String(entry.siteUrl || "").replace(/\/$/, "") + "|" + normalizeListGuid(entry.listId)).toLowerCase();
+    }
+
+    function getSelectedReportLists() {
+      if (!reportListsList) return [];
+      var selectedKeys = {};
+      Array.from(reportListsList.querySelectorAll("input[type=checkbox]:checked")).forEach(function (cb) {
+        var key = cb.getAttribute("data-key");
+        if (key) selectedKeys[key] = true;
+      });
+      return reportListPlan.filter(function (entry) {
+        return selectedKeys[reportListEntryKey(entry)];
+      }).map(function (entry) {
+        return {
+          siteUrl: entry.siteUrl,
+          listId: entry.listId,
+          listTitle: entry.listTitle,
+          siteTitle: entry.siteTitle,
+          sitePath: entry.sitePath || "",
+          baseTemplate: entry.baseTemplate,
+          viewUrl: entry.viewUrl || ""
+        };
+      });
+    }
+
+    function defaultReportListSelectionKeys(entries, currentListId, onListPage, currentSiteUrl) {
+      var normCurrent = normalizeListGuid(currentListId);
+      if (onListPage && normCurrent) {
+        var siteNorm = String(currentSiteUrl || "").replace(/\/$/, "").toLowerCase();
+        var matches = entries.filter(function (e) {
+          if (normalizeListGuid(e.listId) !== normCurrent) return false;
+          if (!siteNorm) return true;
+          return String(e.siteUrl || "").replace(/\/$/, "").toLowerCase() === siteNorm;
+        });
+        if (!matches.length) {
+          matches = entries.filter(function (e) { return normalizeListGuid(e.listId) === normCurrent; });
+        }
+        if (matches.length) return matches.map(reportListEntryKey);
+        return [];
+      }
+      return entries.map(reportListEntryKey);
+    }
+
+    function reportSiteGroupKey(entry) {
+      return String(entry.siteUrl || "").replace(/\/$/, "").toLowerCase();
+    }
+
+    function normalizeTreePathKey(path) {
+      return String(path || "").replace(/\/$/, "").toLowerCase() || "/";
+    }
+
+    function findReportSiteParentPath(pathKey, allPathKeys) {
+      var parentKey = "";
+      var bestLen = 0;
+      allPathKeys.forEach(function (pk) {
+        if (pk === pathKey) return;
+        if (pathKey.indexOf(pk + "/") === 0 && pk.length > bestLen) {
+          bestLen = pk.length;
+          parentKey = pk;
+        }
+      });
+      return parentKey;
+    }
+
+    function buildReportSiteTree(entries, libOnly) {
+      var sitesByPath = {};
+      (entries || []).forEach(function (entry) {
+        if (libOnly && entry.baseTemplate !== 101) return;
+        var path = formatReportSitePath(entry);
+        var pathKey = normalizeTreePathKey(path);
+        if (!sitesByPath[pathKey]) {
+          sitesByPath[pathKey] = {
+            path: path,
+            pathKey: pathKey,
+            siteUrl: entry.siteUrl || "",
+            siteTitle: entry.siteTitle || path || "Site",
+            lists: [],
+            children: []
+          };
+        }
+        sitesByPath[pathKey].lists.push(entry);
+      });
+      var pathKeys = Object.keys(sitesByPath).sort();
+      var roots = [];
+      var nodeByPath = {};
+      pathKeys.forEach(function (pathKey) {
+        var node = sitesByPath[pathKey];
+        node.lists.sort(function (a, b) {
+          return String(a.listTitle || "").localeCompare(String(b.listTitle || ""), undefined, { sensitivity: "base" });
+        });
+        nodeByPath[pathKey] = node;
+        var parentKey = findReportSiteParentPath(pathKey, pathKeys);
+        if (parentKey && nodeByPath[parentKey]) nodeByPath[parentKey].children.push(node);
+        else roots.push(node);
+      });
+      function sortNodes(nodes) {
+        nodes.sort(function (a, b) {
+          return String(a.siteTitle || a.path).localeCompare(String(b.siteTitle || b.path), undefined, { sensitivity: "base" });
+        });
+        nodes.forEach(function (n) {
+          if (n.children.length) sortNodes(n.children);
+        });
+      }
+      sortNodes(roots);
+      return { roots: roots, nodeByPath: nodeByPath };
+    }
+
+    function ensureReportTreePathExpanded(pathKey) {
+      if (!pathKey) return;
+      reportListsExpandedPaths.add(pathKey);
+      var parentKey = findReportSiteParentPath(pathKey, Object.keys(reportListsTreeIndex));
+      if (parentKey) ensureReportTreePathExpanded(parentKey);
+    }
+
+    function seedReportListsExpandedPaths(roots, nodeByPath, sel) {
+      reportListsTreeIndex = nodeByPath || {};
+      var validKeys = {};
+      Object.keys(reportListsTreeIndex).forEach(function (k) {
+        validKeys[k] = true;
+      });
+      Array.from(reportListsExpandedPaths).forEach(function (k) {
+        if (!validKeys[k]) reportListsExpandedPaths.delete(k);
+      });
+      if (!reportListsExpandedPaths.size) {
+        roots.forEach(function (r) {
+          reportListsExpandedPaths.add(r.pathKey);
+        });
+      }
+      function walk(node) {
+        var hasSelected = node.lists.some(function (e) {
+          return sel[reportListEntryKey(e).toLowerCase()];
+        });
+        if (hasSelected) ensureReportTreePathExpanded(node.pathKey);
+        node.children.forEach(walk);
+      }
+      roots.forEach(walk);
+    }
+
+    function setReportTreeExpanded(expanded) {
+      if (!reportListsList) return;
+      reportListsList.querySelectorAll(".sp-toolkit-report-tree-node").forEach(function (node) {
+        var pathKey = node.getAttribute("data-tree-path") || "";
+        var toggle = node.querySelector(".sp-toolkit-report-tree-toggle");
+        if (expanded) {
+          reportListsExpandedPaths.add(pathKey);
+          node.classList.remove("sp-toolkit-report-tree-collapsed");
+          if (toggle) toggle.setAttribute("aria-expanded", "true");
+        } else {
+          reportListsExpandedPaths.delete(pathKey);
+          node.classList.add("sp-toolkit-report-tree-collapsed");
+          if (toggle) toggle.setAttribute("aria-expanded", "false");
+        }
+      });
+    }
+
+    function updateReportTreeSiteCheckboxes() {
+      if (!reportListsList) return;
+      reportListsList.querySelectorAll(".sp-toolkit-report-tree-node").forEach(function (node) {
+        var siteCb = node.querySelector(":scope > .sp-toolkit-report-tree-site-heading .sp-toolkit-report-tree-site-cb");
+        if (!siteCb) return;
+        var listCbs = Array.from(node.querySelectorAll(".sp-toolkit-report-list-item input[type=checkbox]"));
+        if (!listCbs.length) {
+          siteCb.checked = false;
+          siteCb.indeterminate = false;
+          return;
+        }
+        var checkedCount = listCbs.filter(function (cb) { return cb.checked; }).length;
+        siteCb.checked = checkedCount === listCbs.length;
+        siteCb.indeterminate = checkedCount > 0 && checkedCount < listCbs.length;
+      });
+    }
+
+    function renderReportListItem(entry, sel, depth) {
+      var key = reportListEntryKey(entry);
+      var siteKey = reportSiteGroupKey(entry);
+      var id = "cmp-rpt-" + key.replace(/[^a-zA-Z0-9]/g, "_");
+      var kindLabel = reportListKindLabel(entry);
+      var kindClass = reportListKindClass(entry);
+      var searchText = [
+        entry.siteTitle,
+        formatReportSitePath(entry),
+        entry.listTitle,
+        kindLabel,
+        entry.listId
+      ].join(" ").toLowerCase();
+      var div = document.createElement("div");
+      div.className = "sp-toolkit-matrix-site-item sp-toolkit-report-list-item";
+      div.setAttribute("data-site-key", siteKey);
+      div.setAttribute("data-search", searchText);
+      div.style.setProperty("--tree-depth", String(depth));
+      div.innerHTML =
+        "<label for=\"" + id + "\"><input type=\"checkbox\" id=\"" + id + "\" data-key=\"" + escapeHtml(key) + "\" " + (sel[key.toLowerCase()] ? "checked" : "") + "/>" +
+        "<span class=\"sp-toolkit-report-list-item-main\">" +
+        "<span class=\"sp-toolkit-report-list-item-title\">" +
+        "<span class=\"sp-toolkit-report-list-badge " + kindClass + "\">" + escapeHtml(kindLabel) + "</span>" +
+        "<strong>" + escapeHtml(entry.listTitle || entry.listId) + "</strong></span>" +
+        "<span class=\"sp-toolkit-report-list-meta\">" + (entry.itemCount || 0) + " items</span></span></label>";
+      return div;
+    }
+
+    function renderReportSiteTreeNode(node, sel, depth) {
+      var expanded = reportListsExpandedPaths.has(node.pathKey);
+      var listCount = node.lists.length;
+      var childCount = node.children.length;
+      var metaParts = [];
+      if (listCount) metaParts.push(listCount + (listCount === 1 ? " list" : " lists"));
+      if (childCount) metaParts.push(childCount + (childCount === 1 ? " subsite" : " subsites"));
+      var el = document.createElement("div");
+      el.className = "sp-toolkit-report-tree-node" + (expanded ? "" : " sp-toolkit-report-tree-collapsed");
+      el.setAttribute("data-tree-path", node.pathKey);
+      el.setAttribute("data-site-key", reportSiteGroupKey({ siteUrl: node.siteUrl }));
+      el.style.setProperty("--tree-depth", String(depth));
+      el.innerHTML =
+        "<div class=\"sp-toolkit-report-tree-site-heading\">" +
+        "<button type=\"button\" class=\"sp-toolkit-report-tree-toggle\" aria-expanded=\"" + (expanded ? "true" : "false") + "\" aria-label=\"Toggle " + escapeHtml(node.siteTitle) + "\">" +
+        "<span class=\"sp-toolkit-report-tree-chevron\" aria-hidden=\"true\"></span></button>" +
+        "<div class=\"sp-toolkit-report-tree-site-label\">" +
+        "<input type=\"checkbox\" class=\"sp-toolkit-report-tree-site-cb\" data-tree-path=\"" + escapeHtml(node.pathKey) + "\" title=\"Select all lists in this site\" />" +
+        "<span class=\"sp-toolkit-report-tree-site-text\">" +
+        "<span class=\"sp-toolkit-report-lists-site-title\">" + escapeHtml(node.siteTitle) + "</span>" +
+        "<span class=\"sp-toolkit-report-lists-site-path\">" + escapeHtml(node.path) + "</span>" +
+        (metaParts.length ? "<span class=\"sp-toolkit-report-tree-site-meta\">" + escapeHtml(metaParts.join(" · ")) + "</span>" : "") +
+        "</span></div></div>" +
+        "<div class=\"sp-toolkit-report-tree-body\"></div>";
+      var body = el.querySelector(".sp-toolkit-report-tree-body");
+      if (node.lists.length) {
+        var listsWrap = document.createElement("div");
+        listsWrap.className = "sp-toolkit-report-tree-lists";
+        node.lists.forEach(function (entry) {
+          listsWrap.appendChild(renderReportListItem(entry, sel, depth + 1));
+        });
+        body.appendChild(listsWrap);
+      }
+      node.children.forEach(function (child) {
+        body.appendChild(renderReportSiteTreeNode(child, sel, depth + 1));
+      });
+      return el;
+    }
+
+    function formatReportSitePath(entry) {
+      var p = String(entry.sitePath || "").trim();
+      if (p) return p;
+      try {
+        return new URL(String(entry.siteUrl || "")).pathname.replace(/\/$/, "") || "/";
+      } catch (_) {
+        return String(entry.siteUrl || "");
+      }
+    }
+
+    function reportListKindLabel(entry) {
+      return entry.baseTemplate === 101 || entry.isLibrary ? "Library" : "List";
+    }
+
+    function reportListKindClass(entry) {
+      return entry.baseTemplate === 101 || entry.isLibrary ? "library" : "list";
+    }
+
+    function updateReportListsSelectionCount() {
+      if (!reportListsCount || !reportListsList) return;
+      var visibleItems = Array.from(reportListsList.querySelectorAll(".sp-toolkit-report-list-item:not(.sp-toolkit-report-list-hidden)"));
+      var checkedVisible = visibleItems.filter(function (item) {
+        var cb = item.querySelector("input[type=checkbox]");
+        return cb && cb.checked;
+      }).length;
+      var totalVisible = visibleItems.length;
+      var totalAll = reportListsList.querySelectorAll(".sp-toolkit-report-list-item").length;
+      if (!totalAll) {
+        reportListsCount.textContent = "";
+        return;
+      }
+      if (totalVisible === totalAll) {
+        reportListsCount.textContent = checkedVisible + " of " + totalAll + " selected";
+      } else {
+        reportListsCount.textContent = checkedVisible + " of " + totalVisible + " shown selected";
+      }
+    }
+
+    function applyReportListsFilter() {
+      if (!reportListsList) return;
+      var q = String(reportListsFilter && reportListsFilter.value || "").trim().toLowerCase();
+      var items = reportListsList.querySelectorAll(".sp-toolkit-report-list-item");
+      items.forEach(function (item) {
+        var hay = String(item.getAttribute("data-search") || "").toLowerCase();
+        item.classList.toggle("sp-toolkit-report-list-hidden", !!(q && hay.indexOf(q) < 0));
+      });
+      var treeNodes = reportListsList.querySelectorAll(".sp-toolkit-report-tree-node");
+      treeNodes.forEach(function (node) {
+        var pathKey = node.getAttribute("data-tree-path") || "";
+        var toggle = node.querySelector(".sp-toolkit-report-tree-toggle");
+        var hasVisibleList = node.querySelectorAll(".sp-toolkit-report-list-item:not(.sp-toolkit-report-list-hidden)").length > 0;
+        var hasVisibleChildSite = false;
+        node.querySelectorAll(":scope > .sp-toolkit-report-tree-body > .sp-toolkit-report-tree-node").forEach(function (child) {
+          if (!child.classList.contains("sp-toolkit-report-list-hidden")) hasVisibleChildSite = true;
+        });
+        var show = !q || hasVisibleList || hasVisibleChildSite;
+        node.classList.toggle("sp-toolkit-report-list-hidden", !show);
+        if (q && show) {
+          reportListsExpandedPaths.add(pathKey);
+          node.classList.remove("sp-toolkit-report-tree-collapsed");
+          if (toggle) toggle.setAttribute("aria-expanded", "true");
+        } else if (!q) {
+          var expanded = reportListsExpandedPaths.has(pathKey);
+          node.classList.toggle("sp-toolkit-report-tree-collapsed", !expanded);
+          if (toggle) toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+        }
+      });
+      updateReportListsSelectionCount();
+      updateReportTreeSiteCheckboxes();
+    }
+
+    function syncReportListsLayoutMode() {
+      applyReportsPaneLayout(panel);
+    }
+
+    function renderReportLists(entries, selectedKeys, selectionCtx) {
+      if (!reportListsList) return;
+      reportListPlan = entries || [];
+      var sel = {};
+      var keys = selectedKeys;
+      if (!keys) {
+        var ctx = selectionCtx || {};
+        keys = defaultReportListSelectionKeys(
+          reportListPlan,
+          ctx.listId || host.dataset.reportCurrentListId || currentListIdFromCtx,
+          ctx.onListPage != null ? ctx.onListPage : host.dataset.reportOnListPage === "1",
+          ctx.siteUrl || host.dataset.reportSiteUrl || ""
+        );
+      }
+      (keys || []).forEach(function (k) { sel[String(k).toLowerCase()] = true; });
+      if (!reportListPlan.length) {
+        reportListsList.innerHTML = "<span>Click Load lists to choose lists and libraries.</span>";
+        if (reportListsFilter) reportListsFilter.value = "";
+        updateReportListsSelectionCount();
+        syncReportListsLayoutMode();
+        return;
+      }
+      var reportType = reportSelect ? reportSelect.value : "exportCSV";
+      var libOnly = reportType === "folderCount" || reportType === "pathLengths";
+      var tree = buildReportSiteTree(reportListPlan, libOnly);
+      seedReportListsExpandedPaths(tree.roots, tree.nodeByPath, sel);
+      reportListsList.classList.add("sp-toolkit-report-lists-tree");
+      reportListsList.innerHTML = "";
+      tree.roots.forEach(function (node) {
+        reportListsList.appendChild(renderReportSiteTreeNode(node, sel, 0));
+      });
+      if (!reportListsList.children.length) {
+        reportListsList.classList.remove("sp-toolkit-report-lists-tree");
+        reportListsList.innerHTML = "<span>No document libraries found. Path/folder reports require libraries.</span>";
+      }
+      applyReportListsFilter();
+      syncReportListsLayoutMode();
+    }
+
+    function buildReportExportPrefsPayload(extra) {
+      return Object.assign({
+        siteKey: host.dataset.reportSiteKey || "",
+        includeSubsites: !!(chkMatrix && chkMatrix.checked),
+        listPlan: reportListPlan,
+        selectedKeys: Array.from(reportListsList ? reportListsList.querySelectorAll("input[type=checkbox]:checked") : []).map(function (cb) {
+          return cb.getAttribute("data-key");
+        }).filter(Boolean)
+      }, extra || {});
     }
 
     function getSelectedMatrixPaths() {
@@ -1668,10 +2134,9 @@
         div.innerHTML =
           '<label><input type="checkbox" id="' + id + '" data-path="' + escapeHtml(path) + '" ' + (sel[path.toLowerCase()] ? "checked" : "") + "/>" +
           "<span><strong>" + escapeHtml(entry.title || path) + "</strong><br/><span style=\"opacity:.75;font-size:11px\">" +
-          escapeHtml(path) + " · " + (entry.listCount || 0) + " lists · " + (entry.itemCount || 0) + " items</span></span></label>";
+          escapeHtml(path) + (entry.listCount || entry.itemCount ? " · " + (entry.listCount || 0) + " lists · " + (entry.itemCount || 0) + " items" : "") + "</span></span></label>";
         matrixSitesList.appendChild(div);
       });
-      noteCompassPanelContentChanged(panel);
     }
 
     function formatCompassElapsed(ms) {
@@ -1704,7 +2169,7 @@
       progressConsole.classList.remove("sp-toolkit-export-console-active");
       progressConsole.classList.remove("sp-toolkit-export-console-idle");
       if (progressBarWrap) progressBarWrap.classList.remove("sp-toolkit-export-bar-active");
-      if (reportsMain) reportsMain.classList.remove("sp-toolkit-reports-export-active");
+      if (reportsMain) reportsMain.classList.remove("sp-toolkit-reports-export-active", "sp-toolkit-reports-export-tracking");
       var reportsScrollOff = host.closest(".sp-toolkit-compass-scroll");
       if (reportsScrollOff) reportsScrollOff.classList.remove("sp-toolkit-reports-scroll-locked");
       if (statusEl) statusEl.classList.remove("sp-toolkit-reports-status-hidden");
@@ -1756,7 +2221,10 @@
         progressConsole.classList.toggle("sp-toolkit-export-console-active", !!data.active);
         progressConsole.classList.toggle("sp-toolkit-export-console-idle", !data.active);
         if (progressBarWrap) progressBarWrap.classList.toggle("sp-toolkit-export-bar-active", !!data.active);
-        if (reportsMain) reportsMain.classList.toggle("sp-toolkit-reports-export-active", !!data.active);
+        if (reportsMain) {
+          reportsMain.classList.toggle("sp-toolkit-reports-export-active", !!data.active);
+          reportsMain.classList.toggle("sp-toolkit-reports-export-tracking", !!(data.active || (data.log && data.log.length)));
+        }
         if (data.active) {
           clearExportProgressDismissTimer();
           showReportsMainView();
@@ -1861,11 +2329,17 @@
     }
 
     async function refreshReportsPaneContext() {
-      var ctx = await resolveReportContext(invoke, siteUrlFromCtx, currentListIdFromCtx);
-      var siteKey = normalizeMatrixSiteKey(ctx.siteUrl);
+      var selCtx = await resolveReportSelectionContext(invoke, siteUrlFromCtx, currentListIdFromCtx);
+      var siteKey = normalizeMatrixSiteKey(selCtx.siteUrl);
       var prevKey = host.dataset.matrixSiteKey || "";
+      var prevReportKey = host.dataset.reportSiteKey || "";
       host.dataset.matrixSiteKey = siteKey;
-      chrome.storage.local.get(["matrixExportPrefs"], function (r) {
+      host.dataset.reportSiteKey = siteKey;
+      host.dataset.reportSiteUrl = selCtx.siteUrl || "";
+      host.dataset.reportCurrentListId = selCtx.listId || "";
+      host.dataset.reportOnListPage = selCtx.onListPage ? "1" : "0";
+      var defaultKeys = null;
+      chrome.storage.local.get(["matrixExportPrefs", REPORT_EXPORT_PREFS_KEY], function (r) {
         var p = r.matrixExportPrefs || {};
         applyMatrixControlPrefs(p);
         if (siteKey && p.siteKey === siteKey && Array.isArray(p.sitePlan) && p.sitePlan.length) {
@@ -1876,6 +2350,65 @@
             matrixSitesList.innerHTML = "<span>Click Load sites to choose root site and subsites.</span>";
           }
         }
+        var rp = r[REPORT_EXPORT_PREFS_KEY] || {};
+        if (siteKey && rp.siteKey === siteKey && Array.isArray(rp.listPlan) && rp.listPlan.length) {
+          defaultKeys = defaultReportListSelectionKeys(rp.listPlan, selCtx.listId, selCtx.onListPage, selCtx.siteUrl);
+          renderReportLists(rp.listPlan, defaultKeys, selCtx);
+          chrome.storage.local.set({
+            reportExportPrefs: buildReportExportPrefsPayload({
+              siteKey: siteKey,
+              listPlan: rp.listPlan,
+              selectedKeys: defaultKeys
+            })
+          });
+        } else if (siteKey !== prevReportKey) {
+          reportListPlan = [];
+          if (reportListsList) {
+            reportListsList.innerHTML = "<span>Click Load lists to choose site lists and libraries.</span>";
+          }
+          if (siteKey) void loadReportListPlan();
+        }
+      });
+    }
+
+    async function loadReportListPlan() {
+      if (reportListsList) reportListsList.innerHTML = "<span class=\"sp-toolkit-panel-loading\">Loading lists…</span>";
+      var selCtx = await resolveReportSelectionContext(invoke, siteUrlFromCtx, currentListIdFromCtx);
+      var siteUrl = selCtx.siteUrl || "";
+      if (!siteUrl) {
+        if (reportListsList) reportListsList.innerHTML = "<span>Open a SharePoint site page first.</span>";
+        return;
+      }
+      var siteKey = normalizeMatrixSiteKey(siteUrl);
+      host.dataset.reportSiteKey = siteKey;
+      host.dataset.reportSiteUrl = siteUrl;
+      host.dataset.reportCurrentListId = selCtx.listId || "";
+      host.dataset.reportOnListPage = selCtx.onListPage ? "1" : "0";
+      var reportType = reportSelect ? reportSelect.value : "exportCSV";
+      var libOnly = reportType === "folderCount" || reportType === "pathLengths";
+      return invoke({
+        action: "getReportListPlan",
+        siteUrl: siteUrl,
+        includeSubsites: !!(chkMatrix && chkMatrix.checked),
+        librariesOnly: false
+      }).then(function (res) {
+        if (!res || !res.ok) {
+          if (reportListsList) reportListsList.innerHTML = "<span>" + escapeHtml((res && res.error) || "Failed to load lists.") + "</span>";
+          return;
+        }
+        var entries = res.entries || [];
+        var selectedKeys = defaultReportListSelectionKeys(entries, selCtx.listId, selCtx.onListPage, selCtx.siteUrl);
+        renderReportLists(entries, selectedKeys, selCtx);
+        chrome.storage.local.set({
+          reportExportPrefs: buildReportExportPrefsPayload({
+            siteKey: siteKey,
+            listPlan: entries,
+            selectedKeys: selectedKeys
+          })
+        });
+        if (libOnly && !reportListsList.querySelector("input[type=checkbox]")) {
+          setStatus("No document libraries in selection scope. Folder/path reports need libraries.", "error");
+        }
       });
     }
 
@@ -1884,10 +2417,12 @@
 
     host.querySelector(".sp-toolkit-btn-matrix-load")?.addEventListener("click", function () {
       if (matrixSitesList) matrixSitesList.innerHTML = "<span class=\"sp-toolkit-panel-loading\">Loading site inventory…</span>";
+      setStatus("Loading sites… large sites can take up to a minute.", "info");
       resolveReportContext(invoke, siteUrlFromCtx, currentListIdFromCtx).then(function (ctx) {
         var siteUrl = ctx.siteUrl || "";
         if (!siteUrl) {
           if (matrixSitesList) matrixSitesList.innerHTML = "<span>Open a SharePoint site page first.</span>";
+          setStatus("Open a SharePoint site page first.", "error");
           return;
         }
         var siteKey = normalizeMatrixSiteKey(siteUrl);
@@ -1895,9 +2430,11 @@
         return invoke({ action: "getMatrixScanPlan", siteUrl: siteUrl, includeSubsites: !!(chkMatrix && chkMatrix.checked) }).then(function (res) {
           if (!res || !res.ok) {
             if (matrixSitesList) matrixSitesList.innerHTML = "<span>" + escapeHtml((res && res.error) || "Failed to load sites.") + "</span>";
+            setStatus((res && res.error) || "Failed to load sites.", "error");
             return;
           }
           renderMatrixSites(res.plan || [], (res.plan || []).map(function (e) { return e.path; }));
+          setStatus("Loaded " + (res.plan || []).length + " site(s). Select subsites to scan, then Run.", "ok");
           chrome.storage.local.set({
             matrixExportPrefs: buildMatrixPrefsPayload({
               siteKey: siteKey,
@@ -1906,6 +2443,9 @@
             })
           });
         });
+      }).catch(function (err) {
+        if (matrixSitesList) matrixSitesList.innerHTML = "<span>" + escapeHtml((err && err.message) || "Failed to load sites.") + "</span>";
+        setStatus((err && err.message) || "Failed to load sites.", "error");
       });
     });
     host.querySelector(".sp-toolkit-btn-matrix-all")?.addEventListener("click", function () {
@@ -1913,6 +2453,67 @@
     });
     host.querySelector(".sp-toolkit-btn-matrix-none")?.addEventListener("click", function () {
       matrixSitesList.querySelectorAll("input[type=checkbox]").forEach(function (cb) { cb.checked = false; });
+    });
+
+    host.querySelector(".sp-toolkit-btn-report-lists-load")?.addEventListener("click", function () {
+      void loadReportListPlan();
+    });
+    host.querySelector(".sp-toolkit-btn-report-lists-expand")?.addEventListener("click", function () {
+      setReportTreeExpanded(true);
+    });
+    host.querySelector(".sp-toolkit-btn-report-lists-collapse")?.addEventListener("click", function () {
+      setReportTreeExpanded(false);
+    });
+    host.querySelector(".sp-toolkit-btn-report-lists-all")?.addEventListener("click", function () {
+      if (!reportListsList) return;
+      reportListsList.querySelectorAll(".sp-toolkit-report-list-item:not(.sp-toolkit-report-list-hidden) input[type=checkbox]").forEach(function (cb) { cb.checked = true; });
+      updateReportListsSelectionCount();
+      updateReportTreeSiteCheckboxes();
+      chrome.storage.local.set({ reportExportPrefs: buildReportExportPrefsPayload() });
+    });
+    host.querySelector(".sp-toolkit-btn-report-lists-none")?.addEventListener("click", function () {
+      if (!reportListsList) return;
+      reportListsList.querySelectorAll(".sp-toolkit-report-list-item:not(.sp-toolkit-report-list-hidden) input[type=checkbox]").forEach(function (cb) { cb.checked = false; });
+      updateReportListsSelectionCount();
+      updateReportTreeSiteCheckboxes();
+      chrome.storage.local.set({ reportExportPrefs: buildReportExportPrefsPayload() });
+    });
+    reportListsFilter?.addEventListener("input", function () {
+      applyReportListsFilter();
+    });
+    reportListsList?.addEventListener("click", function (ev) {
+      var toggle = ev.target.closest(".sp-toolkit-report-tree-toggle");
+      if (!toggle || !reportListsList.contains(toggle)) return;
+      ev.preventDefault();
+      var node = toggle.closest(".sp-toolkit-report-tree-node");
+      if (!node) return;
+      var pathKey = node.getAttribute("data-tree-path") || "";
+      if (node.classList.contains("sp-toolkit-report-tree-collapsed")) {
+        node.classList.remove("sp-toolkit-report-tree-collapsed");
+        reportListsExpandedPaths.add(pathKey);
+        toggle.setAttribute("aria-expanded", "true");
+      } else {
+        node.classList.add("sp-toolkit-report-tree-collapsed");
+        reportListsExpandedPaths.delete(pathKey);
+        toggle.setAttribute("aria-expanded", "false");
+      }
+    });
+    reportListsList?.addEventListener("change", function (ev) {
+      if (ev.target.classList.contains("sp-toolkit-report-tree-site-cb")) {
+        var node = ev.target.closest(".sp-toolkit-report-tree-node");
+        if (!node) return;
+        var checked = ev.target.checked;
+        node.querySelectorAll(".sp-toolkit-report-list-item input[type=checkbox]").forEach(function (cb) {
+          cb.checked = checked;
+        });
+        node.querySelectorAll(".sp-toolkit-report-tree-site-cb").forEach(function (cb) {
+          cb.checked = checked;
+          cb.indeterminate = false;
+        });
+      }
+      updateReportListsSelectionCount();
+      updateReportTreeSiteCheckboxes();
+      chrome.storage.local.set({ reportExportPrefs: buildReportExportPrefsPayload() });
     });
 
     refreshProgressConsole();
@@ -1928,17 +2529,20 @@
     function toggleReportOptions() {
       const v = reportSelect.value;
       const isMatrix = v === "permissionsMatrix";
+      const showReportLists = v === "exportCSV" || v === "folderCount" || v === "pathLengths";
       const showExportFormat = v === "exportCSV";
-      const show = showExportFormat || isMatrix;
+      const show = showExportFormat || isMatrix || showReportLists;
       const reportOpts = host.querySelector(".sp-toolkit-compass-report-opts");
       if (reportOpts) reportOpts.style.display = show ? "flex" : "none";
+      if (reportListsRow) reportListsRow.style.display = showReportLists ? "flex" : "none";
       matrixRow.style.display = isMatrix ? "flex" : "none";
       exportRow.style.display = showExportFormat ? "flex" : "none";
+      var bundleHint = host.querySelector(".sp-toolkit-report-bundle-hint");
+      if (bundleHint) bundleHint.style.display = showReportLists ? "" : "none";
       host.querySelector(".sp-toolkit-btn-cols").style.display = showExportFormat ? "" : "none";
       host.classList.toggle("sp-toolkit-reports-matrix-mode", isMatrix);
-      const reportsScroll = host.closest(".sp-toolkit-compass-scroll");
-      if (reportsScroll) reportsScroll.classList.toggle("sp-toolkit-reports-matrix-scroll", isMatrix);
-      noteCompassPanelContentChanged(panel);
+      syncReportListsLayoutMode();
+      if (showReportLists && reportListPlan.length) renderReportLists(reportListPlan);
     }
     reportSelect.addEventListener("change", toggleReportOptions);
     toggleReportOptions();
@@ -2067,17 +2671,34 @@
         setStatus("Open a SharePoint site or list page first, then try again.", "error");
         return;
       }
-      if (!listId && reportType !== "permissionsMatrix") {
-        setStatus("Open a SharePoint list or library page first, then try again.", "error");
+      const needsListPicker = reportType === "exportCSV" || reportType === "folderCount" || reportType === "pathLengths";
+      let selectedLists = needsListPicker ? getSelectedReportLists() : [];
+      if (needsListPicker && !selectedLists.length) {
+        if (!reportListPlan.length) {
+          await loadReportListPlan();
+          selectedLists = getSelectedReportLists();
+        }
+      }
+      if (needsListPicker && !selectedLists.length) {
+        setStatus("Select at least one list or library (Load lists, then check items).", "error");
         return;
       }
+      if (needsListPicker && (reportType === "folderCount" || reportType === "pathLengths")) {
+        selectedLists = selectedLists.filter(function (e) { return e.baseTemplate === 101; });
+        if (!selectedLists.length) {
+          setStatus("Folder count and path length reports require at least one document library.", "error");
+          return;
+        }
+      }
+      const effectiveListId = selectedLists.length === 1 ? normalizeListGuid(selectedLists[0].listId) : listId;
+      const effectiveSiteUrl = selectedLists.length === 1 ? String(selectedLists[0].siteUrl || siteUrl).replace(/\/$/, "") : siteUrl;
       const includeVersions = !!(host.querySelector(".sp-toolkit-chk-versions") && host.querySelector(".sp-toolkit-chk-versions").checked);
       const pageLimit = await getPageSizePromise();
       const exportFormat = reportType === "permissionsMatrix" ? "xlsx" : (formatSelect.value || "xlsx");
       const msg = {
         action: "runExportCSV",
-        siteUrl: siteUrl,
-        listId: listId,
+        siteUrl: effectiveSiteUrl,
+        listId: effectiveListId,
         viewId: viewId,
         exportFilename: "",
         pageLimit: pageLimit,
@@ -2092,16 +2713,21 @@
         matrixSharingLinkFetchAll: !!(chkMatrixSharingFetchAll && chkMatrixSharingFetchAll.checked),
         matrixMaxListItems: matrixMaxItems ? parseInt(matrixMaxItems.value, 10) || 2000 : 2000,
         matrixListItemPageSize: matrixPageSize ? parseInt(matrixPageSize.value, 10) || 5000 : 5000,
-        matrixSelectedPaths: getSelectedMatrixPaths()
+        matrixSelectedPaths: getSelectedMatrixPaths(),
+        reportSelectedLists: selectedLists.length ? selectedLists : null,
+        rootSiteTitle: selectedLists.length > 1 ? (function () {
+          try {
+            var segs = new URL(siteUrl).pathname.replace(/\/$/, "").split("/").filter(Boolean);
+            return segs.length ? segs[segs.length - 1] : "Site";
+          } catch (_) { return "Site"; }
+        })() : null
       };
       const response = await invoke(msg);
       const statusMessage =
         response && response.message != null && response.message !== ""
           ? response.message
           : response && response.ok
-            ? (reportSelect.value === "permissionsMatrix"
-              ? "Export started in a dedicated tab. Continue in the new tab — worker tab closes when finished."
-              : "Export started. Watch the progress bar on this page.")
+            ? "Export running in a background tab. Keep working here — open the background tab for Snake and live progress."
             : (response && response.error) || "Export failed.";
       setStatus(statusMessage, response && response.ok ? "ok" : "error");
       if (response && response.ok) {
@@ -2117,7 +2743,7 @@
         runExport(null);
       }
     });
-    host.dataset.built = "10";
+    host.dataset.built = "18";
     } finally {
       delete host.dataset.building;
     }
@@ -2167,30 +2793,19 @@
       nav.appendChild(b);
     });
     applyListOnlyCompassTabs(panel, onListOrLibraryView);
-    let indicator = nav.querySelector(".sp-toolkit-tab-indicator");
-    if (!indicator) {
-      indicator = document.createElement("div");
-      indicator.className = "sp-toolkit-tab-indicator";
-      nav.appendChild(indicator);
-    }
-    if (!nav.dataset.spotIndicatorScrollBound) {
-      nav.dataset.spotIndicatorScrollBound = "1";
-      nav.addEventListener(
-        "scroll",
-        function () {
-          updateTabIndicator(panel);
-        },
-        { passive: true }
-      );
-    }
+    ensureCompassTabIndicator(panel);
     nav.dataset.compassTabsBuilt = "1";
     wireCompassPaneRegistry(panel);
     activateRememberedTab();
+    scheduleTabIndicatorUpdate(panel, true);
   }
 
   window.SPOT_applyCompassTabAvailability = function (panel, onListOrLibraryView) {
     if (!panel) panel = document.getElementById("sp-toolkit-lists-panel");
-    if (panel) applyListOnlyCompassTabs(panel, onListOrLibraryView);
+    if (panel) {
+      applyListOnlyCompassTabs(panel, onListOrLibraryView);
+      scheduleTabIndicatorUpdate(panel, true);
+    }
   };
 
   window.SPOT_reopenCompassPanel = function (panel, invokeToolkitAction, ctx) {
@@ -2245,19 +2860,20 @@
     window.SPOT_updateCompassTabIndicator = updateTabIndicator;
     window.SPOT_updateCompassPanelTitle = updateCompassPanelTitle;
     window.SPOT_clearCompassPagePropsCache = clearPagePropsCacheForUrl;
-    if (!window._SPOT_compassTabIndicatorResizeBound) {
-      window._SPOT_compassTabIndicatorResizeBound = true;
+    if (!window._SPOT_compassPanelResizeBound) {
+      window._SPOT_compassPanelResizeBound = true;
       window.addEventListener("resize", function () {
         const p = document.getElementById("sp-toolkit-lists-panel");
         if (p && typeof window.SPOT_noteCompassPanelContentChanged === "function") {
           window.SPOT_noteCompassPanelContentChanged(p);
         }
         if (p && typeof window.SPOT_updateCompassTabIndicator === "function") {
-          window.SPOT_updateCompassTabIndicator(p);
+          window.SPOT_updateCompassTabIndicator(p, true);
         }
       });
     }
     noteCompassPanelContentChanged(panel);
+    scheduleTabIndicatorUpdate(panel, true);
     if (panel.dataset.compassToolListeners === "1") return;
     panel.dataset.compassToolListeners = "1";
 

@@ -702,6 +702,211 @@ function isToolkitSharePointPage(url) {
   }
 }
 
+/**
+ * Maker portal / admin / runtime hosts where we switch to Power Apps mode.
+ * (make.powerapps.com has no Xrm — URL match is required.)
+ */
+function isPowerPlatformUrl(url) {
+  if (!url || typeof url !== "string") return false;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return (
+      host === "make.powerapps.com" ||
+      host === "make.powerautomate.com" ||
+      host === "make.powerpages.microsoft.com" ||
+      host.endsWith(".powerapps.com") ||
+      host.endsWith(".powerautomate.com") ||
+      host.endsWith(".powerplatform.com") ||
+      host.endsWith(".powerplatformusercontent.com") ||
+      host.endsWith(".dynamics.com") ||
+      host.endsWith(".crm.dynamics.com") ||
+      /^[a-z0-9-]+\.crm\d*\.dynamics\.com$/.test(host)
+    );
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Runtime Dynamics model-driven app detection (Xrm v9 or known client scripts).
+ * Prefer Level Up content script; fall back to executeScript (activeTab).
+ */
+async function isPowerAppsDynamicsRuntime(tabId) {
+  if (tabId == null) return false;
+  try {
+    const viaContent = await new Promise((resolve) => {
+      try {
+        chrome.tabs.sendMessage(tabId, { type: "GET_PAGE_CONTEXT" }, (response) => {
+          if (chrome.runtime.lastError || !response?.success) resolve(false);
+          else resolve(true);
+        });
+      } catch (_) {
+        resolve(false);
+      }
+    });
+    if (viaContent) return true;
+  } catch (_) {}
+
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        try {
+          const win = window;
+          if (win.Xrm?.Utility?.getGlobalContext) {
+            const version = win.Xrm.Utility.getGlobalContext().getVersion();
+            if (version && String(version).startsWith("9.")) return true;
+          }
+        } catch (_) {}
+        try {
+          return Array.from(document.querySelectorAll("script[src]")).some((script) => {
+            const src = script.src || "";
+            return (
+              src.indexOf("/uclient/scripts") !== -1 ||
+              src.indexOf("/_static/_common/scripts/PageLoader.js") !== -1 ||
+              src.indexOf("/_static/_common/scripts/crminternalutility.js") !== -1
+            );
+          });
+        } catch (_) {
+          return false;
+        }
+      },
+    });
+    return !!(results && results[0] && results[0].result === true);
+  } catch (_) {
+    return false;
+  }
+}
+
+/** True when we should show purple Power Apps / Level Up UI. */
+async function shouldUsePowerAppsMode(tab) {
+  if (isPowerPlatformUrl(tab?.url)) return true;
+  if (tab?.id != null) return isPowerAppsDynamicsRuntime(tab.id);
+  return false;
+}
+
+let powerAppsRuntimeConnected = false;
+
+function updatePowerAppsCard() {
+  const title = document.getElementById("powerAppsCardTitle");
+  const body = document.getElementById("powerAppsCardBody");
+  const note = document.getElementById("powerAppsCardNote");
+  const btn = document.getElementById("btnOpenPowerAppsSidebar");
+  document.body.classList.toggle("powerapps-runtime", !!powerAppsRuntimeConnected);
+
+  if (powerAppsRuntimeConnected) {
+    if (title) title.textContent = "Model-driven app detected";
+    if (body) {
+      body.textContent =
+        "Form tools, navigation helpers, impersonation, and debugging open in an in-page popout — same pattern as the SharePoint compass launcher.";
+    }
+    if (note) note.textContent = "Or use the purple floating button on the page.";
+    if (btn) {
+      btn.hidden = false;
+      btn.textContent = "Open popout";
+    }
+  } else {
+    if (title) title.textContent = "Power Apps";
+    if (body) {
+      body.textContent =
+        "You’re on a Power Platform surface. Open a model-driven app to unlock the in-page toolkit popout.";
+    }
+    if (note) note.textContent = "";
+    if (btn) btn.hidden = true;
+  }
+}
+
+async function refreshPowerAppsPopupHeader() {
+  const titleEl = document.querySelector(".popup-header-title");
+  const subEl = document.querySelector(".popup-header-sub");
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) return;
+    const res = await new Promise((resolve) => {
+      chrome.runtime.sendMessage(
+        { type: "SPOToolkitGetPowerAppsHeaderContext", tabId: tab.id },
+        (response) => {
+          if (chrome.runtime.lastError) resolve(null);
+          else resolve(response);
+        }
+      );
+    });
+    const ctx = res && res.ok ? res.context || {} : {};
+    const appName = String(ctx.displayName || "").trim();
+    const orgLabel = String(ctx.orgLabel || "").trim();
+    const clientUrl = String(ctx.clientUrl || "").trim();
+    if (titleEl) titleEl.textContent = appName || "Power Apps";
+    if (subEl) {
+      if (orgLabel && clientUrl) subEl.textContent = orgLabel + " — " + clientUrl;
+      else if (clientUrl) subEl.textContent = clientUrl;
+      else subEl.textContent = "Power Apps / Dynamics";
+      if (clientUrl) subEl.title = clientUrl;
+    }
+  } catch (_) {
+    /* keep defaults */
+  }
+}
+
+function setPopupMode(mode) {
+  const body = document.body;
+  body.dataset.mode = mode || "none";
+  body.classList.toggle("not-on-sharepoint", mode !== "sharepoint");
+  if (mode !== "powerapps") {
+    body.classList.remove("powerapps-runtime");
+  }
+
+  const titleEl = document.querySelector(".popup-header-title");
+  const subEl = document.querySelector(".popup-header-sub");
+
+  if (mode === "powerapps") {
+    if (titleEl) titleEl.textContent = "Power Apps";
+    if (subEl) subEl.textContent = "Power Apps / Dynamics";
+    updatePowerAppsCard();
+    void refreshPowerAppsPopupHeader();
+  } else if (mode === "sharepoint") {
+    if (titleEl) titleEl.textContent = "SP Developer Toolkit";
+    if (subEl) subEl.textContent = "SharePoint Extension";
+  } else {
+    if (titleEl) titleEl.textContent = "SP Developer Toolkit";
+    if (subEl) subEl.textContent = "SharePoint & Power Apps";
+  }
+}
+
+async function openPowerAppsPopout() {
+  try {
+    if (!powerAppsRuntimeConnected) return;
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) return;
+
+    async function sendOpen() {
+      return await new Promise((resolve) => {
+        chrome.tabs.sendMessage(tab.id, { type: "SPOToolkitOpenPowerAppsPopout" }, (res) => {
+          if (chrome.runtime.lastError) resolve({ ok: false, error: chrome.runtime.lastError.message });
+          else resolve(res || { ok: false });
+        });
+      });
+    }
+
+    let res = await sendOpen();
+    if (!res?.ok) {
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ["powerAppsToolkitPopout.js"],
+        });
+      } catch (_) {}
+      res = await sendOpen();
+    }
+    if (res?.ok) {
+      window.close();
+      return;
+    }
+    console.warn("Could not open Power Apps popout", res?.error || res);
+  } catch (err) {
+    console.warn("Could not open Power Apps popout", err);
+  }
+}
+
 /** Dedupe recent list by full page path (not only site root). */
 function recentSharePointPageKey(url) {
   try {
@@ -845,44 +1050,70 @@ async function syncPopupToCurrentTab() {
   const tab = await resolvePopupContextTab(activeTab);
   const onToolkitSp = isToolkitSharePointPage(tab?.url);
 
-  if (!onToolkitSp) {
-    document.body.classList.add("not-on-sharepoint");
-    await populateRecentSharePointDropdown();
+  if (onToolkitSp) {
+    setPopupMode("sharepoint");
+    await addCurrentUrlToRecentSharePoint(tab.url, tab.title || "");
+
+    const tabColumns = document.getElementById("tabColumns");
+    const tabViewManager = document.getElementById("tabViewManager");
+    const tabReports = document.getElementById("tabReports");
+    let isListPage = false;
+    const listTabHint = "Open a list or library view to use this tab.";
+    function applyListOnlyTabs(enabled) {
+      [tabColumns, tabViewManager, tabReports].forEach((el) => {
+        if (!el) return;
+        el.style.removeProperty("display");
+        el.disabled = !enabled;
+        el.title = enabled ? "" : listTabHint;
+      });
+    }
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, { action: "checkListPage" });
+      isListPage = !!response?.isListPage;
+      applyListOnlyTabs(isListPage);
+    } catch (_) {
+      applyListOnlyTabs(false);
+    }
+
+    const { popupActiveTab } = await chrome.storage.local.get("popupActiveTab");
+    let id = popupActiveTab && TAB_IDS.includes(popupActiveTab) ? popupActiveTab : "quicklinks";
+    if ((id === "searchSchema" || id === "viewManager" || id === "reports") && !isListPage) {
+      id = "quicklinks";
+    }
+    const tabEl = document.querySelector(".tab[data-tab=\"" + id + "\"]");
+    if (tabEl && tabEl.offsetParent !== null) switchToTab(id);
+    else switchToTab("quicklinks");
     return;
   }
 
-  document.body.classList.remove("not-on-sharepoint");
-  await addCurrentUrlToRecentSharePoint(tab.url, tab.title || "");
+  // Not SharePoint — Power Platform URL and/or Dynamics runtime (Level Up).
+  if (await shouldUsePowerAppsMode(tab)) {
+    try {
+      if (tab?.id != null) {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ["levelup/content.js"],
+        });
+      }
+    } catch (_) {
+      /* may already be injected via content_scripts / activeTab */
+    }
+    powerAppsRuntimeConnected = tab?.id != null && (await isPowerAppsDynamicsRuntime(tab.id));
+    // Ensure the in-page popout content script is present on model-driven apps (do not auto-open).
+    if (powerAppsRuntimeConnected && tab?.id != null) {
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ["powerAppsToolkitPopout.js"],
+        });
+      } catch (_) {}
+    }
+    setPopupMode("powerapps");
+    return;
+  }
 
-  const tabColumns = document.getElementById("tabColumns");
-  const tabViewManager = document.getElementById("tabViewManager");
-  const tabReports = document.getElementById("tabReports");
-  let isListPage = false;
-  const listTabHint = "Open a list or library view to use this tab.";
-  function applyListOnlyTabs(enabled) {
-    [tabColumns, tabViewManager, tabReports].forEach((el) => {
-      if (!el) return;
-      el.style.removeProperty("display");
-      el.disabled = !enabled;
-      el.title = enabled ? "" : listTabHint;
-    });
-  }
-  try {
-    const response = await chrome.tabs.sendMessage(tab.id, { action: "checkListPage" });
-    isListPage = !!response?.isListPage;
-    applyListOnlyTabs(isListPage);
-  } catch (_) {
-    applyListOnlyTabs(false);
-  }
-
-  const { popupActiveTab } = await chrome.storage.local.get("popupActiveTab");
-  let id = popupActiveTab && TAB_IDS.includes(popupActiveTab) ? popupActiveTab : "quicklinks";
-  if ((id === "searchSchema" || id === "viewManager" || id === "reports") && !isListPage) {
-    id = "quicklinks";
-  }
-  const tabEl = document.querySelector(".tab[data-tab=\"" + id + "\"]");
-  if (tabEl && tabEl.offsetParent !== null) switchToTab(id);
-  else switchToTab("quicklinks");
+  setPopupMode("none");
+  await populateRecentSharePointDropdown();
 }
 
 // Restore last active tab on open; when not on SharePoint, show message + recent sites only
@@ -903,6 +1134,10 @@ async function syncPopupToCurrentTab() {
 
 document.getElementById("recentSharePointSelect")?.addEventListener("change", function () {
   if (this.value) goToSelectedSharePointSite();
+});
+
+document.getElementById("btnOpenPowerAppsSidebar")?.addEventListener("click", () => {
+  openPowerAppsPopout();
 });
 
 document.addEventListener("visibilitychange", () => {
@@ -1823,7 +2058,7 @@ async function runExport(selectedColumns = null) {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id || !isToolkitSharePointPage(tab.url)) {
-      setStatus(tab?.id ? "Open a SharePoint list or library page first." : "No active tab.", "error");
+      setStatus(tab?.id ? "Open a SharePoint site page first." : "No active tab.", "error");
       return;
     }
 
@@ -1831,6 +2066,7 @@ async function runExport(selectedColumns = null) {
     const siteUrl = (ctx.webAbsoluteUrl || "").replace(/\/$/, "");
     const listId = ctx.pageListId || "";
     const viewId = ctx.viewId || "";
+    window.__reportCurrentListId = listId;
 
     setStatus("Starting export…", "info");
     let response;
@@ -1846,10 +2082,29 @@ async function runExport(selectedColumns = null) {
       const matrixMaxItems = document.getElementById("matrixMaxItems");
       const matrixPageSize = document.getElementById("matrixPageSize");
       const matrixPrefs = saveMatrixPrefs();
+      const needsListPicker = reportType === "exportCSV" || reportType === "folderCount" || reportType === "pathLengths";
+      let selectedLists = needsListPicker ? getSelectedReportLists() : [];
+      if (needsListPicker && !selectedLists.length && !(window.__reportListPlan && window.__reportListPlan.length)) {
+        await loadReportListPlan();
+        selectedLists = getSelectedReportLists();
+      }
+      if (needsListPicker && !selectedLists.length) {
+        setStatus("Select at least one list or library (Load lists, then check items).", "error");
+        return;
+      }
+      if (needsListPicker && (reportType === "folderCount" || reportType === "pathLengths")) {
+        selectedLists = selectedLists.filter((e) => e.baseTemplate === 101);
+        if (!selectedLists.length) {
+          setStatus("Folder count and path length reports require at least one document library.", "error");
+          return;
+        }
+      }
+      const effectiveSiteUrl = selectedLists.length === 1 ? String(selectedLists[0].siteUrl || siteUrl).replace(/\/$/, "") : siteUrl;
+      const effectiveListId = selectedLists.length === 1 ? normalizeListGuid(selectedLists[0].listId) : listId;
       const msg = {
         action: "runExportCSV",
-        siteUrl,
-        listId,
+        siteUrl: effectiveSiteUrl,
+        listId: effectiveListId,
         viewId,
         exportFilename: "", // Extension builds: sitename_listname_datetime.ext
         pageLimit,
@@ -1864,7 +2119,14 @@ async function runExport(selectedColumns = null) {
         matrixSharingLinkFetchAll: !!(document.getElementById("chkMatrixSharingLinkFetchAll") && document.getElementById("chkMatrixSharingLinkFetchAll").checked),
         matrixMaxListItems: matrixMaxItems ? parseInt(matrixMaxItems.value, 10) || 2000 : matrixPrefs.maxListItems,
         matrixListItemPageSize: matrixPageSize ? parseInt(matrixPageSize.value, 10) || 5000 : matrixPrefs.listItemPageSize,
-        matrixSelectedPaths: getSelectedMatrixSitePaths()
+        matrixSelectedPaths: getSelectedMatrixSitePaths(),
+        reportSelectedLists: selectedLists.length ? selectedLists : null,
+        rootSiteTitle: selectedLists.length > 1 ? (() => {
+          try {
+            const segs = new URL(siteUrl).pathname.replace(/\/$/, "").split("/").filter(Boolean);
+            return segs.length ? segs[segs.length - 1] : "Site";
+          } catch (_) { return "Site"; }
+        })() : null
       };
       response = await chrome.tabs.sendMessage(tab.id, msg);
     } catch (sendErr) {
@@ -1877,7 +2139,7 @@ async function runExport(selectedColumns = null) {
 
     const statusMessage = (response?.message != null && response.message !== "")
       ? response.message
-      : (response?.ok ? "Export started. Watch the progress console below." : (response?.error || "Export failed."));
+      : (response?.ok ? "Export running in a background tab. Keep working here — open the background tab for Snake and live progress." : (response?.error || "Export failed."));
     setStatus(statusMessage, response?.ok ? "info" : "error");
     if (response?.ok) {
       refreshExportProgressConsole();
@@ -1930,18 +2192,25 @@ function toggleReportOptions() {
   if (!reportSelect || !reportOptions) return;
   const value = reportSelect.value;
   const exportOptionsRow = document.getElementById("exportOptionsRow");
+  const reportListsRow = document.getElementById("reportListsRow");
   const matrixWholeSiteRow = document.getElementById("matrixWholeSiteRow");
   const matrixOptionsPanel = document.getElementById("matrixOptionsPanel");
   const showExportFormat = value === "exportCSV";
+  const showReportLists = value === "exportCSV" || value === "folderCount" || value === "pathLengths";
   const showMatrixSites = value === "permissionsMatrix";
-  reportOptions.style.display = showExportFormat || showMatrixSites ? "flex" : "none";
+  reportOptions.style.display = showExportFormat || showMatrixSites || showReportLists ? "flex" : "none";
+  if (reportListsRow) reportListsRow.style.display = showReportLists ? "" : "none";
   if (matrixWholeSiteRow) matrixWholeSiteRow.style.display = showMatrixSites ? "" : "none";
   if (matrixOptionsPanel) matrixOptionsPanel.classList.toggle("visible", showMatrixSites);
   if (exportOptionsRow) exportOptionsRow.style.display = showExportFormat ? "" : "none";
   if (btnChooseColumns) btnChooseColumns.style.display = showExportFormat ? "" : "none";
+  if (showReportLists && window.__reportListPlan && window.__reportListPlan.length) {
+    renderReportListsList(window.__reportListPlan);
+  }
 }
 
 const MATRIX_PREFS_KEY = "matrixExportPrefs";
+const REPORT_EXPORT_PREFS_KEY = "reportExportPrefs";
 
 function normalizeMatrixSiteKey(siteUrl) {
   if (!siteUrl) return "";
@@ -1987,6 +2256,44 @@ async function loadMatrixPrefs() {
     list.innerHTML = '<span class="form-hint">Click Load sites for this site.</span>';
     window.__matrixSitePlan = [];
   }
+
+  const rp = await new Promise((resolve) => chrome.storage.local.get([REPORT_EXPORT_PREFS_KEY], (r) => resolve(r[REPORT_EXPORT_PREFS_KEY] || {})));
+  let reportSiteKey = siteKey;
+  let listId = "";
+  let onListPage = false;
+  let reportSiteUrl = "";
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.url && isToolkitSharePointPage(tab.url)) {
+      const ctx = parseContextFromUrl(tab.url);
+      listId = ctx.pageListId || "";
+      reportSiteUrl = (ctx.webAbsoluteUrl || "").replace(/\/$/, "");
+      try {
+        const pc = await chrome.tabs.sendMessage(tab.id, { action: "getPageContext" });
+        if (pc && pc.ok) {
+          listId = String(pc.pageListId || listId || "").replace(/[{}]/g, "");
+          reportSiteUrl = String(pc.webAbsoluteUrl || reportSiteUrl).replace(/\/$/, "");
+        }
+        const chk = await chrome.tabs.sendMessage(tab.id, { action: "checkListPage" });
+        onListPage = !!(chk && chk.isListPage);
+      } catch (_) {}
+    }
+  } catch (_) {}
+  window.__reportCurrentListId = listId;
+  window.__reportOnListPage = onListPage;
+  window.__reportSiteUrl = reportSiteUrl;
+  window.__reportSiteKey = reportSiteKey;
+  const reportListsEl = document.getElementById("reportListsList");
+  if (reportSiteKey && rp.siteKey === reportSiteKey && Array.isArray(rp.listPlan) && rp.listPlan.length) {
+    const selectionCtx = { listId, onListPage, siteUrl: reportSiteUrl };
+    const defaultKeys = defaultReportListSelectionKeys(rp.listPlan, listId, onListPage, reportSiteUrl);
+    renderReportListsList(rp.listPlan, defaultKeys, selectionCtx);
+    saveReportExportPrefs({ siteKey: reportSiteKey, listPlan: rp.listPlan, selectedKeys: defaultKeys });
+  } else if (reportListsEl) {
+    reportListsEl.innerHTML = '<span class="form-hint">Click Load lists for this site.</span>';
+    window.__reportListPlan = [];
+    if (reportSiteKey) void loadReportListPlan();
+  }
 }
 
 function saveMatrixPrefs(extra) {
@@ -2017,6 +2324,153 @@ function getSelectedMatrixSitePaths() {
   return Array.from(list.querySelectorAll("input[type=checkbox]:checked")).map((cb) => cb.dataset.path).filter(Boolean);
 }
 
+function normalizeListGuid(g) {
+  return String(g || "").replace(/[{}]/g, "").toUpperCase();
+}
+
+function reportListEntryKey(entry) {
+  return (String(entry.siteUrl || "").replace(/\/$/, "") + "|" + normalizeListGuid(entry.listId)).toLowerCase();
+}
+
+function defaultReportListSelectionKeys(entries, currentListId, onListPage, currentSiteUrl) {
+  const normCurrent = normalizeListGuid(currentListId);
+  if (onListPage && normCurrent) {
+    const siteNorm = String(currentSiteUrl || "").replace(/\/$/, "").toLowerCase();
+    let matches = entries.filter((e) => {
+      if (normalizeListGuid(e.listId) !== normCurrent) return false;
+      if (!siteNorm) return true;
+      return String(e.siteUrl || "").replace(/\/$/, "").toLowerCase() === siteNorm;
+    });
+    if (!matches.length) {
+      matches = entries.filter((e) => normalizeListGuid(e.listId) === normCurrent);
+    }
+    if (matches.length) return matches.map(reportListEntryKey);
+    return [];
+  }
+  return entries.map(reportListEntryKey);
+}
+
+function getSelectedReportLists() {
+  const list = document.getElementById("reportListsList");
+  if (!list) return [];
+  const selectedKeys = new Set(
+    Array.from(list.querySelectorAll("input[type=checkbox]:checked")).map((cb) => cb.dataset.key).filter(Boolean)
+  );
+  return (window.__reportListPlan || []).filter((entry) => selectedKeys.has(reportListEntryKey(entry))).map((entry) => ({
+    siteUrl: entry.siteUrl,
+    listId: entry.listId,
+    listTitle: entry.listTitle,
+    siteTitle: entry.siteTitle,
+    sitePath: entry.sitePath || "",
+    baseTemplate: entry.baseTemplate,
+    viewUrl: entry.viewUrl || ""
+  }));
+}
+
+function renderReportListsList(entries, selectedKeys, selectionCtx) {
+  const list = document.getElementById("reportListsList");
+  if (!list) return;
+  window.__reportListPlan = entries || [];
+  const reportType = reportSelect && reportSelect.value ? reportSelect.value : "exportCSV";
+  const libOnly = reportType === "folderCount" || reportType === "pathLengths";
+  const ctx = selectionCtx || {};
+  const keys = selectedKeys || defaultReportListSelectionKeys(
+    window.__reportListPlan,
+    ctx.listId || window.__reportCurrentListId || "",
+    ctx.onListPage != null ? ctx.onListPage : !!window.__reportOnListPage,
+    ctx.siteUrl || window.__reportSiteUrl || ""
+  );
+  const sel = new Set((keys || []).map((k) => String(k).toLowerCase()));
+  if (!window.__reportListPlan.length) {
+    list.innerHTML = '<span class="form-hint">No lists loaded.</span>';
+    return;
+  }
+  list.innerHTML = "";
+  let lastSite = "";
+  window.__reportListPlan.forEach((entry) => {
+    if (libOnly && entry.baseTemplate !== 101) return;
+    const key = reportListEntryKey(entry);
+    const siteLabel = entry.siteTitle || entry.sitePath || entry.siteUrl || "";
+    if (siteLabel !== lastSite) {
+      lastSite = siteLabel;
+      const heading = document.createElement("div");
+      heading.className = "matrix-site-item";
+      heading.innerHTML = '<strong style="opacity:.85">' + siteLabel + "</strong>";
+      list.appendChild(heading);
+    }
+    const id = "rpt-list-" + key.replace(/[^a-zA-Z0-9]/g, "_");
+    const div = document.createElement("div");
+    div.className = "matrix-site-item";
+    div.innerHTML =
+      '<input type="checkbox" id="' + id + '" data-key="' + key.replace(/"/g, "&quot;") + '" ' +
+      (sel.has(key.toLowerCase()) ? "checked" : "") + ' />' +
+      '<label for="' + id + '"><strong>' + (entry.listTitle || entry.listId) + "</strong>" +
+      '<div class="matrix-site-meta">' + (entry.isLibrary ? "Library" : "List") + " · " + (entry.itemCount || 0) + " items</div></label>";
+    list.appendChild(div);
+  });
+  if (!list.children.length) {
+    list.innerHTML = '<span class="form-hint">No document libraries found. Folder/path reports require libraries.</span>';
+  }
+}
+
+function saveReportExportPrefs(extra) {
+  const prefs = Object.assign({
+    siteKey: window.__reportSiteKey || "",
+    includeSubsites: document.getElementById("chkMatrixIncludeSubsites") ? document.getElementById("chkMatrixIncludeSubsites").checked : true,
+    listPlan: window.__reportListPlan || [],
+    selectedKeys: Array.from(document.querySelectorAll("#reportListsList input[type=checkbox]:checked")).map((cb) => cb.dataset.key).filter(Boolean)
+  }, extra || {});
+  chrome.storage.local.set({ [REPORT_EXPORT_PREFS_KEY]: prefs });
+  return prefs;
+}
+
+async function loadReportListPlan() {
+  const list = document.getElementById("reportListsList");
+  const chkSubs = document.getElementById("chkMatrixIncludeSubsites");
+  if (list) list.innerHTML = '<div class="panel-loading">Loading lists…</div>';
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id || !isToolkitSharePointPage(tab.url)) {
+      if (list) list.innerHTML = '<span class="form-hint">Open a SharePoint site page first.</span>';
+      return;
+    }
+    const ctx = parseContextFromUrl(tab.url);
+    const siteUrl = (ctx.webAbsoluteUrl || "").replace(/\/$/, "");
+    window.__reportSiteKey = normalizeMatrixSiteKey(siteUrl);
+    window.__reportSiteUrl = siteUrl;
+    let listId = ctx.pageListId || "";
+    let onListPage = false;
+    try {
+      const pc = await chrome.tabs.sendMessage(tab.id, { action: "getPageContext" });
+      if (pc && pc.ok) {
+        listId = String(pc.pageListId || listId || "").replace(/[{}]/g, "");
+        window.__reportSiteUrl = String(pc.webAbsoluteUrl || siteUrl).replace(/\/$/, "");
+      }
+      const chk = await chrome.tabs.sendMessage(tab.id, { action: "checkListPage" });
+      onListPage = !!(chk && chk.isListPage);
+    } catch (_) {}
+    window.__reportCurrentListId = listId;
+    window.__reportOnListPage = onListPage;
+    const res = await chrome.tabs.sendMessage(tab.id, {
+      action: "getReportListPlan",
+      siteUrl: window.__reportSiteUrl || siteUrl,
+      includeSubsites: chkSubs ? chkSubs.checked : true,
+      librariesOnly: false
+    });
+    if (!res || !res.ok) {
+      if (list) list.innerHTML = '<span class="form-hint">' + ((res && res.error) || "Failed to load lists.") + "</span>";
+      return;
+    }
+    const entries = res.entries || [];
+    const selectionCtx = { listId, onListPage, siteUrl: window.__reportSiteUrl || siteUrl };
+    const selectedKeys = defaultReportListSelectionKeys(entries, listId, onListPage, selectionCtx.siteUrl);
+    renderReportListsList(entries, selectedKeys, selectionCtx);
+    saveReportExportPrefs({ siteKey: window.__reportSiteKey, listPlan: entries, selectedKeys });
+  } catch (e) {
+    if (list) list.innerHTML = '<span class="form-hint">Error: ' + e.message + "</span>";
+  }
+}
+
 function renderMatrixSitesList(plan, selectedPaths) {
   const list = document.getElementById("matrixSitesList");
   if (!list) return;
@@ -2036,7 +2490,7 @@ function renderMatrixSitesList(plan, selectedPaths) {
       '<input type="checkbox" id="' + id + '" data-path="' + path.replace(/"/g, "&quot;") + '" ' +
       (sel.has(path.toLowerCase()) ? "checked" : "") + ' />' +
       '<label for="' + id + '"><strong>' + (entry.title || path) + '</strong>' +
-      '<div class="matrix-site-meta">' + path + " · " + (entry.listCount || 0) + " lists · " + (entry.itemCount || 0) + " items</div></label>";
+      '<div class="matrix-site-meta">' + path + (entry.listCount || entry.itemCount ? " · " + (entry.listCount || 0) + " lists · " + (entry.itemCount || 0) + " items" : "") + "</div></label>";
     list.appendChild(div);
   });
 }
@@ -2045,6 +2499,7 @@ async function loadMatrixScanPlan() {
   const list = document.getElementById("matrixSitesList");
   const chkSubs = document.getElementById("chkMatrixIncludeSubsites");
   if (list) list.innerHTML = '<div class="panel-loading">Loading site inventory…</div>';
+  setStatus("Loading sites… large sites can take up to a minute.", "info");
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id || !isToolkitSharePointPage(tab.url)) {
@@ -2065,6 +2520,7 @@ async function loadMatrixScanPlan() {
     }
     renderMatrixSitesList(res.plan || [], (res.plan || []).map((e) => e.path));
     saveMatrixPrefs({ sitePlan: res.plan || [], siteKey: window.__matrixSiteKey });
+    setStatus("Loaded " + (res.plan || []).length + " site(s). Select subsites to scan, then Run.", "ok");
   } catch (e) {
     if (list) list.innerHTML = '<span class="form-hint">Error: ' + e.message + "</span>";
   }
@@ -2247,6 +2703,16 @@ document.getElementById("exportProgressCancel")?.addEventListener("click", () =>
 });
 
 document.getElementById("btnMatrixLoadSites")?.addEventListener("click", () => loadMatrixScanPlan());
+document.getElementById("btnReportListsLoad")?.addEventListener("click", () => loadReportListPlan());
+document.getElementById("btnReportListsAll")?.addEventListener("click", () => {
+  document.querySelectorAll("#reportListsList input[type=checkbox]").forEach((cb) => { cb.checked = true; });
+  saveReportExportPrefs();
+});
+document.getElementById("btnReportListsNone")?.addEventListener("click", () => {
+  document.querySelectorAll("#reportListsList input[type=checkbox]").forEach((cb) => { cb.checked = false; });
+  saveReportExportPrefs();
+});
+document.getElementById("reportListsList")?.addEventListener("change", () => saveReportExportPrefs());
 document.getElementById("btnMatrixSitesAll")?.addEventListener("click", () => {
   document.querySelectorAll("#matrixSitesList input[type=checkbox]").forEach((cb) => { cb.checked = true; });
   saveMatrixPrefs();

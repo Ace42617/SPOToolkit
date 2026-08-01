@@ -6123,8 +6123,10 @@ function Show-PermissionsMatrixExportPicker {
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
 
-    $script:PickerPlan     = @()
-    $script:PickerSiteRows = [System.Collections.Generic.List[object]]::new()
+    $script:PickerPlan             = @()
+    $script:PickerSiteRows         = [System.Collections.Generic.List[object]]::new()
+    $script:PickerSuppressCheck    = $false
+    $script:PickerBlockCheckUntil  = [datetime]::MinValue
 
     # ── Rounded-button helper ──────────────────────────────────────────────────
     # Applies owner-drawn rounded corners to any WinForms Button. The button's own
@@ -6157,7 +6159,15 @@ function Show-PermissionsMatrixExportPicker {
             $g.PixelOffsetMode  = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
             $parentBg = if ($s.Parent) { $s.Parent.BackColor } else { [System.Drawing.Color]::White }
             $g.Clear($parentBg)
-            $fillClr = if ($t.Hover) { $t.HoverBg } else { $t.Bg }
+            $fillClr = if (-not $s.Enabled) {
+                [System.Drawing.ColorTranslator]::FromHtml('#C5C9D8')
+            }
+            elseif ($t.Hover) { $t.HoverBg }
+            else { $t.Bg }
+            $fgClr = if (-not $s.Enabled) {
+                [System.Drawing.ColorTranslator]::FromHtml('#F7F8FC')
+            }
+            else { $t.Fg }
             $d    = $t.R * 2
             $rc   = New-Object System.Drawing.Rectangle(0, 0, ($s.Width - 1), ($s.Height - 1))
             $path = New-Object System.Drawing.Drawing2D.GraphicsPath
@@ -6168,20 +6178,21 @@ function Show-PermissionsMatrixExportPicker {
             $path.CloseAllFigures()
             $br = New-Object System.Drawing.SolidBrush($fillClr)
             $g.FillPath($br, $path); $br.Dispose()
-            if ($t.Brd -and $t.BrdClr) {
+            if ($t.Brd -and $t.BrdClr -and $s.Enabled) {
                 $pen = New-Object System.Drawing.Pen($t.BrdClr, 1)
                 $g.DrawPath($pen, $path); $pen.Dispose()
             }
             $sf = New-Object System.Drawing.StringFormat
             $sf.Alignment     = [System.Drawing.StringAlignment]::Center
             $sf.LineAlignment = [System.Drawing.StringAlignment]::Center
-            $tb = New-Object System.Drawing.SolidBrush($t.Fg)
+            $tb = New-Object System.Drawing.SolidBrush($fgClr)
             # Unescape WinForms accelerator encoding (&&→&) for DrawString
             $displayText = $s.Text -replace '&&', '&'
             $g.DrawString($displayText, $s.Font, $tb,
                 [System.Drawing.RectangleF]::new(0, 0, $s.Width, $s.Height), $sf)
             $tb.Dispose(); $sf.Dispose(); $path.Dispose()
         })
+        $Btn.Add_EnabledChanged({ param($s, $e); $s.Invalidate() })
     }
 
     # ── Design tokens ─────────────────────────────────────────────────────────
@@ -6452,7 +6463,7 @@ function Show-PermissionsMatrixExportPicker {
     $scanIdx = $cmbScanMode.Items.IndexOf($DefaultItemScanMode)
     $cmbScanMode.SelectedIndex = if ($scanIdx -ge 0) { $scanIdx } else { 0 }
 
-    # Row 2 ── folder links + open workbook
+    # Row 2 ── folder links + open workbook + all-inherited
     $chkFolderLinks          = New-Object System.Windows.Forms.CheckBox
     $chkFolderLinks.Text     = 'Include folder sharing links'
     $chkFolderLinks.Location = New-Object System.Drawing.Point(14, 66)
@@ -6466,6 +6477,20 @@ function Show-PermissionsMatrixExportPicker {
     $chkOpenWorkbook.AutoSize = $true
     $chkOpenWorkbook.Checked  = $DefaultOpenWorkbookOnComplete
     $chkOpenWorkbook.ForeColor = $clrTextPri
+
+    $chkAllInherited          = New-Object System.Windows.Forms.CheckBox
+    $chkAllInherited.Text     = 'Include ALL inherited rows  *** SLOW ***'
+    $chkAllInherited.Location = New-Object System.Drawing.Point(410, 66)
+    $chkAllInherited.AutoSize = $true
+    $chkAllInherited.Checked  = $DefaultIncludeAllInheritedItemsInMatrix
+    $chkAllInherited.ForeColor = if ($DefaultIncludeAllInheritedItemsInMatrix) { $clrCoral } else { $clrTextPri }
+    $chkAllInherited.Add_CheckedChanged({
+        $chkAllInherited.ForeColor = if ($chkAllInherited.Checked) {
+            [System.Drawing.ColorTranslator]::FromHtml('#F04E65')
+        } else {
+            [System.Drawing.ColorTranslator]::FromHtml('#1C1F4A')
+        }
+    })
 
     # Row 3 ── numeric spinners
     $lblMaxItems          = New-Object System.Windows.Forms.Label
@@ -6509,28 +6534,38 @@ function Show-PermissionsMatrixExportPicker {
     $numWeight.Maximum   = 30
     $numWeight.Value     = [Math]::Max($numWeight.Minimum, [Math]::Min($numWeight.Maximum, $DefaultUniquePermProgressWeight))
 
-    # Row 4 ── all-inherited (coral when checked)
-    $chkAllInherited          = New-Object System.Windows.Forms.CheckBox
-    $chkAllInherited.Text     = 'Include ALL inherited rows  *** SLOW ***'
-    $chkAllInherited.Location = New-Object System.Drawing.Point(14, 152)
-    $chkAllInherited.AutoSize = $true
-    $chkAllInherited.Checked  = $DefaultIncludeAllInheritedItemsInMatrix
-    $chkAllInherited.ForeColor = if ($DefaultIncludeAllInheritedItemsInMatrix) { $clrCoral } else { $clrTextPri }
-    $chkAllInherited.Add_CheckedChanged({
-        $chkAllInherited.ForeColor = if ($chkAllInherited.Checked) {
-            [System.Drawing.ColorTranslator]::FromHtml('#F04E65')
-        } else {
-            [System.Drawing.ColorTranslator]::FromHtml('#1C1F4A')
-        }
-    })
-
+    $cardOpts.Height = 160
     $cardOpts.Controls.AddRange(@(
         $lblOptsSec,
         $chkExpand, $chkSubsites, $lblScanMode, $cmbScanMode,
-        $chkFolderLinks, $chkOpenWorkbook,
-        $lblMaxItems, $numMaxItems, $lblPageSize, $numPageSize, $lblWeight, $numWeight,
-        $chkAllInherited
+        $chkFolderLinks, $chkOpenWorkbook, $chkAllInherited,
+        $lblMaxItems, $numMaxItems, $lblPageSize, $numPageSize, $lblWeight, $numWeight
     ))
+
+    # Hover help for export options
+    $tipOpts = New-Object System.Windows.Forms.ToolTip
+    $tipOpts.AutoPopDelay = 25000
+    $tipOpts.InitialDelay = 450
+    $tipOpts.ReshowDelay = 200
+    $tipOpts.ShowAlways = $true
+    $tipOpts.SetToolTip($chkExpand, "When checked, SharePoint groups are expanded into individual member rows in the Permissions Matrix (slower).`nThe Group Members sheet always lists membership even when this is off.")
+    $tipOpts.SetToolTip($chkSubsites, "When checked, recursively includes subsites under the connected site when loading the scan inventory.`nReload sites after changing this.")
+    $tipOpts.SetToolTip($lblScanMode, "How list items are paged when checking for unique permissions.")
+    $tipOpts.SetToolTip($cmbScanMode, "Rest: fastest when supported.`nAuto: adaptive — prefers REST on larger lists.`nCsom: use CSOM paging for all lists (fallback if REST unique-perm field is missing).")
+    $tipOpts.SetToolTip($chkFolderLinks, "When checked, sharing-link APIs are called for folders with unique permissions.`nFiles are always checked for sharing links.")
+    $tipOpts.SetToolTip($chkOpenWorkbook, "When checked, opens the finished Excel workbook when the export completes.")
+    $tipOpts.SetToolTip($chkAllInherited, "When checked, emits matrix rows for inherited items too (not only unique-permission boundaries).`nMuch slower and produces far more rows. Prefer leaving this off unless you need every inherited path.")
+    $tipOpts.SetToolTip($lblMaxItems, "For lists larger than this, still scan every item for unique permissions, but only emit matrix rows for unique-permission items.`nInherited items are covered by list/site rows.")
+    $tipOpts.SetToolTip($numMaxItems, "For lists larger than this, still scan every item for unique permissions, but only emit matrix rows for unique-permission items.`nInherited items are covered by list/site rows.")
+    $tipOpts.SetToolTip($lblPageSize, "Items requested per REST/CSOM page when scanning libraries.`nSmaller values show progress sooner; larger values (up to 5000) reduce round-trips.")
+    $tipOpts.SetToolTip($numPageSize, "Items requested per REST/CSOM page when scanning libraries.`nSmaller values show progress sooner; larger values (up to 5000) reduce round-trips.")
+    $tipOpts.SetToolTip($lblWeight, "How much a unique-permission item counts toward overall progress vs a normal item.`nHigher values keep the progress bar moving during slow permission fetches.")
+    $tipOpts.SetToolTip($numWeight, "How much a unique-permission item counts toward overall progress vs a normal item.`nHigher values keep the progress bar moving during slow permission fetches.")
+    $tipOpts.SetToolTip($txtUrl, "SharePoint site URL, or the tenant admin URL (https://contoso-admin.sharepoint.com) to enumerate site collections.")
+    $tipOpts.SetToolTip($txtClient, "Entra app (client) ID used for interactive PnP sign-in.")
+    $tipOpts.SetToolTip($btnLoad, "Sign in and load the site/list inventory for the URL above.")
+    $tipOpts.SetToolTip($btnRun, "Start the permissions matrix export for the selected lists and libraries.")
+    $tipOpts.SetToolTip($btnCancel, "Close the picker without running an export.")
 
     # ── SITES TO SCAN card ────────────────────────────────────────────────────
     # ListView is hosted in a Dock=Fill panel so it always uses remaining card height.
@@ -6571,7 +6606,31 @@ function Show-PermissionsMatrixExportPicker {
     $btnNone.ForeColor                 = $clrGreen
     $btnNone.FlatAppearance.BorderSize = 0
 
-    $pnlSitesHdr.Controls.AddRange(@($lblSitesSec, $btnAll, $btnNone))
+    $btnExpandAll                           = New-Object System.Windows.Forms.Button
+    $btnExpandAll.Text                      = 'Expand'
+    $btnExpandAll.Size                      = New-Object System.Drawing.Size(58, 22)
+    $btnExpandAll.Location                  = New-Object System.Drawing.Point(696, 6)
+    $btnExpandAll.Anchor                    = 'Top, Right'
+    $btnExpandAll.FlatStyle                 = 'Flat'
+    $btnExpandAll.BackColor                 = $clrSoft
+    $btnExpandAll.ForeColor                 = $clrGreen
+    $btnExpandAll.FlatAppearance.BorderSize = 0
+
+    $btnCollapseAll                           = New-Object System.Windows.Forms.Button
+    $btnCollapseAll.Text                      = 'Collapse'
+    $btnCollapseAll.Size                      = New-Object System.Drawing.Size(66, 22)
+    $btnCollapseAll.Location                  = New-Object System.Drawing.Point(758, 6)
+    $btnCollapseAll.Anchor                    = 'Top, Right'
+    $btnCollapseAll.FlatStyle                 = 'Flat'
+    $btnCollapseAll.BackColor                 = $clrSoft
+    $btnCollapseAll.ForeColor                 = $clrGreen
+    $btnCollapseAll.FlatAppearance.BorderSize = 0
+
+    $pnlSitesHdr.Controls.AddRange(@($lblSitesSec, $btnExpandAll, $btnCollapseAll, $btnAll, $btnNone))
+    $tipOpts.SetToolTip($btnExpandAll, "Expand all sites to show their lists and libraries.")
+    $tipOpts.SetToolTip($btnCollapseAll, "Collapse all sites to hide list/library rows.")
+    $tipOpts.SetToolTip($btnAll, "Select every site and all of its lists/libraries.")
+    $tipOpts.SetToolTip($btnNone, "Deselect every site and all of its lists/libraries.")
 
     $pnlSitesList           = New-Object System.Windows.Forms.Panel
     $pnlSitesList.Dock      = 'Fill'
@@ -6586,12 +6645,13 @@ function Show-PermissionsMatrixExportPicker {
     $lv.GridLines     = $false
     $lv.BackColor     = [System.Drawing.Color]::White
     $lv.BorderStyle   = 'FixedSingle'
-    [void]$lv.Columns.Add('Site name', 220)
-    [void]$lv.Columns.Add('Path', 300)
+    [void]$lv.Columns.Add('Site / list', 240)
+    [void]$lv.Columns.Add('Path', 280)
     [void]$lv.Columns.Add('Type', 70)
-    [void]$lv.Columns.Add('Lists', 55, 'Right')
+    [void]$lv.Columns.Add('Lists', 70, 'Right')
     [void]$lv.Columns.Add('Items', 90, 'Right')
     [void]$lv.Columns.Add('Unique', 70, 'Center')
+    $tipOpts.SetToolTip($lv, "Check sites or individual lists/libraries to include in the export.`nClick ▶ to expand a site. Site checkbox selects/deselects all lists under that site.")
 
     $pnlSitesList.Controls.Add($lv)
 
@@ -6650,11 +6710,13 @@ function Show-PermissionsMatrixExportPicker {
             $lblLoadStatus.Width = $cw - $pad - $pad
         }
 
-        # Sites card: All/None buttons (ListView width follows Dock=Fill host panel)
+        # Sites card: Expand/Collapse/All/None buttons (ListView width follows Dock=Fill host panel)
         $hw = $pnlSitesHdr.ClientSize.Width
         if ($hw -gt 0) {
             $btnNone.Left = $hw - $pad - $btnNone.Width
-            $btnAll.Left  = $hw - $pad - $btnNone.Width - 4 - $btnAll.Width
+            $btnAll.Left  = $btnNone.Left - 4 - $btnAll.Width
+            $btnCollapseAll.Left = $btnAll.Left - 4 - $btnCollapseAll.Width
+            $btnExpandAll.Left   = $btnCollapseAll.Left - 4 - $btnExpandAll.Width
         }
 
         # Footer: Cancel and Run export buttons
@@ -6722,14 +6784,191 @@ function Show-PermissionsMatrixExportPicker {
         Set-PickerLoadProgress -Current $Current -Total $Total -Message $Message -Mode Determinate
     }
 
-    function Update-EstimateLabel {
-        $selected = @($script:PickerSiteRows | Where-Object { $_.ListItem -and $_.ListItem.Checked })
-        if ($selected.Count -lt 1) {
-            $lblEst.Text = 'Select at least one site to export.'
+    function Update-SiteRowTitle {
+        param($SiteRow)
+
+        $glyph = if (@($SiteRow.ListRows).Count -lt 1) {
+            '   '
+        }
+        elseif ($SiteRow.Expanded) {
+            "$([char]0x25BC) "  # ▼
+        }
+        else {
+            "$([char]0x25B6) "  # ▶
+        }
+        $SiteRow.ListItem.Text = $glyph + $SiteRow.Title
+    }
+
+    function Test-ListRowChecked {
+        param($ListRow)
+        if (-not $ListRow) { return $false }
+        return [bool]$ListRow.IsChecked
+    }
+
+    function Set-ListRowChecked {
+        param(
+            $ListRow,
+            [bool] $Checked
+        )
+        if (-not $ListRow) { return }
+        $ListRow.IsChecked = $Checked
+        if ($ListRow.ListItem -and $ListRow.ListItem.Checked -ne $Checked) {
+            $ListRow.ListItem.Checked = $Checked
+        }
+    }
+
+    function Set-SiteRowExpanded {
+        param(
+            $SiteRow,
+            [bool] $Expanded
+        )
+
+        if (-not $SiteRow -or $SiteRow.Kind -ne 'Site') { return }
+        if (@($SiteRow.ListRows).Count -lt 1) {
+            $SiteRow.Expanded = $false
+            Update-SiteRowTitle -SiteRow $SiteRow
             return
         }
 
-        $planSlice = @($selected | ForEach-Object { $_.PlanEntry })
+        if ($SiteRow.Expanded -eq $Expanded) {
+            Update-SiteRowTitle -SiteRow $SiteRow
+            return
+        }
+
+        $SiteRow.Expanded = $Expanded
+        Update-SiteRowTitle -SiteRow $SiteRow
+
+        $script:PickerSuppressCheck = $true
+        try {
+            if ($Expanded) {
+                $idx = $SiteRow.ListItem.Index + 1
+                $lv.BeginUpdate()
+                try {
+                    foreach ($lr in @($SiteRow.ListRows)) {
+                        if ($lr.ListItem -and -not $lv.Items.Contains($lr.ListItem)) {
+                            # Inserting a detached ListViewItem resets Checked — restore from IsChecked after insert.
+                            $lv.Items.Insert($idx, $lr.ListItem) | Out-Null
+                            $idx++
+                        }
+                    }
+                }
+                finally {
+                    $lv.EndUpdate()
+                }
+                foreach ($lr in @($SiteRow.ListRows)) {
+                    if ($lr.ListItem) {
+                        $lr.ListItem.Checked = [bool]$lr.IsChecked
+                    }
+                }
+                Update-SiteRowSummary -SiteRow $SiteRow
+            }
+            else {
+                foreach ($lr in @($SiteRow.ListRows)) {
+                    if ($lr.ListItem -and $lv.Items.Contains($lr.ListItem)) {
+                        # Capture current UI state before detach.
+                        $lr.IsChecked = [bool]$lr.ListItem.Checked
+                        $lv.Items.Remove($lr.ListItem)
+                    }
+                }
+            }
+        }
+        finally {
+            $script:PickerSuppressCheck = $false
+        }
+
+        Sync-SitesListViewHeight
+    }
+
+    function Get-PickerFilteredPlan {
+        $result = [System.Collections.Generic.List[object]]::new()
+        foreach ($siteRow in $script:PickerSiteRows) {
+            $checkedLists = @(
+                $siteRow.ListRows |
+                    Where-Object { Test-ListRowChecked $_ } |
+                    ForEach-Object { $_.List }
+            )
+            if ($checkedLists.Count -lt 1) { continue }
+
+            $items = 0
+            foreach ($l in $checkedLists) { $items += [int]$l.ItemCount }
+            [void]$result.Add([pscustomobject]@{
+                Site  = $siteRow.PlanEntry.Site
+                Lists = $checkedLists
+                Items = $items
+            })
+        }
+        return @($result)
+    }
+
+    function Update-SiteRowSummary {
+        param($SiteRow)
+
+        $total = @($SiteRow.ListRows).Count
+        $sel = 0
+        $items = 0
+        foreach ($lr in @($SiteRow.ListRows)) {
+            if (Test-ListRowChecked $lr) {
+                $sel++
+                $items += [int]$lr.List.ItemCount
+            }
+        }
+
+        if ($total -lt 1) {
+            $SiteRow.ListItem.SubItems[3].Text = '0'
+        }
+        elseif ($sel -eq $total) {
+            $SiteRow.ListItem.SubItems[3].Text = [string]$total
+        }
+        else {
+            $SiteRow.ListItem.SubItems[3].Text = ('{0}/{1}' -f $sel, $total)
+        }
+        $SiteRow.ListItem.SubItems[4].Text = ('{0:N0}' -f $items)
+        Update-SiteRowTitle -SiteRow $SiteRow
+
+        $wantChecked = ($sel -gt 0)
+        if ($SiteRow.ListItem.Checked -ne $wantChecked) {
+            $wasSuppressed = $script:PickerSuppressCheck
+            $script:PickerSuppressCheck = $true
+            try { $SiteRow.ListItem.Checked = $wantChecked }
+            finally { $script:PickerSuppressCheck = $wasSuppressed }
+        }
+    }
+
+    function Set-SiteListsChecked {
+        param(
+            $SiteRow,
+            [bool] $Checked
+        )
+
+        $script:PickerSuppressCheck = $true
+        try {
+            foreach ($lr in @($SiteRow.ListRows)) {
+                Set-ListRowChecked -ListRow $lr -Checked $Checked
+            }
+            $wantSite = $Checked -and (@($SiteRow.ListRows).Count -gt 0)
+            if ($SiteRow.ListItem.Checked -ne $wantSite) {
+                $SiteRow.ListItem.Checked = $wantSite
+            }
+            Update-SiteRowSummary -SiteRow $SiteRow
+        }
+        finally {
+            $script:PickerSuppressCheck = $false
+        }
+    }
+
+    function Update-EstimateLabel {
+        if (@($script:PickerSiteRows).Count -lt 1) {
+            $btnRun.Enabled = $false
+            return
+        }
+
+        $planSlice = @(Get-PickerFilteredPlan)
+        $btnRun.Enabled = ($planSlice.Count -gt 0)
+        if ($planSlice.Count -lt 1) {
+            $lblEst.Text = 'Select at least one list or library to export.'
+            return
+        }
+
         $est = Get-PermissionsMatrixTimeEstimate -PlanEntries $planSlice `
             -ExpandGroups $chkExpand.Checked `
             -IncludeFolderSharingLinks $chkFolderLinks.Checked `
@@ -6744,43 +6983,92 @@ function Show-PermissionsMatrixExportPicker {
                 (Format-SecondsEstimate $est.ExportSeconds))
             ("Scope: {0} site(s) | {1:N0} items | {2:N0} lists/libraries | ~{3:N0} unique-perm items" -f `
                 $est.SiteCount, $est.TotalItems, $est.ListCount, $est.EstimatedUniqueItems)
-            ("Mode: {0}. All-inherited mode is slower but includes every inherited path." -f [string]$cmbScanMode.SelectedItem)
+            ("Mode: {0}. All-inherited mode is slower but includes every inherited path. Click ▶ to expand lists." -f [string]$cmbScanMode.SelectedItem)
         ) -join [Environment]::NewLine
     }
 
     function Populate-SiteList {
         param([object[]] $Plan)
 
-        $lv.Items.Clear()
-        [void]$script:PickerSiteRows.Clear()
-        $script:PickerPlan = @($Plan)
+        $script:PickerSuppressCheck = $true
+        try {
+            $lv.Items.Clear()
+            [void]$script:PickerSiteRows.Clear()
+            $script:PickerPlan = @($Plan)
 
-        foreach ($entry in @($Plan)) {
-            $site      = $entry.Site
-            $path      = [string]$site.ServerRelativeUrl
-            $title     = [string]$site.Title
-            $type      = if ($path -match '^/sites/[^/]+/.+') { 'Subsite' } else { 'Site' }
-            $listCount = @($entry.Lists).Count
-            $items     = [int]$entry.Items
-            $unique    = if ([bool]$site.HasUniqueRoleAssignments) { 'Yes' } else { 'No' }
+            $siteFont = New-Object System.Drawing.Font($lv.Font, [System.Drawing.FontStyle]::Bold)
+            $listColor = $clrTextMid
 
-            $item         = New-Object System.Windows.Forms.ListViewItem $title
-            $item.Checked = $true
-            [void]$item.SubItems.Add($path)
-            [void]$item.SubItems.Add($type)
-            [void]$item.SubItems.Add([string]$listCount)
-            [void]$item.SubItems.Add(('{0:N0}' -f $items))
-            [void]$item.SubItems.Add($unique)
-            [void]$lv.Items.Add($item)
+            foreach ($entry in @($Plan)) {
+                $site      = $entry.Site
+                $path      = [string]$site.ServerRelativeUrl
+                $title     = [string]$site.Title
+                if ([string]::IsNullOrWhiteSpace($title)) { $title = $path }
+                $type      = if ($path -match '^/sites/[^/]+/.+') { 'Subsite' } else { 'Site' }
+                $lists     = @($entry.Lists)
+                $listCount = $lists.Count
+                $items     = [int]$entry.Items
+                $unique    = if ([bool]$site.HasUniqueRoleAssignments) { 'Yes' } else { 'No' }
 
-            [void]$script:PickerSiteRows.Add([pscustomobject]@{
-                ListItem  = $item
-                PlanEntry = $entry
-                Path      = $path
-            })
+                $item         = New-Object System.Windows.Forms.ListViewItem $title
+                $item.Checked = ($listCount -gt 0)
+                $item.Font    = $siteFont
+                [void]$item.SubItems.Add($path)
+                [void]$item.SubItems.Add($type)
+                [void]$item.SubItems.Add([string]$listCount)
+                [void]$item.SubItems.Add(('{0:N0}' -f $items))
+                [void]$item.SubItems.Add($unique)
+                [void]$lv.Items.Add($item)
+
+                $siteRow = [pscustomobject]@{
+                    Kind      = 'Site'
+                    Title     = $title
+                    Expanded  = $false
+                    ListItem  = $item
+                    PlanEntry = $entry
+                    Path      = $path
+                    ListRows  = [System.Collections.Generic.List[object]]::new()
+                }
+                $item.Tag = $siteRow
+                [void]$script:PickerSiteRows.Add($siteRow)
+
+                foreach ($list in $lists) {
+                    $listTitle = [string]$list.Title
+                    $listPath  = ''
+                    try { $listPath = [string]$list.RootFolder.ServerRelativeUrl } catch { }
+                    $baseType  = [string]$list.BaseType
+                    $listType  = if ($baseType -eq 'DocumentLibrary') { 'Library' } else { 'List' }
+                    $listItems = [int]$list.ItemCount
+                    $listUnique = if ([bool]$list.HasUniqueRoleAssignments) { 'Yes' } else { 'No' }
+
+                    # Create list rows but keep them out of the ListView until the site is expanded.
+                    $listItem         = New-Object System.Windows.Forms.ListViewItem ('    ' + $listTitle)
+                    $listItem.Checked = $true
+                    $listItem.ForeColor = $listColor
+                    [void]$listItem.SubItems.Add($listPath)
+                    [void]$listItem.SubItems.Add($listType)
+                    [void]$listItem.SubItems.Add('')
+                    [void]$listItem.SubItems.Add(('{0:N0}' -f $listItems))
+                    [void]$listItem.SubItems.Add($listUnique)
+
+                    $listRow = [pscustomobject]@{
+                        Kind      = 'List'
+                        ListItem  = $listItem
+                        List      = $list
+                        SiteRow   = $siteRow
+                        IsChecked = $true
+                    }
+                    $listItem.Tag = $listRow
+                    [void]$siteRow.ListRows.Add($listRow)
+                }
+
+                Update-SiteRowSummary -SiteRow $siteRow
+            }
+        }
+        finally {
+            $script:PickerSuppressCheck = $false
         }
 
-        $btnRun.Enabled = ($lv.Items.Count -gt 0)
         Sync-SitesListViewHeight
         Update-EstimateLabel
     }
@@ -6790,15 +7078,109 @@ function Show-PermissionsMatrixExportPicker {
     $chkFolderLinks.Add_CheckedChanged($updateHandler)
     $chkAllInherited.Add_CheckedChanged($updateHandler)
     $cmbScanMode.Add_SelectedIndexChanged($updateHandler)
-    $lv.Add_ItemChecked($updateHandler)
+
+    $lv.Add_ItemCheck({
+        param($sender, $e)
+        # Allow programmatic updates (expand restore, All/None, site cascade).
+        if ($script:PickerSuppressCheck) { return }
+        # Cancel only the accidental toggle from an expand/collapse click.
+        if ([datetime]::UtcNow -lt $script:PickerBlockCheckUntil) {
+            $e.NewValue = $e.CurrentValue
+        }
+    })
+
+    $lv.Add_ItemChecked({
+        param($sender, $e)
+        if ($script:PickerSuppressCheck) { return }
+
+        $row = $e.Item.Tag
+        if (-not $row) { return }
+
+        if ($row.Kind -eq 'Site') {
+            Set-SiteListsChecked -SiteRow $row -Checked ([bool]$e.Item.Checked)
+        }
+        else {
+            $row.IsChecked = [bool]$e.Item.Checked
+            Update-SiteRowSummary -SiteRow $row.SiteRow
+        }
+
+        Update-EstimateLabel
+    })
+
+    $lv.Add_MouseDown({
+        param($sender, $e)
+        if ($e.Button -ne [System.Windows.Forms.MouseButtons]::Left) { return }
+
+        $hit = $lv.HitTest($e.Location)
+        if (-not $hit.Item) { return }
+        $row = $hit.Item.Tag
+        if (-not $row -or $row.Kind -ne 'Site') { return }
+        if (@($row.ListRows).Count -lt 1) { return }
+
+        $onLabel = ($hit.Location -band [System.Windows.Forms.ListViewHitTestLocations]::Label) -ne 0
+        if (-not $onLabel) { return }
+
+        $labelLeft = $hit.Item.Bounds.Left
+        try {
+            $labelLeft = $hit.Item.GetBounds([System.Windows.Forms.ItemBoundsPortion]::Label).Left
+        }
+        catch { }
+        $onGlyph = (($e.X - $labelLeft) -ge 0) -and (($e.X - $labelLeft) -lt 22)
+        $isDouble = $e.Clicks -ge 2
+
+        if ($onGlyph) {
+            $script:PickerBlockCheckUntil = [datetime]::UtcNow.AddMilliseconds(250)
+            if ($e.Clicks -gt 1) { return }
+            Set-SiteRowExpanded -SiteRow $row -Expanded (-not [bool]$row.Expanded)
+            return
+        }
+
+        if ($isDouble) {
+            $script:PickerBlockCheckUntil = [datetime]::UtcNow.AddMilliseconds(250)
+            Set-SiteRowExpanded -SiteRow $row -Expanded (-not [bool]$row.Expanded)
+        }
+    })
+
+    $lv.Add_KeyDown({
+        param($sender, $e)
+        if ($null -eq $lv.FocusedItem) { return }
+        $row = $lv.FocusedItem.Tag
+        if (-not $row -or $row.Kind -ne 'Site') { return }
+        if (@($row.ListRows).Count -lt 1) { return }
+
+        if ($e.KeyCode -eq [System.Windows.Forms.Keys]::Right -or $e.KeyCode -eq [System.Windows.Forms.Keys]::Add) {
+            Set-SiteRowExpanded -SiteRow $row -Expanded $true
+            $e.Handled = $true
+        }
+        elseif ($e.KeyCode -eq [System.Windows.Forms.Keys]::Left -or $e.KeyCode -eq [System.Windows.Forms.Keys]::Subtract) {
+            Set-SiteRowExpanded -SiteRow $row -Expanded $false
+            $e.Handled = $true
+        }
+    })
+
+    $btnExpandAll.Add_Click({
+        foreach ($row in $script:PickerSiteRows) {
+            Set-SiteRowExpanded -SiteRow $row -Expanded $true
+        }
+    })
+
+    $btnCollapseAll.Add_Click({
+        foreach ($row in $script:PickerSiteRows) {
+            Set-SiteRowExpanded -SiteRow $row -Expanded $false
+        }
+    })
 
     $btnAll.Add_Click({
-        foreach ($row in $script:PickerSiteRows) { $row.ListItem.Checked = $true }
+        foreach ($row in $script:PickerSiteRows) {
+            Set-SiteListsChecked -SiteRow $row -Checked $true
+        }
         Update-EstimateLabel
     })
 
     $btnNone.Add_Click({
-        foreach ($row in $script:PickerSiteRows) { $row.ListItem.Checked = $false }
+        foreach ($row in $script:PickerSiteRows) {
+            Set-SiteListsChecked -SiteRow $row -Checked $false
+        }
         Update-EstimateLabel
     })
 
@@ -6857,7 +7239,10 @@ Tenant admin lists all site URLs, but you only need member access on each site y
                     if ($skipped -gt 0) {
                         $lblLoadStatus.Text += " ($skipped inaccessible — skipped.)"
                     }
-                    $lblLoadStatus.Text += ' Uncheck sites you do not need.'
+                    $lblLoadStatus.Text += ' Uncheck sites or lists you do not need.'
+                }
+                else {
+                    $lblLoadStatus.Text += ' Uncheck lists/libraries you do not need.'
                 }
             }
         }
@@ -6876,9 +7261,15 @@ Tenant admin lists all site URLs, but you only need member access on each site y
     $script:PickerResult = $null
 
     $btnRun.Add_Click({
-        $selected = @($script:PickerSiteRows | Where-Object { $_.ListItem -and $_.ListItem.Checked })
-        if ($selected.Count -lt 1) {
-            [System.Windows.Forms.MessageBox]::Show($form, 'Select at least one site.', 'Validation', 'OK', 'Warning') | Out-Null
+        $selectedPlan = @(Get-PickerFilteredPlan)
+        if ($selectedPlan.Count -lt 1) {
+            [System.Windows.Forms.MessageBox]::Show(
+                $form,
+                'Select at least one list or library to export.',
+                'Validation',
+                'OK',
+                'Warning'
+            ) | Out-Null
             return
         }
 
@@ -6894,7 +7285,7 @@ Tenant admin lists all site URLs, but you only need member access on each site y
             MaxListItemsForFullMatrix        = [int]$numMaxItems.Value
             ListItemPageSize                 = [int]$numPageSize.Value
             UniquePermProgressWeight         = [int]$numWeight.Value
-            Plan                             = @($selected | ForEach-Object { $_.PlanEntry })
+            Plan                             = $selectedPlan
         }
         $form.DialogResult = [System.Windows.Forms.DialogResult]::OK
         $form.Close()
@@ -6906,8 +7297,10 @@ Tenant admin lists all site URLs, but you only need member access on each site y
     Set-RoundedButton $btnLoad    -Radius 7 -Bg $clrGreen   -Fg ([System.Drawing.Color]::White)
     Set-RoundedButton $btnRun     -Radius 7 -Bg $clrGreen   -Fg ([System.Drawing.Color]::White)
     Set-RoundedButton $btnCancel  -Radius 7 -Bg $clrBg      -Fg $clrTextMid -Border $true -BorderClr $clrBorder
-    Set-RoundedButton $btnAll     -Radius 5 -Bg $clrSoft    -Fg $clrGreen
-    Set-RoundedButton $btnNone    -Radius 5 -Bg $clrSoft    -Fg $clrGreen
+    Set-RoundedButton $btnAll         -Radius 5 -Bg $clrSoft    -Fg $clrGreen
+    Set-RoundedButton $btnNone        -Radius 5 -Bg $clrSoft    -Fg $clrGreen
+    Set-RoundedButton $btnExpandAll   -Radius 5 -Bg $clrSoft    -Fg $clrGreen
+    Set-RoundedButton $btnCollapseAll -Radius 5 -Bg $clrSoft    -Fg $clrGreen
 
     [void]$form.ShowDialog()
     return $script:PickerResult
@@ -6990,7 +7383,8 @@ Write-Verbose ("Role columns: {0}" -f ($S.RoleColumns -join ', '))
 if ($ExportPlanFromPicker) {
     $plan = @($ExportPlanFromPicker)
     $sites = @($plan | ForEach-Object { $_.Site })
-    Write-MatrixLog ("Sites to scan: {0} (from picker selection)" -f $sites.Count) -Level Phase
+    $pickerLists = ($plan | ForEach-Object { @($_.Lists).Count } | Measure-Object -Sum).Sum
+    Write-MatrixLog ("Sites to scan: {0} ({1} list(s)/libraries from picker selection)" -f $sites.Count, $pickerLists) -Level Phase
 }
 else {
     $plan = @(Get-PermissionsMatrixScanPlan -IncludeSubsites $IncludeSubsites)

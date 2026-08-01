@@ -15,8 +15,7 @@
       isXmlNameStartChar(code) ||
       (code >= 0x30 && code <= 0x39) ||
       code === 0x2d ||
-      code === 0x2e ||
-      code === 0x3a
+      code === 0x2e
     );
   }
 

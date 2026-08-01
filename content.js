@@ -138,7 +138,7 @@ const LISTS_LAUNCHER_PANEL_ID = "sp-toolkit-lists-panel";
 const LISTS_LAUNCHER_STYLE_ID = "sp-toolkit-lists-launcher-style";
 
 const LISTS_LAUNCHER_CSS =
-  "#" + LISTS_LAUNCHER_ID + "{--sp-toolkit-launcher-panel-gap:12px;--sp-toolkit-launcher-hover-dur:.52s;--sp-toolkit-launcher-hover-ease:cubic-bezier(0.33,1,0.68,1);position:fixed;right:14px;bottom:14px;left:auto;top:auto;z-index:2147483646;font-family:'Segoe UI',sans-serif;transition:opacity .15s ease-out;display:block;width:var(--sp-toolkit-launcher-size,58px);flex-shrink:0;box-sizing:border-box;touch-action:manipulation;}" +
+  "#" + LISTS_LAUNCHER_ID + "{--sp-toolkit-launcher-panel-gap:12px;--sp-toolkit-launcher-hover-dur:.52s;--sp-toolkit-launcher-hover-ease:cubic-bezier(0.33,1,0.68,1);position:fixed;right:14px;bottom:14px;left:auto;top:auto;z-index:2147483646;font-family:'DM Sans',system-ui,'Segoe UI',sans-serif;transition:opacity .15s ease-out;display:block;width:var(--sp-toolkit-launcher-size,58px);flex-shrink:0;box-sizing:border-box;touch-action:manipulation;}" +
   "#" + LISTS_LAUNCHER_ID + ".sp-toolkit-launcher-dragging .sp-toolkit-lists-btn{cursor:grabbing;touch-action:none;user-select:none;-webkit-user-select:none;transition:none!important;transform:none!important;box-shadow:0 6px 14px rgba(0,0,0,.25)!important;}" +
   "#" + LISTS_LAUNCHER_ID + ".sp-toolkit-launcher-dragging .sp-toolkit-lists-btn::before{animation:none!important;opacity:.35!important;box-shadow:none!important;}" +
   "#" + LISTS_LAUNCHER_ID + ".sp-toolkit-launcher-wiggle .sp-toolkit-lists-btn{animation:sp-toolkit-launcher-wiggle .12s ease-in-out infinite;}" +
@@ -278,9 +278,10 @@ const LISTS_LAUNCHER_CSS =
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-matrix-field input,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-matrix-field select{width:100%;max-width:100%;box-sizing:border-box;margin:0;padding:0 12px;border-radius:10px;font-size:12px;height:36px;min-height:36px;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-matrix-sites-block{display:flex;flex-direction:column;gap:10px;margin-top:4px;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-matrix-sites-block > .sp-toolkit-compass-label{margin:0;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-matrix-sites-toolbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-matrix-sites-list{max-height:140px;overflow:auto;border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:6px 8px;font-size:11px;line-height:1.35;margin:0;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-matrix-sites-list{border-color:#E4E6F5;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-matrix-sites-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 8px;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-matrix-sites-toolbar .sp-toolkit-compass-secondary{flex:0 0 auto;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-matrix-sites-list,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-report-lists-list{max-height:min(42vh,360px);min-height:180px;overflow:auto;border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:6px 8px;font-size:12px;line-height:1.4;margin:0;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-matrix-sites-list,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-report-lists-list{border-color:#E4E6F5;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-matrix-site-item{margin:0 0 6px;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-progress-console{display:none;flex-direction:column;min-height:0;border:1px solid rgba(255,255,255,.15);border-radius:8px;overflow:hidden;background:rgba(0,0,0,.18);}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-progress-console.sp-toolkit-export-console-visible{display:flex;}" +
@@ -646,7 +647,8 @@ const LISTS_LAUNCHER_PARITY_CSS = `
   margin-left:auto!important;
 }
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-toolbar-icon-btn.sp-toolkit-compass-universal-search-btn,
-#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-toolbar-icon-btn.sp-toolkit-compass-settings-btn{
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-toolbar-icon-btn.sp-toolkit-compass-settings-btn,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-toolbar-icon-btn.sp-toolkit-compass-close-btn{
   box-sizing:border-box!important;
   width:auto!important;
   height:28px!important;
@@ -664,15 +666,24 @@ const LISTS_LAUNCHER_PARITY_CSS = `
   transition:background .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease!important;
   box-shadow:0 1px 0 rgba(255,255,255,.04) inset!important;
 }
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-toolbar-icon-btn.sp-toolkit-compass-close-btn{
+  font-size:16px!important;
+  font-weight:500!important;
+  line-height:1!important;
+  padding:0!important;
+  width:28px!important;
+}
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-toolbar-icon-btn.sp-toolkit-compass-universal-search-btn:hover,
-#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-toolbar-icon-btn.sp-toolkit-compass-settings-btn:hover{
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-toolbar-icon-btn.sp-toolkit-compass-settings-btn:hover,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-toolbar-icon-btn.sp-toolkit-compass-close-btn:hover{
   background:var(--brand-faint)!important;
   color:var(--brand)!important;
   border-color:var(--brand-mid)!important;
   box-shadow:0 0 0 1px rgba(55,174,28,.12)!important;
 }
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-toolbar-icon-btn.sp-toolkit-compass-universal-search-btn:focus-visible,
-#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-toolbar-icon-btn.sp-toolkit-compass-settings-btn:focus-visible{
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-toolbar-icon-btn.sp-toolkit-compass-settings-btn:focus-visible,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-toolbar-icon-btn.sp-toolkit-compass-close-btn:focus-visible{
   outline:2px solid var(--brand-mid)!important;
   outline-offset:2px!important;
 }
@@ -847,18 +858,21 @@ const LISTS_LAUNCHER_PARITY_CSS = `
   transition:color .2s ease!important;
 }
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-tab-indicator{
-  position:absolute;
+  position:absolute!important;
   left:0;
   bottom:0;
   height:2.5px;
   width:28px;
   border-radius:2px 2px 0 0;
   background:linear-gradient(90deg,var(--brand-mid),var(--brand));
-  transition:left .16s cubic-bezier(.4,0,.2,1), width .16s cubic-bezier(.4,0,.2,1), opacity .16s ease;
+  transition:left .22s cubic-bezier(.4,0,.2,1), width .22s cubic-bezier(.4,0,.2,1), opacity .16s ease;
   opacity:0;
   pointer-events:none;
   z-index:4;
   box-shadow:0 0 10px rgba(55,174,28,.35);
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-tab-indicator.sp-toolkit-tab-indicator-instant{
+  transition:none!important;
 }
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-scroll{
   background:var(--bg)!important;
@@ -1755,6 +1769,288 @@ const LISTS_LAUNCHER_PARITY_CSS = `
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-matrix-mode .sp-toolkit-matrix-sites-block > .sp-toolkit-compass-label{
   flex:0 0 auto!important;
 }
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-pane[data-compass-pane='reports'] .sp-toolkit-compass-scroll.sp-toolkit-reports-lists-scroll{
+  display:flex!important;
+  flex-direction:column!important;
+  min-height:0!important;
+  overflow:hidden!important;
+  padding-bottom:12px!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-lists-mode.sp-toolkit-compass-reports-host,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-lists-mode .sp-toolkit-compass-reports-main,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-lists-mode .sp-toolkit-compass-reports-config,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-lists-mode .sp-toolkit-compass-report-opts,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-lists-mode .sp-toolkit-report-lists-row,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-lists-mode .sp-toolkit-report-lists-block{
+  flex:1!important;
+  min-height:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-lists-mode .sp-toolkit-compass-reports-status,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-lists-mode .sp-toolkit-compass-reports-config > .sp-toolkit-compass-field:not(.sp-toolkit-report-lists-block),
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-lists-mode .sp-toolkit-report-lists-toolbar,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-lists-mode .sp-toolkit-report-lists-filter{
+  flex:0 0 auto!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-reports-main.sp-toolkit-reports-export-tracking .sp-toolkit-compass-reports-config{
+  display:none!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-reports-main.sp-toolkit-reports-export-tracking .sp-toolkit-export-progress-console{
+  flex:1!important;
+  display:flex!important;
+  flex-direction:column!important;
+  min-height:0!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-lists-mode .sp-toolkit-compass-reports-config{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  overflow:hidden!important;
+  display:flex!important;
+  flex-direction:column!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-lists-mode .sp-toolkit-compass-report-opts{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-lists-mode .sp-toolkit-report-lists-row,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-lists-mode .sp-toolkit-report-lists-block{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-lists-mode .sp-toolkit-report-lists-list{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-reports-footer{
+  flex:0 0 auto!important;
+  display:flex!important;
+  flex-direction:column!important;
+  gap:8px!important;
+  margin-top:8px!important;
+  padding-top:10px!important;
+  border-top:1px solid var(--border,rgba(255,255,255,.12))!important;
+  background:var(--bg)!important;
+  position:relative!important;
+  z-index:3!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-bundle-hint{
+  margin:0!important;
+  font-size:11px!important;
+  line-height:1.35!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-lists-mode .sp-toolkit-compass-reports-footer,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-lists-mode .sp-toolkit-compass-reports-footer .sp-toolkit-export-row,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-lists-mode .sp-toolkit-compass-reports-footer .sp-toolkit-compass-btnrow{
+  flex:0 0 auto!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-lists-filter{
+  width:100%!important;
+  max-width:100%!important;
+  box-sizing:border-box!important;
+  margin:0 0 8px!important;
+  padding:0 12px!important;
+  height:36px!important;
+  min-height:36px!important;
+  border-radius:8px!important;
+  font-size:12px!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-lists-count{
+  margin-left:auto!important;
+  font-size:11px!important;
+  font-weight:600!important;
+  opacity:.85!important;
+  white-space:nowrap!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-lists-list.sp-toolkit-report-lists-tree{
+  padding:4px 6px 8px!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-tree-node{
+  --tree-indent:14px;
+  margin:0 0 4px!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-tree-site-heading{
+  display:flex!important;
+  align-items:flex-start!important;
+  gap:4px!important;
+  margin:0 0 2px!important;
+  padding:6px 6px 6px 2px!important;
+  border-radius:8px!important;
+  background:var(--surface-2,rgba(255,255,255,.06))!important;
+  border:1px solid var(--border,rgba(255,255,255,.1))!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-tree-toggle{
+  flex:0 0 auto!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:22px!important;
+  height:28px!important;
+  margin:0!important;
+  padding:0!important;
+  border:none!important;
+  border-radius:6px!important;
+  background:transparent!important;
+  color:inherit!important;
+  cursor:pointer!important;
+  opacity:.85!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-tree-toggle:hover{
+  background:rgba(55,174,28,.12)!important;
+  opacity:1!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-tree-chevron{
+  display:block!important;
+  width:0!important;
+  height:0!important;
+  border-top:5px solid transparent!important;
+  border-bottom:5px solid transparent!important;
+  border-left:6px solid currentColor!important;
+  transition:transform .16s cubic-bezier(.4,0,.2,1)!important;
+  transform:rotate(0deg)!important;
+  transform-origin:40% 50%!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-tree-node:not(.sp-toolkit-report-tree-collapsed) > .sp-toolkit-report-tree-site-heading .sp-toolkit-report-tree-chevron{
+  transform:rotate(90deg)!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-tree-site-label{
+  display:flex!important;
+  align-items:flex-start!important;
+  gap:8px!important;
+  min-width:0!important;
+  flex:1!important;
+  margin:0!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-tree-site-cb{
+  margin-top:6px!important;
+  flex-shrink:0!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-tree-site-text{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:2px!important;
+  min-width:0!important;
+  flex:1!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-tree-site-meta{
+  font-size:10px!important;
+  line-height:1.35!important;
+  opacity:.72!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-tree-body{
+  margin:0 0 6px 0!important;
+  padding-left:calc(var(--tree-indent) + 6px)!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-tree-node.sp-toolkit-report-tree-collapsed > .sp-toolkit-report-tree-body{
+  display:none!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-tree-lists{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:2px!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-lists-site-heading{
+  position:sticky!important;
+  top:0!important;
+  z-index:2!important;
+  margin:10px 0 6px!important;
+  padding:8px 8px 6px!important;
+  border-radius:8px!important;
+  background:var(--surface-2,rgba(255,255,255,.06))!important;
+  border:1px solid var(--border,rgba(255,255,255,.1))!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-lists-site-heading:first-child{
+  margin-top:0!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-lists-site-title{
+  font-size:12px!important;
+  font-weight:700!important;
+  line-height:1.35!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-lists-site-path{
+  margin-top:2px!important;
+  font-size:10px!important;
+  line-height:1.35!important;
+  opacity:.78!important;
+  word-break:break-all!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-list-item{
+  margin:0 0 4px!important;
+  padding:6px 8px!important;
+  border-radius:8px!important;
+  border:1px solid transparent!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-list-item:hover{
+  background:rgba(55,174,28,.08)!important;
+  border-color:rgba(55,174,28,.18)!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-list-item label{
+  align-items:flex-start!important;
+  gap:10px!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-list-item input{
+  margin-top:3px!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-list-item-main{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:4px!important;
+  min-width:0!important;
+  flex:1!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-list-item-title{
+  display:flex!important;
+  align-items:center!important;
+  gap:8px!important;
+  min-width:0!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-list-item-title strong{
+  font-size:12px!important;
+  line-height:1.35!important;
+  word-break:break-word!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-list-badge{
+  display:inline-flex!important;
+  align-items:center!important;
+  flex-shrink:0!important;
+  padding:2px 7px!important;
+  border-radius:999px!important;
+  font-size:10px!important;
+  font-weight:700!important;
+  letter-spacing:.02em!important;
+  text-transform:uppercase!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-list-badge.library{
+  background:rgba(55,174,28,.16)!important;
+  color:#86efac!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-list-badge.list{
+  background:rgba(96,165,250,.16)!important;
+  color:#93c5fd!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID}.sp-toolkit-lists-panel-light .sp-toolkit-report-list-badge.library{
+  background:#e8f7e4!important;
+  color:#2d8d1b!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID}.sp-toolkit-lists-panel-light .sp-toolkit-report-list-badge.list{
+  background:#eef3ff!important;
+  color:#3d4fd6!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-list-meta{
+  font-size:11px!important;
+  line-height:1.35!important;
+  opacity:.78!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-list-item.sp-toolkit-report-list-hidden,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-lists-site-heading.sp-toolkit-report-list-hidden,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-tree-node.sp-toolkit-report-list-hidden{
+  display:none!important;
+}
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-matrix-mode .sp-toolkit-matrix-sites-list{
   flex:1!important;
   min-height:0!important;
@@ -1976,6 +2272,7 @@ const LISTS_LAUNCHER_PARITY_CSS = `
 #${LISTS_LAUNCHER_PANEL_ID} #refinableMappingsOut,
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-export-progress-log,
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-matrix-sites-list,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-lists-list,
 #${LISTS_LAUNCHER_PANEL_ID} .column-creator-site-list{
   -webkit-mask-image:linear-gradient(to bottom,#000 0,#000 calc(100% - 2.75rem),rgba(0,0,0,.65) calc(100% - 1.25rem),transparent 100%);
   mask-image:linear-gradient(to bottom,#000 0,#000 calc(100% - 2.75rem),rgba(0,0,0,.65) calc(100% - 1.25rem),transparent 100%);
@@ -2318,7 +2615,7 @@ function updateLauncherPanelPlacement(container) {
   else container.classList.add("sp-toolkit-launcher-panel-anchor-right");
   const panel = document.getElementById(LISTS_LAUNCHER_PANEL_ID);
   if (panel && typeof window.SPOT_updateCompassTabIndicator === "function") {
-    window.SPOT_updateCompassTabIndicator(panel);
+    window.SPOT_updateCompassTabIndicator(panel, true);
   }
 }
 
@@ -3152,7 +3449,9 @@ function initListsLauncherUI() {
     "<button type=\"button\" class=\"sp-toolkit-toolbar-icon-btn sp-toolkit-compass-settings-btn\" id=\"btnCompassPanelSettings\" title=\"Extension settings\" aria-label=\"Open extension settings\">" +
     "<svg class=\"sp-toolkit-compass-header-search-svg\" viewBox=\"0 0 24 24\" aria-hidden=\"true\" focusable=\"false\"><path fill=\"currentColor\" d=\"M11.983 3.5a1 1 0 0 1 .894.553l.535 1.06a6.96 6.96 0 0 1 1.221.508l1.107-.366a1 1 0 0 1 1.09.268l1.061 1.06a1 1 0 0 1 .268 1.09l-.366 1.108c.18.397.34.805.478 1.22l1.09.55a1 1 0 0 1 .552.894v1.5a1 1 0 0 1-.553.894l-1.06.535a6.93 6.93 0 0 1-.508 1.221l.366 1.107a1 1 0 0 1-.268 1.09l-1.06 1.061a1 1 0 0 1-1.09.268l-1.108-.366a6.955 6.955 0 0 1-1.22.478l-.55 1.09a1 1 0 0 1-.894.552h-1.5a1 1 0 0 1-.894-.553l-.535-1.06a6.93 6.93 0 0 1-1.221-.508l-1.107.366a1 1 0 0 1-1.09-.268L5.13 18.74a1 1 0 0 1-.268-1.09l.366-1.108a6.95 6.95 0 0 1-.478-1.22l-1.09-.55a1 1 0 0 1-.552-.894v-1.5a1 1 0 0 1 .553-.894l1.06-.535a6.955 6.955 0 0 1 .508-1.221l-.366-1.107a1 1 0 0 1 .268-1.09L6.19 5.38a1 1 0 0 1 1.09-.268l1.108.366c.397-.18.805-.34 1.22-.478l.55-1.09a1 1 0 0 1 .894-.552h1.5zm.017 5.25a3.5 3.5 0 1 0 0 7.001 3.5 3.5 0 0 0 0-7.001z\"/></svg>" +
     "</button></div>" +
-    "<div class=\"dark-toggle\"><button type=\"button\" id=\"spToolkitPanelThemeToggle\" class=\"dark-toggle-btn\" title=\"Early Riser\" aria-label=\"Theme: Early Riser. Click to switch to Night Owl.\"><span class=\"dark-toggle-knob\" aria-hidden=\"true\"></span></button></div></div>" +
+    "<div class=\"dark-toggle\"><button type=\"button\" id=\"spToolkitPanelThemeToggle\" class=\"dark-toggle-btn\" title=\"Early Riser\" aria-label=\"Theme: Early Riser. Click to switch to Night Owl.\"><span class=\"dark-toggle-knob\" aria-hidden=\"true\"></span></button></div>" +
+    "<button type=\"button\" class=\"sp-toolkit-toolbar-icon-btn sp-toolkit-compass-close-btn\" id=\"btnCompassPanelClose\" title=\"Close\" aria-label=\"Close panel\">×</button>" +
+    "</div>" +
     "<div class=\"sp-toolkit-compass-nav-tabs tab-bar\"></div></div></div>" +
     "<div class=\"sp-toolkit-lists-panel-body\">" +
     "<div class=\"sp-toolkit-compass-panes\">" +
@@ -3198,6 +3497,7 @@ function initListsLauncherUI() {
   });
   const themeToggleBtn = panel.querySelector("#spToolkitPanelThemeToggle");
   const settingsBtn = panel.querySelector("#btnCompassPanelSettings");
+  const closeBtn = panel.querySelector("#btnCompassPanelClose");
   if (themeToggleBtn) {
     themeToggleBtn.addEventListener("click", function (e) {
       e.preventDefault();
@@ -3214,6 +3514,13 @@ function initListsLauncherUI() {
       if (typeof window.SPOT_openCompassToolkitSettings === "function") {
         window.SPOT_openCompassToolkitSettings();
       }
+    });
+  }
+  if (closeBtn) {
+    closeBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (listsLauncherExpanded) toggleListsLauncher();
     });
   }
   container.appendChild(panel);
@@ -3325,6 +3632,266 @@ function spotRefreshExportProgressUI() {
   }
 }
 
+function exportDownloadTimeoutMs(detail) {
+  let bytes = 0;
+  if (detail && detail.text != null) bytes = String(detail.text).length;
+  else if (detail && detail.bufferBase64) bytes = Math.floor(String(detail.bufferBase64).length * 0.75);
+  else if (detail && detail.buffer) bytes = detail.buffer.byteLength || 0;
+  return Math.min(900000, Math.max(60000, 60000 + Math.floor(bytes / (512 * 1024)) * 5000));
+}
+
+function waitForChromeDownload(downloadId, objectUrl, timeoutMs) {
+  timeoutMs = timeoutMs || exportDownloadTimeoutMs();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      clearInterval(pollTimer);
+      try { chrome.downloads.onChanged.removeListener(onChanged); } catch (_) {}
+      if (objectUrl) {
+        setTimeout(function () {
+          try { URL.revokeObjectURL(objectUrl); } catch (_) {}
+        }, 5000);
+      }
+      if (err) reject(err);
+      else resolve();
+    };
+    const checkItem = (item) => {
+      if (!item) return;
+      if (item.state === "complete") finish(null);
+      else if (item.state === "interrupted") finish(new Error(item.error || "Download interrupted"));
+    };
+    const onChanged = (delta) => {
+      if (delta.id !== downloadId) return;
+      if (delta.error && delta.error.current) finish(new Error(String(delta.error.current)));
+      if (!delta.state || !delta.state.current) return;
+      if (delta.state.current === "complete") finish(null);
+      else if (delta.state.current === "interrupted") finish(new Error("Download interrupted"));
+    };
+    const timer = setTimeout(function () { finish(new Error("Download timed out")); }, timeoutMs);
+    const pollTimer = setInterval(function () {
+      if (settled) return;
+      try {
+        chrome.downloads.search({ id: downloadId }, (items) => {
+          checkItem(items && items[0]);
+        });
+      } catch (_) {}
+    }, 2000);
+    try { chrome.downloads.onChanged.addListener(onChanged); } catch (_) {}
+    try {
+      chrome.downloads.search({ id: downloadId }, (items) => {
+        checkItem(items && items[0]);
+      });
+    } catch (_) {}
+  });
+}
+
+function normalizeExportDownloadDetail(detail) {
+  detail = detail || {};
+  if (detail.bufferBase64) {
+    const binary = atob(String(detail.bufferBase64));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return {
+      path: detail.path,
+      mime: detail.mime,
+      buffer: bytes.buffer
+    };
+  }
+  return detail;
+}
+
+async function performExportDownload(detail, options) {
+  options = options || {};
+  const waitForComplete = options.waitForComplete !== false;
+  detail = normalizeExportDownloadDetail(detail);
+  if (!chrome.downloads || typeof chrome.downloads.download !== "function") {
+    throw new Error("Downloads API unavailable — reload the extension.");
+  }
+  let blob;
+  if (detail.text != null) {
+    blob = new Blob([detail.text], { type: detail.mime || "text/csv;charset=utf-8" });
+  } else if (detail.buffer) {
+    blob = new Blob([detail.buffer], { type: detail.mime || "application/octet-stream" });
+  } else {
+    throw new Error("Empty download payload");
+  }
+  const objectUrl = URL.createObjectURL(blob);
+  const filename = String(detail.path || "export.dat").replace(/\\/g, "/");
+  const timeoutMs = exportDownloadTimeoutMs(detail);
+  await new Promise((resolve, reject) => {
+    chrome.downloads.download({
+      url: objectUrl,
+      filename,
+      conflictAction: "uniquify",
+      saveAs: false
+    }, (downloadId) => {
+      if (chrome.runtime.lastError || downloadId == null) {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error(chrome.runtime.lastError?.message || "Download failed"));
+        return;
+      }
+      if (!waitForComplete) {
+        resolve();
+        waitForChromeDownload(downloadId, objectUrl, timeoutMs).catch(function () {
+          setTimeout(function () {
+            try { URL.revokeObjectURL(objectUrl); } catch (_) {}
+          }, 15000);
+        });
+        return;
+      }
+      waitForChromeDownload(downloadId, objectUrl, timeoutMs).then(resolve, reject);
+    });
+  });
+}
+
+const exportDownloadChunkTransfers = new Map();
+
+function mergeExportDownloadChunks(state) {
+  const merged = new Uint8Array(state.totalBytes);
+  let offset = 0;
+  for (let i = 0; i < state.totalChunks; i++) {
+    const chunk = state.chunks[i];
+    if (!chunk) throw new Error("Missing download chunk " + (i + 1) + " of " + state.totalChunks);
+    const view = chunk instanceof ArrayBuffer
+      ? new Uint8Array(chunk)
+      : new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+    merged.set(view, offset);
+    offset += view.byteLength;
+  }
+  return merged.buffer;
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const chunk = 8192;
+  const parts = [];
+  for (let i = 0; i < bytes.length; i += chunk) {
+    parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + chunk)));
+  }
+  return btoa(parts.join(""));
+}
+
+async function relayExportDownloadPerform(detail) {
+  const normalized = normalizeExportDownloadDetail(detail || {});
+  if (!normalized.path && detail && detail.path) normalized.path = detail.path;
+  if (normalized.text == null && !normalized.buffer) {
+    throw new Error("Export download request missing payload.");
+  }
+  const payload = {
+    path: normalized.path,
+    mime: normalized.mime
+  };
+  if (normalized.text != null) payload.text = normalized.text;
+  else payload.bufferBase64 = arrayBufferToBase64(normalized.buffer);
+  const timeoutMs = Math.min(45000, exportDownloadTimeoutMs(normalized));
+  const resp = await new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(function () {
+      if (settled) return;
+      settled = true;
+      reject(new Error("Download relay timed out"));
+    }, timeoutMs);
+    try {
+      chrome.runtime.sendMessage({ type: "SPCSVExportDownloadPerform", detail: payload }, (response) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message || "Download relay failed"));
+          return;
+        }
+        resolve(response || { ok: false, error: "Download handler did not respond" });
+      });
+    } catch (err) {
+      clearTimeout(timer);
+      reject(err);
+    }
+  });
+  if (!resp || !resp.ok) {
+    throw new Error((resp && resp.error) || "Download failed");
+  }
+}
+
+async function relayExportDownloadRequest(detail) {
+  const requestId = detail && detail.requestId;
+  const reply = (ok, error) => {
+    window.postMessage({
+      __spcsv: true,
+      type: "SPCSVExportDownloadResult",
+      detail: { requestId, ok: !!ok, error: error || "" }
+    }, "*");
+  };
+  if (!requestId) return;
+  try {
+    await relayExportDownloadPerform(detail);
+    reply(true);
+  } catch (err) {
+    reply(false, err && err.message ? err.message : String(err));
+  }
+}
+
+async function handleExportDownloadChunk(detail) {
+  detail = detail || {};
+  const requestId = detail.requestId;
+  if (!requestId) return;
+  let state = exportDownloadChunkTransfers.get(requestId);
+  if (!state) {
+    state = {
+      requestId,
+      path: detail.path,
+      mime: detail.mime,
+      totalBytes: detail.totalBytes || 0,
+      totalChunks: detail.totalChunks || 0,
+      chunks: []
+    };
+    exportDownloadChunkTransfers.set(requestId, state);
+  }
+  state.chunks[detail.chunkIndex] = detail.buffer;
+}
+
+async function finalizeExportDownloadTransfer(detail) {
+  detail = detail || {};
+  const requestId = detail.requestId;
+  if (!requestId) return;
+  const state = exportDownloadChunkTransfers.get(requestId);
+  if (!state) {
+    window.postMessage({
+      __spcsv: true,
+      type: "SPCSVExportDownloadResult",
+      detail: { requestId, ok: false, error: "Download chunks missing" }
+    }, "*");
+    return;
+  }
+  exportDownloadChunkTransfers.delete(requestId);
+  try {
+    const buffer = mergeExportDownloadChunks(state);
+    await relayExportDownloadPerform({
+      requestId,
+      path: state.path,
+      mime: state.mime,
+      buffer
+    });
+    window.postMessage({
+      __spcsv: true,
+      type: "SPCSVExportDownloadResult",
+      detail: { requestId, ok: true, error: "" }
+    }, "*");
+  } catch (err) {
+    window.postMessage({
+      __spcsv: true,
+      type: "SPCSVExportDownloadResult",
+      detail: {
+        requestId,
+        ok: false,
+        error: err && err.message ? err.message : String(err)
+      }
+    }, "*");
+  }
+}
+
 function onPageMessage(e) {
   if (!e.data || e.data.__spcsv !== true) return;
   const d = e.data.detail || {};
@@ -3375,6 +3942,12 @@ function onPageMessage(e) {
     try {
       chrome.runtime.sendMessage({ type: "SPCSVExportCancel" });
     } catch (err) {}
+  } else if (e.data.type === "SPCSVExportDownloadRequest") {
+    void relayExportDownloadRequest(d.detail || {});
+  } else if (e.data.type === "SPCSVExportDownloadChunk") {
+    void handleExportDownloadChunk(d.detail || {});
+  } else if (e.data.type === "SPCSVExportDownloadChunkEnd") {
+    void finalizeExportDownloadTransfer(d.detail || {});
   }
 }
 
@@ -3467,6 +4040,10 @@ function runExportInjection(message, sendResponse, options) {
       params.matrixSelectedPaths = message.matrixSelectedPaths;
     }
   }
+  if (!isMatrixReport && Array.isArray(message.reportSelectedLists) && message.reportSelectedLists.length) {
+    params.reportSelectedLists = message.reportSelectedLists;
+    if (message.rootSiteTitle) params.rootSiteTitle = message.rootSiteTitle;
+  }
   let el = document.getElementById("spcsv-params-json");
   if (el) el.remove();
   el = document.createElement("script");
@@ -3495,46 +4072,18 @@ function runExportInjection(message, sendResponse, options) {
     (document.head || document.documentElement).appendChild(s);
   }
 
-  const needsXlsxPreload = format === "xlsx" || isMatrixReport;
+  const folderBundleReport = !isMatrixReport && (report === "exportCSV" || report === "folderCount" || report === "pathLengths");
+  const needsXlsxPreload = format === "xlsx" || isMatrixReport || folderBundleReport;
   if (needsXlsxPreload) {
-    const exportChain = isMatrixReport
-      ? [chrome.runtime.getURL("permissionsMatrixStyles.js"), chrome.runtime.getURL(exportScriptName)]
-      : [chrome.runtime.getURL(exportScriptName)];
-    const preloadScript = document.createElement("script");
-    preloadScript.src = chrome.runtime.getURL("jszip-preload.js");
-    preloadScript.onload = () => {
-      const jszipScript = document.createElement("script");
-      jszipScript.src = chrome.runtime.getURL("jszip.min.js");
-      jszipScript.onload = () => {
-        if (isMatrixReport) {
-          loadScriptChain(exportChain, () => {
-            sendResponse({ ok: true, message: "Export started. Watch the progress bar for status." });
-          }, () => {
-            finishProgress(false, "Failed to load export script.");
-            sendResponse({ ok: false, error: "Failed to load export script chain" });
-          });
-        } else {
-          const restoreScript = document.createElement("script");
-          restoreScript.src = chrome.runtime.getURL("jszip-restore.js") + "?url=" + encodeURIComponent(chrome.runtime.getURL(exportScriptName));
-          restoreScript.onload = () => { restoreScript.remove(); sendResponse({ ok: true, message: "Export started. Watch the progress bar for status." }); };
-          restoreScript.onerror = () => {
-            finishProgress(false, "Failed to load export script.");
-            sendResponse({ ok: false, error: "Failed to load jszip-restore.js" });
-          };
-          (document.head || document.documentElement).appendChild(restoreScript);
-        }
-      };
-      jszipScript.onerror = () => {
-        finishProgress(false, "Failed to load JSZip for XLSX.");
-        sendResponse({ ok: false, error: "Failed to load jszip.min.js" });
-      };
-      (document.head || document.documentElement).appendChild(jszipScript);
-    };
-    preloadScript.onerror = () => {
-      finishProgress(false, "Failed to load XLSX preload.");
-      sendResponse({ ok: false, error: "Failed to load jszip-preload.js" });
-    };
-    (document.head || document.documentElement).appendChild(preloadScript);
+    const scriptChain = [chrome.runtime.getURL("jszip.min.js")];
+    if (isMatrixReport) scriptChain.push(chrome.runtime.getURL("permissionsMatrixStyles.js"));
+    scriptChain.push(chrome.runtime.getURL(exportScriptName));
+    loadScriptChain(scriptChain, () => {
+      sendResponse({ ok: true, message: "Export started. Watch the progress bar for status." });
+    }, () => {
+      finishProgress(false, "Failed to load export script.");
+      sendResponse({ ok: false, error: "Failed to load JSZip or export script" });
+    });
   } else {
     injectExportScript();
   }
@@ -3587,6 +4136,14 @@ function dispatchToolkitMessage(message, sendResponse) {
     sendResponse({ running: window.__SPOToolkitExportRunning === true });
     return false;
   }
+  if (message.action === "performExportDownload") {
+    performExportDownload(message.detail || {}, { waitForComplete: message.waitForComplete !== false })
+      .then(function () { sendResponse({ ok: true }); })
+      .catch(function (err) {
+        sendResponse({ ok: false, error: err && err.message ? err.message : String(err) });
+      });
+    return true;
+  }
   if (message.action === "cancelExportCSV") {
     window.__SPOToolkitExportRunning = false;
     window.__SPOToolkitExportCancel = true;
@@ -3601,7 +4158,10 @@ function dispatchToolkitMessage(message, sendResponse) {
     return false;
   }
   if (message.action === "matrixWorkerLockAndRun") {
-    if (window.SPOToolkitMatrixWorkerLock) window.SPOToolkitMatrixWorkerLock.show();
+    if (window.SPOToolkitMatrixWorkerLock) {
+      const report = (message.exportMessage && message.exportMessage.report) || "exportCSV";
+      window.SPOToolkitMatrixWorkerLock.show(report);
+    }
     enableMatrixWorkerUnloadWarning();
     runExportInjection(message.exportMessage, sendResponse, { skipStarted: true });
     return true;
@@ -3944,6 +4504,33 @@ function dispatchToolkitMessage(message, sendResponse) {
     return true;
   }
 
+  if (message.action === "getReportListPlan") {
+    injectAndWait(
+      "reportListPlan.js",
+      "SPReportListPlanResult",
+      (data) => data.error ? { ok: false, error: data.error } : { ok: true, entries: data.entries || [] },
+      sendResponse,
+      {
+        timeoutMs: 120000,
+        beforeInject() {
+          let el = document.getElementById("sp-report-list-plan-params-json");
+          if (el) el.remove();
+          el = document.createElement("script");
+          el.id = "sp-report-list-plan-params-json";
+          el.type = "application/json";
+          el.textContent = JSON.stringify({
+            siteUrl: message.siteUrl || "",
+            includeSubsites: message.includeSubsites !== false,
+            librariesOnly: message.librariesOnly === true
+          });
+          (document.head || document.documentElement).appendChild(el);
+        },
+        errorPayload: { ok: false, error: "Timeout loading list inventory" }
+      }
+    );
+    return true;
+  }
+
   if (message.action === "getMatrixScanPlan") {
     injectAndWait(
       "matrixScanPlan.js",
@@ -3951,6 +4538,7 @@ function dispatchToolkitMessage(message, sendResponse) {
       (data) => data.error ? { ok: false, error: data.error } : { ok: true, plan: data.plan || [] },
       sendResponse,
       {
+        timeoutMs: 120000,
         beforeInject() {
           let el = document.getElementById("sp-matrix-scan-params-json");
           if (el) el.remove();
@@ -3970,29 +4558,17 @@ function dispatchToolkitMessage(message, sendResponse) {
   }
 
   if (message.action === "runExportCSV") {
-    if (message.report === "permissionsMatrix") {
-      chrome.runtime.sendMessage({ type: "SPCSVStartMatrixExport", exportMessage: message }, function (resp) {
-        if (chrome.runtime.lastError) {
-          sendResponse({ ok: false, error: chrome.runtime.lastError.message });
-          return;
-        }
-        if (!resp || !resp.ok) {
-          sendResponse(resp || { ok: false, error: "Failed to start export" });
-          return;
-        }
-        if (resp.alreadyRunning) {
-          sendResponse(resp);
-          return;
-        }
-        if (resp.workerLock) {
-          sendResponse(resp);
-          return;
-        }
-        runExportInjection(message, sendResponse, { skipStarted: true });
-      });
-      return true;
-    }
-    runExportInjection(message, sendResponse);
+    chrome.runtime.sendMessage({ type: "SPCSVStartExportWorker", exportMessage: message }, function (resp) {
+      if (chrome.runtime.lastError) {
+        sendResponse({ ok: false, error: chrome.runtime.lastError.message });
+        return;
+      }
+      if (!resp || !resp.ok) {
+        sendResponse(resp || { ok: false, error: "Failed to start export" });
+        return;
+      }
+      sendResponse(resp);
+    });
     return true;
   }
 }
