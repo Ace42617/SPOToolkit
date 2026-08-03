@@ -982,17 +982,18 @@ function downloadBufferInBackground(detail) {
         reject(new Error(chrome.runtime.lastError?.message || "Download failed"));
         return;
       }
-      resolve();
       waitForBackgroundDownload(downloadId, timeoutMs)
         .then(function () {
           setTimeout(function () {
             try { URL.revokeObjectURL(url); } catch (_) {}
           }, 5000);
+          resolve();
         })
-        .catch(function () {
+        .catch(function (err) {
           setTimeout(function () {
             try { URL.revokeObjectURL(url); } catch (_) {}
           }, 15000);
+          reject(err || new Error("Download failed"));
         });
     });
   });
