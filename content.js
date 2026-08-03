@@ -3943,11 +3943,12 @@ function onPageMessage(e) {
       chrome.runtime.sendMessage({ type: "SPCSVExportCancel" });
     } catch (err) {}
   } else if (e.data.type === "SPCSVExportDownloadRequest") {
-    void relayExportDownloadRequest(d.detail || {});
+    // `d` is already e.data.detail from the page postMessage shape.
+    void relayExportDownloadRequest(d);
   } else if (e.data.type === "SPCSVExportDownloadChunk") {
-    void handleExportDownloadChunk(d.detail || {});
+    void handleExportDownloadChunk(d);
   } else if (e.data.type === "SPCSVExportDownloadChunkEnd") {
-    void finalizeExportDownloadTransfer(d.detail || {});
+    void finalizeExportDownloadTransfer(d);
   }
 }
 
