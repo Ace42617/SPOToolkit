@@ -48,10 +48,11 @@ describe("exportCSV.js borrowed view stays read-only (source sync)", () => {
       borrowedBlock,
       "expected borrowed-view return block in getOrCreateRpcViewForDownload"
     );
-    assert.doesNotMatch(
-      borrowedBlock[0],
-      /tryConfigureRpcView|setViewFieldsBatch|RemoveAllViewFields/
-    );
+    // Strip comments so explanatory text cannot false-positive the guard.
+    const codeOnly = borrowedBlock[0].replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    assert.doesNotMatch(codeOnly, /tryConfigureRpcView\s*\(/);
+    assert.doesNotMatch(codeOnly, /setViewFieldsBatch\s*\(/);
+    assert.doesNotMatch(codeOnly, /RemoveAllViewFields/);
   });
 
   it("still configures owned RPC views before export", () => {
