@@ -1001,7 +1001,8 @@
       };
     }
 
-    await tryConfigureRpcView(borrowed.viewId, fieldNames);
+    // Borrowed production views are read-only: never call setViewFieldsBatch /
+    // RemoveAllViewFields on All Documents (or any other live library view).
     reportProgress(
       "Using library view \"" + (borrowed.title || "default") + "\" (read-only)…",
       { logLine: "Cannot create RPC view here — using existing library view via owssvr." }
