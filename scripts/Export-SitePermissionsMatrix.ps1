@@ -5659,7 +5659,12 @@ function Scan-ListItems {
         }
     }
     catch {
-        Write-Warning "Item scan failed for list '$ListTitle' ($ListUrl): $($_.Exception.Message). Continuing with next list."
+        # Fail closed: do not omit a failed list and still write a "complete" workbook.
+        # Mirrors browser matrixExportIntegrity / exportCSV matrix integrity behavior.
+        $detail = $_.Exception.Message
+        if ([string]::IsNullOrWhiteSpace($detail)) { $detail = [string]$_ }
+        throw ("Permissions matrix failed while scanning list '{0}' ({1}): {2}. No workbook downloaded. Resolve access or throttling, then retry." -f `
+            $ListTitle, $ListUrl, $detail)
     }
     finally {
         $script:CurrentListPageSize = 0
@@ -7428,6 +7433,8 @@ $AllItemRows.Clear()
 $uniqueBoundaries = 0
 $itemsScanned = 0
 $siteIndex = 0
+$scanCompletedOk = $false
+$scanError = $null
 
 try {
     foreach ($entry in $plan) {
@@ -7449,9 +7456,22 @@ try {
 
     Write-MatrixLog ("Unique-permission boundaries: {0:N0}" -f $uniqueBoundaries) -Level Unique
     Complete-ScanProgress
+    $scanCompletedOk = $true
+}
+catch {
+    # Capture then rethrow after finally so Export-Workbook cannot run on a partial scan.
+    $scanError = $_
 }
 finally {
     Stop-ProgressRenderer -Complete:$S.ProgressScanFinished
+}
+
+# Fail closed at the export boundary: never write a success workbook after a required scan failure.
+if ($null -ne $scanError) {
+    throw $scanError
+}
+if (-not $scanCompletedOk) {
+    throw 'Permissions matrix scan did not complete successfully. No workbook downloaded.'
 }
 
 $matrixCount = $allRows.Count
