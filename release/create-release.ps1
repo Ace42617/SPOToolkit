@@ -20,7 +20,7 @@ $files = @(
   "exportCSV.js", "permissionsMatrixExport.js", "permissionsMatrixStyles.js", "matrixScanPlan.js", "reportListPlan.js",
   "getFields.js", "getSearchSchema.js", "getColumnCreatorContext.js", "createColumn.js",
   "checkListPage.js", "getListType.js", "getRefinableMappings.js", "getViewsData.js",
-  "getPageContext.js", "getPageContextFull.js", "getPageContextJson.js", "getViewFormatContext.js", "getSiteLists.js",
+  "getPageContext.js", "getPageContextFull.js", "getPageContextJson.js", "getViewFormatContext.js", "getSiteLists.js", "getWebContents.js",
   "compassColumnCreator.js", "compassToolkitPanels.js", "compassUniversalSearch.js", "matrixWorkerLock.js",
   "adminCenterWaitBanner.js", "recycleBinWaitBanner.js",
   "jszip.min.js", "jszip-preload.js", "jszip-restore-define.js",

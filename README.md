@@ -2,7 +2,7 @@
 
 A Chrome / Edge extension for people who live in **SharePoint Online** (and often wander into **Power Apps / Dynamics**). It puts the admin pages, exports, and view tools you usually hunt for behind a floating compass on the page — plus a purple Level Up toolkit when you’re on a model-driven app.
 
-**Current release:** [v1.1.0.0](https://github.com/Ace42617/SPOToolkit/releases/tag/v1.1.0.0) — see [release notes](release/RELEASE_NOTES_1.1.0.0.md).
+**Current release:** [v1.1.1.0](https://github.com/Ace42617/SPOToolkit/releases/tag/v1.1.1.0) — see [release notes](release/RELEASE_NOTES_1.1.1.0.md).
 
 ---
 
