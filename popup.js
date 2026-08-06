@@ -126,6 +126,7 @@ const chkListsLauncherEnabled = document.getElementById("chkListsLauncherEnabled
 const chkUniversalSearchOpenOnLoad = document.getElementById("chkUniversalSearchOpenOnLoad");
 const chkCompassUniversalSearchOpenOnLoad = document.getElementById("chkCompassUniversalSearchOpenOnLoad");
 const chkCompassRememberActiveTab = document.getElementById("chkCompassRememberActiveTab");
+const chkExportWorkerSillyMode = document.getElementById("chkExportWorkerSillyMode");
 const chkUniversalSearchHotkeyEnabled = document.getElementById("chkUniversalSearchHotkeyEnabled");
 const universalSearchShortcutDisplay = document.getElementById("universalSearchShortcutDisplay");
 
@@ -145,13 +146,31 @@ document.getElementById("btnSettingsGear")?.addEventListener("click", () => {
 document.getElementById("btnSettingsBackToMain")?.addEventListener("click", () => {
   document.body.classList.remove("popup-settings-visible");
 });
+const UNIVERSAL_SEARCH_OPEN_ON_LOAD_DEFAULT_OFF_KEY = "universalSearchOpenOnLoadDefaultOff_v1";
 chrome.storage.local.get(
-  ["listsLauncherEnabled", "universalSearchOpenOnLoad", "compassUniversalSearchOpenOnLoad", "compassRememberActiveTab", "universalSearchHotkeyEnabled"],
+  [
+    "listsLauncherEnabled",
+    "universalSearchOpenOnLoad",
+    "compassUniversalSearchOpenOnLoad",
+    "compassRememberActiveTab",
+    "exportWorkerSillyMode",
+    "universalSearchHotkeyEnabled",
+    UNIVERSAL_SEARCH_OPEN_ON_LOAD_DEFAULT_OFF_KEY
+  ],
   (r) => {
+    // One-time: product default is off; clear any prior enabled preference.
+    if (!r[UNIVERSAL_SEARCH_OPEN_ON_LOAD_DEFAULT_OFF_KEY]) {
+      chrome.storage.local.set({
+        [UNIVERSAL_SEARCH_OPEN_ON_LOAD_DEFAULT_OFF_KEY]: true,
+        universalSearchOpenOnLoad: false
+      });
+      r.universalSearchOpenOnLoad = false;
+    }
     if (chkListsLauncherEnabled) chkListsLauncherEnabled.checked = r.listsLauncherEnabled !== false;
-    if (chkUniversalSearchOpenOnLoad) chkUniversalSearchOpenOnLoad.checked = !!r.universalSearchOpenOnLoad;
-    if (chkCompassUniversalSearchOpenOnLoad) chkCompassUniversalSearchOpenOnLoad.checked = !!r.compassUniversalSearchOpenOnLoad;
+    if (chkUniversalSearchOpenOnLoad) chkUniversalSearchOpenOnLoad.checked = r.universalSearchOpenOnLoad === true;
+    if (chkCompassUniversalSearchOpenOnLoad) chkCompassUniversalSearchOpenOnLoad.checked = r.compassUniversalSearchOpenOnLoad === true;
     if (chkCompassRememberActiveTab) chkCompassRememberActiveTab.checked = r.compassRememberActiveTab !== false;
+    if (chkExportWorkerSillyMode) chkExportWorkerSillyMode.checked = r.exportWorkerSillyMode === true;
     if (chkUniversalSearchHotkeyEnabled) chkUniversalSearchHotkeyEnabled.checked = r.universalSearchHotkeyEnabled !== false;
   }
 );
@@ -166,6 +185,9 @@ chkCompassUniversalSearchOpenOnLoad?.addEventListener("change", () => {
 });
 chkCompassRememberActiveTab?.addEventListener("change", () => {
   chrome.storage.local.set({ compassRememberActiveTab: chkCompassRememberActiveTab.checked });
+});
+chkExportWorkerSillyMode?.addEventListener("change", () => {
+  chrome.storage.local.set({ exportWorkerSillyMode: chkExportWorkerSillyMode.checked });
 });
 chkUniversalSearchHotkeyEnabled?.addEventListener("change", () => {
   chrome.storage.local.set({ universalSearchHotkeyEnabled: chkUniversalSearchHotkeyEnabled.checked });
@@ -1120,13 +1142,24 @@ async function syncPopupToCurrentTab() {
 (async function restorePopupTab() {
   await syncPopupToCurrentTab();
   try {
-    const r = await chrome.storage.local.get(["universalSearchOpenOnLoad", "pendingOpenUniversalSearch"]);
+    const r = await chrome.storage.local.get([
+      "universalSearchOpenOnLoad",
+      "pendingOpenUniversalSearch",
+      UNIVERSAL_SEARCH_OPEN_ON_LOAD_DEFAULT_OFF_KEY
+    ]);
+    if (!r[UNIVERSAL_SEARCH_OPEN_ON_LOAD_DEFAULT_OFF_KEY]) {
+      await chrome.storage.local.set({
+        [UNIVERSAL_SEARCH_OPEN_ON_LOAD_DEFAULT_OFF_KEY]: true,
+        universalSearchOpenOnLoad: false
+      });
+      r.universalSearchOpenOnLoad = false;
+    }
     let fromHotkey = false;
     if (r.pendingOpenUniversalSearch) {
       fromHotkey = true;
       chrome.storage.local.remove("pendingOpenUniversalSearch");
     }
-    if (r.universalSearchOpenOnLoad || fromHotkey) {
+    if (r.universalSearchOpenOnLoad === true || fromHotkey) {
       requestAnimationFrame(() => openUniversalSearch());
     }
   } catch (_) {}
@@ -1150,6 +1183,98 @@ function escapeHtml(s) {
   const div = document.createElement("div");
   div.textContent = s;
   return div.innerHTML;
+}
+
+function exportLogBody(msg) {
+  return String(msg || "").replace(/^(Permissions matrix|List \/ library|Folder count|Path length):\s*/i, "").trim();
+}
+
+function classifyExportLogMessage(msg) {
+  const m = String(msg || "").trim();
+  if (!m) return "info";
+  const body = exportLogBody(m);
+  if (/cancel/i.test(m) && /export/i.test(m)) return "warn";
+  if (/\bHTTP\s*\d{3}\b|\berror\b|\bfail(?:ed|ure)?\b|\bexception\b|\bthrottl/i.test(m)) return "error";
+  if (/^Skipped\b|\bempty list\b|\bnot a document library\b|\bwarn(?:ing)?\b/i.test(body) || /^Skipped\b/i.test(m)) return "skip";
+  if (/^Finished\b|^Ready\b|\bDone!\b|\bcomplete\b|\bdownloaded\b|\bsuccess\b/i.test(body) || /\bDone!\b/i.test(m)) return "ok";
+  if (/^\d+%\s*[—-]|\b\d+\s+of\s+\d+\s+(?:lists|rows|items|webs?)\b|^Scanning\b|^Loading\b|\bloaded\b/i.test(body) || /^\d+%\s*[—-]/.test(m)) return "progress";
+  if (/^Exporting\b|^Building\b|^Discovering\b|^Inventory|^Fetching\b|^Adding\b|^Found\b|^Sharing links\b|^List \/ library|^Folder count|^Path length/i.test(body) || /^(Exporting|Building|Discovering|Inventory)/i.test(m)) return "action";
+  if (/\bstarted\b|\bbackground tab\b|\bworker connected\b/i.test(m)) return "start";
+  if (/^Permissions matrix:/i.test(m)) return "action";
+  return "info";
+}
+
+function paintExportLogTokens(text, clsPrefix) {
+  const p = clsPrefix || "export";
+  if (!text) return "";
+  const re = /(\(~?[\d,][^)]*\))|(\bHTTP\s*\d{3}\b)|(\b~?\d[\d,]*(?:\.\d+)?%?(?:\s*(?:of|\/)\s*~?\d[\d,]*)?(?:\s*(?:items?|lists?|rows?|item\(s\)|list\(s\)|site\(s\)|webs?))?\b)|([—–…])/g;
+  let html = "";
+  let last = 0;
+  let match;
+  while ((match = re.exec(text))) {
+    html += escapeHtml(text.slice(last, match.index));
+    if (match[1]) html += "<span class=\"" + p + "-tok-meta\">" + escapeHtml(match[1]) + "</span>";
+    else if (match[2]) html += "<span class=\"" + p + "-tok-err\">" + escapeHtml(match[2]) + "</span>";
+    else if (match[3]) html += "<span class=\"" + p + "-tok-num\">" + escapeHtml(match[3]) + "</span>";
+    else if (match[4]) html += "<span class=\"" + p + "-tok-sep\">" + escapeHtml(match[4]) + "</span>";
+    last = match.index + match[0].length;
+  }
+  html += escapeHtml(text.slice(last));
+  return html;
+}
+
+function highlightExportLogMessageHtml(msg) {
+  const p = "export";
+  let rest = String(msg || "");
+  let out = "";
+  const pref = rest.match(/^(Permissions matrix|List \/ library|Folder count|Path length):\s*/i);
+  if (pref) {
+    out += "<span class=\"" + p + "-tok-kw\">" + escapeHtml(pref[1]) + ":</span> ";
+    rest = rest.slice(pref[0].length);
+  }
+  const verb = rest.match(/^(Skipped|Finished|Scanning|Loading|Discovering|Inventorying|Building|Exporting|Fetching|Adding|Ready|Found|Sharing links)\b/i);
+  if (verb) {
+    const v = verb[1];
+    const cls = /^Finished$|^Ready$/i.test(v) ? "tok-ok"
+      : /^Skipped$/i.test(v) ? "tok-skip"
+      : /^(Scanning|Loading)$/i.test(v) ? "tok-scan"
+      : "tok-verb";
+    out += "<span class=\"" + p + "-" + cls + "\">" + escapeHtml(v) + "</span>";
+    rest = rest.slice(verb[0].length);
+    const name = rest.match(/^(\s+)([^—(…]+?)(?=(\s*\()|(\s*[—–])|(\s*…)|(\s*\.\.\.)|$)/);
+    if (name && name[2] && name[2].trim()) {
+      out += escapeHtml(name[1]) + "<span class=\"" + p + "-tok-name\">" + escapeHtml(name[2].replace(/\s+$/, "")) + "</span>";
+      rest = rest.slice(name[0].length);
+    }
+  } else {
+    const loaded = rest.match(/^(.+?)(\s+[—–]\s+)(loaded)\b/i);
+    if (loaded) {
+      out += "<span class=\"" + p + "-tok-name\">" + escapeHtml(loaded[1]) + "</span>";
+      out += "<span class=\"" + p + "-tok-sep\">" + escapeHtml(loaded[2]) + "</span>";
+      out += "<span class=\"" + p + "-tok-scan\">" + escapeHtml(loaded[3]) + "</span>";
+      rest = rest.slice(loaded[0].length);
+    }
+  }
+  out += paintExportLogTokens(rest, p);
+  return out;
+}
+
+function renderExportProgressLogHtml(logLines) {
+  if (!Array.isArray(logLines) || !logLines.length) return "";
+  return logLines.map((line) => {
+    const d = line && line.t ? new Date(line.t) : null;
+    const ts = d && !isNaN(d.getTime())
+      ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+      : "";
+    const msg = String((line && line.msg) || "").replace(/\s*\(still working…\)+/gi, "").trim();
+    const kind = classifyExportLogMessage(msg);
+    return (
+      "<div class=\"export-log-line export-log-" + kind + "\">" +
+      (ts ? "<span class=\"export-log-ts\">[" + escapeHtml(ts) + "]</span>" : "") +
+      "<span class=\"export-log-msg\">" + highlightExportLogMessageHtml(msg) + "</span>" +
+      "</div>"
+    );
+  }).join("");
 }
 
 function addQuickLink(ul, label, href, icon) {
@@ -1842,15 +1967,46 @@ function saveDefaultExportFormat() {
   chrome.storage.local.set({ defaultExportFormat: format });
 }
 
-function setStatus(message, type) {
+function focusExportWorkerTab() {
+  try {
+    chrome.runtime.sendMessage({ type: "SPCSVExportFocusWorker" });
+  } catch (_) {}
+}
+
+function setStatus(message, type, opts) {
+  opts = opts || {};
   const textEl = statusEl.querySelector(".status-text");
   const spinnerEl = statusEl.querySelector(".status-spinner");
   const successIconEl = statusEl.querySelector(".status-success-icon");
-  if (textEl) textEl.textContent = message;
+  if (textEl) {
+    textEl.textContent = "";
+    if (opts.workerLink && message) {
+      const a = document.createElement("a");
+      a.href = "#";
+      a.className = "export-worker-link";
+      a.textContent = message;
+      a.title = "Open the export worker tab";
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        focusExportWorkerTab();
+      });
+      textEl.appendChild(a);
+    } else {
+      textEl.textContent = message || "";
+    }
+  }
   statusEl.className = type || "info";
   statusEl.style.display = "block";
-  if (spinnerEl) spinnerEl.style.display = type === "info" ? "block" : "none";
+  if (spinnerEl) spinnerEl.style.display = type === "info" && !opts.workerLink ? "block" : "none";
   if (successIconEl) successIconEl.style.display = type === "success" ? "inline-flex" : "none";
+}
+
+function clearStaleExportRunningStatus() {
+  const textEl = statusEl && statusEl.querySelector(".status-text");
+  const text = (textEl && textEl.textContent || "").trim();
+  if (/background tab|keep working here|open for Snake/i.test(text) || (textEl && textEl.querySelector(".export-worker-link"))) {
+    clearStatus();
+  }
 }
 
 function setPickerStatus(message, type) {
@@ -2074,7 +2230,8 @@ async function runExport(selectedColumns = null) {
       const includeVersions = getIncludeVersions();
       const pageLimit = await getPageSize();
       const reportType = reportSelect && reportSelect.value ? reportSelect.value : null;
-      const exportFormat = reportType === "permissionsMatrix" ? "xlsx" : ((formatSelect && formatSelect.value) ? formatSelect.value : "xlsx");
+      const isMatrixLike = reportType === "permissionsMatrix" || reportType === "everythingBagel";
+      const exportFormat = isMatrixLike ? "xlsx" : ((formatSelect && formatSelect.value) ? formatSelect.value : "xlsx");
       const chkMatrixIncludeSubsites = document.getElementById("chkMatrixIncludeSubsites");
       const chkMatrixExpandGroups = document.getElementById("chkMatrixExpandGroups");
       const chkMatrixIncludeAllInherited = document.getElementById("chkMatrixIncludeAllInherited");
@@ -2139,8 +2296,8 @@ async function runExport(selectedColumns = null) {
 
     const statusMessage = (response?.message != null && response.message !== "")
       ? response.message
-      : (response?.ok ? "Export running in a background tab. Keep working here — open the background tab for Snake and live progress." : (response?.error || "Export failed."));
-    setStatus(statusMessage, response?.ok ? "info" : "error");
+      : (response?.ok ? "Export running in a background tab. Keep working here — open for Snake & progress." : (response?.error || "Export failed."));
+    setStatus(statusMessage, response?.ok ? "info" : "error", response?.ok ? { workerLink: true } : null);
     if (response?.ok) {
       refreshExportProgressConsole();
       startExportProgressPolling();
@@ -2197,7 +2354,7 @@ function toggleReportOptions() {
   const matrixOptionsPanel = document.getElementById("matrixOptionsPanel");
   const showExportFormat = value === "exportCSV";
   const showReportLists = value === "exportCSV" || value === "folderCount" || value === "pathLengths";
-  const showMatrixSites = value === "permissionsMatrix";
+  const showMatrixSites = value === "permissionsMatrix" || value === "everythingBagel";
   reportOptions.style.display = showExportFormat || showMatrixSites || showReportLists ? "flex" : "none";
   if (reportListsRow) reportListsRow.style.display = showReportLists ? "" : "none";
   if (matrixWholeSiteRow) matrixWholeSiteRow.style.display = showMatrixSites ? "" : "none";
@@ -2581,6 +2738,7 @@ function refreshExportProgressConsole(state) {
     stopPopupExportElapsedTimer();
     const downloadMain = document.getElementById("downloadMain");
     if (downloadMain) downloadMain.classList.remove("reports-export-active");
+    clearStaleExportRunningStatus();
   }
 
   function clearPopupExportDismissTimer() {
@@ -2632,7 +2790,13 @@ function refreshExportProgressConsole(state) {
       if (!popupExportElapsedTimer) startPopupExportElapsedTimer(data.startedAt || popupExportStartedAt || Date.now());
       startExportProgressPolling();
       try { chrome.runtime.sendMessage({ type: "SPCSVExportEnsureWorker" }); } catch (_) {}
+      const textEl = statusEl && statusEl.querySelector(".status-text");
+      if (!textEl || !textEl.querySelector(".export-worker-link")) {
+        setStatus("Export running in a background tab. Keep working here — open for Snake & progress.", "info", { workerLink: true });
+      }
     } else {
+      const doneMsg = cleanPopupExportHeadline(data.message || (data.success ? "Export complete" : "Export finished"));
+      setStatus(doneMsg, data.success ? "success" : "error");
       stopPopupExportElapsedTimer();
       stopExportProgressPolling();
       schedulePopupExportDismiss();
@@ -2663,12 +2827,7 @@ function refreshExportProgressConsole(state) {
       }
     }
     if (logEl && Array.isArray(data.log)) {
-      logEl.textContent = data.log.map((line) => {
-        const d = line.t ? new Date(line.t) : null;
-        const ts = d ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
-        const msg = String(line.msg || "").replace(/\s*\(still working…\)+/gi, "").trim();
-        return (ts ? "[" + ts + "] " : "") + msg;
-      }).join("\n");
+      logEl.innerHTML = renderExportProgressLogHtml(data.log);
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           logEl.scrollTop = logEl.scrollHeight;
@@ -2700,6 +2859,10 @@ document.getElementById("exportProgressCancel")?.addEventListener("click", () =>
   try {
     chrome.runtime.sendMessage({ type: "SPCSVExportCancel" }, () => refreshExportProgressConsole());
   } catch (_) {}
+});
+
+document.getElementById("exportProgressOpenWorker")?.addEventListener("click", () => {
+  focusExportWorkerTab();
 });
 
 document.getElementById("btnMatrixLoadSites")?.addEventListener("click", () => loadMatrixScanPlan());
@@ -2847,7 +3010,7 @@ async function updateExportReportLabel() {
 }
 
 btnExport.addEventListener("click", () => {
-  if (reportSelect && (reportSelect.value === "exportCSV" || reportSelect.value === "folderCount" || reportSelect.value === "pathLengths" || reportSelect.value === "permissionsMatrix")) runExport();
+  if (reportSelect && (reportSelect.value === "exportCSV" || reportSelect.value === "folderCount" || reportSelect.value === "pathLengths" || reportSelect.value === "permissionsMatrix" || reportSelect.value === "everythingBagel")) runExport();
 });
 
 btnChooseColumns.addEventListener("click", openColumnPicker);

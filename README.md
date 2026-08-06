@@ -1,128 +1,123 @@
-# SharePoint Developer Toolkit
+# SPO Dev Toolkit
 
-Chrome/Edge extension for **SharePoint Online**: export list or library data, reports, **View Manager**, **View formatter** (preview + JSON), refinable managed-property shortcuts, and **Quick Links**.
+A Chrome / Edge extension for people who live in **SharePoint Online** (and often wander into **Power Apps / Dynamics**). It puts the admin pages, exports, and view tools you usually hunt for behind a floating compass on the page — plus a purple Level Up toolkit when you’re on a model-driven app.
 
-On **Power Apps / Dynamics 365** model-driven apps, the popup automatically switches to a purple **Power Apps mode** powered by [Level Up for Dynamics 365/Power Apps](https://github.com/rajyraman/Levelup-for-Dynamics-CRM) (MIT) — form actions, navigation, impersonation (sidebar), debugging, and custom commands.
+**Current release:** [v1.1.0.0](https://github.com/Ace42617/SPOToolkit/releases/tag/v1.1.0.0) — see [release notes](release/RELEASE_NOTES_1.1.0.0.md).
 
-**Current release:** [v1.1.0.0](https://github.com/Ace42617/SPOToolkit/releases/tag/v1.1.0.0) — Power Apps in-page popout + Level Up toolkit, compass/Power Apps header parity, matrix/export fixes. See [release notes](release/RELEASE_NOTES_1.1.0.0.md).
+---
 
 ## Install
 
 1. Open `edge://extensions` or `chrome://extensions`
-2. Enable **Developer mode**
-3. Click **Load unpacked** and select the folder that contains **`manifest.json`**
+2. Turn on **Developer mode**
+3. **Load unpacked** and pick the folder that contains `manifest.json`
 
-*(Release builds: unzip the attached `.zip` from [Releases](https://github.com/Ace42617/SPOToolkit/releases) and load the unzipped folder.)*
+For a packaged build, grab the zip from [Releases](https://github.com/Ace42617/SPOToolkit/releases), unzip it, and load that folder the same way. Reload the extension after updates so declarative network rules (View formatter preview) pick up changes.
 
-## Use
+---
 
-1. Open a SharePoint page (list/library view for exports, View Manager / View formatter, and full **Columns** tab).
-2. Click the extension icon — or use the **compass launcher** floating on the page.
+## SharePoint: the compass
 
-### When you are on Power Apps / Dynamics
+On `*.sharepoint.com`, a floating launcher opens an in-page panel. Tabs:
 
-The header turns purple. On a **model-driven app**, use **Open popout** (or the purple rocket FAB on the page) for the full toolkit in an in-page panel — same interaction model as the SharePoint compass popout: form tools, navigation, impersonation, debugging, favorites, and custom commands. The purple header shows the app name, org/URL, display mode, theme toggle, and close.
+| Tab | What it’s for |
+|-----|----------------|
+| **Site Contents** | Lists, libraries, and subsites for the current web — open the default view, jump into View Manager, list settings, or permissions |
+| **Quick Links** | Deep links for the current site, current user, page modes, recycle bins, and tenant admin surfaces, with a sticky filter |
+| **Page Props** | Flattened `_spPageContextInfo` / page context — filter by name or value, copy values, refresh |
+| **Columns** | On a list/library page: display name, internal name, crawled property, type; open column settings; create columns |
+| **Reports** | Export list/library data, folder counts, path lengths, permissions matrix |
+| **Refinables** | Jump to refinable managed property pages in search schema |
+| **Views** | Open **View Manager** for the current list (edit/create views, columns, sort/filter/group, export column names) |
 
-### When you are not on SharePoint or Power Apps
+Also built into the compass experience:
 
-The popup shows a short message and a **Recently visited SharePoint sites** dropdown (from history and past extension use). Pick a site to navigate the current tab there.
+- **Universal Search** — find tabs, quick links, and page info quickly (`Ctrl+Shift+,` / `Cmd+Shift+,`, or the search control in the panel)
+- **Theme** — Early Riser / Night Owl
+- **Settings** — launcher visibility & size, remember last tab, animation speed, optional keyboard shortcuts per tab
+- **View formatter** — split preview + JSON editor for a list view’s `CustomFormatter` (from the popup / `{ }` flow); save patches the view over REST when the original list tab is still available
 
-### Quick Links
+Row actions on Site Contents: View Manager, list settings, and list permissions.
 
-- **Current Site** – Settings, Site contents, **Site content types** (modern site admin `#/contentTypes`), Recycle bin, People, Storage metrics, **SharePoint admin** site details (when site ID is known).
-- **Current User** – Edit profile, sign in as another user.
-- **Page Modes** – Maintenance mode, WebView / WebViewList, disable SPFx third-party code, web part maintenance.
-- **Tenant Admin** – Admin center, tenant settings, user profiles, term store, search administration, API access, Teams admin, app catalog(s).
-- **Filter** – Sticky search box at the top filters by link text, URL, or section title.
+---
 
-### Page Properties
+## Reports
 
-- Flattened **page / list context** (from `_spPageContextInfo` and related payloads).
-- Filter by name or **by value**; copy values.
-- **Refresh** (icon) reloads context from the page.
+From the **Reports** tab (or the popup on a list/library page):
 
-### Columns *(list or library page)*
+- **Download list/library** — CSV or Excel (XLSX); optional column picker and version history; pick one or more lists (multiple selections download as a zip)
+- **Folder & item counts** — nested folder counts (document libraries)
+- **Path length report** — long path audit (document libraries)
+- **Permissions matrix** — same list/library picker as other reports; scans selected lists (and their sites) with inheritance and “given through” detail (Excel)
 
-- Table of **display name**, **internal name**, **crawled property** name, **type**.
-- Filter columns with the search field.
-- **Display name** opens **column settings** (`FldEdit.aspx`) in a **new** tab.
-- **Refresh** (icon) reloads the field list.
+Exports use JSZip for XLSX/zip bundles and show progress in the panel.
 
-### Views
+Companion PowerShell (optional, under `scripts/`) can export or remediate permissions matrix work outside the browser — see those scripts’ own comments.
 
-- Opens the **View Manager** full page: edit/create views, columns, sort, filter, group; **export column names to CSV**.
-- **View formatter** opens a split page: list/library **preview** (iframe) and a **JSON** workspace (with basic syntax coloring). **Save to view** PATCHes the current list view’s **CustomFormatter** over SharePoint REST (keep the original list tab open; open the formatter from the popup or **{ }** launcher so the extension can reach that tab). A local draft is still cached in the browser for recovery. The extension includes **declarativeNetRequest** rules so many SharePoint views can load inside the iframe; **reload the extension** after installing or updating so those rules apply. If the preview is still blank, use **Open in tab** and arrange windows side by side.
+---
 
-### Refinables
+## Popup
 
-- Jump to **refinable managed property** pages (e.g. `RefinableString00`) for search schema work.
+Click the extension icon for a compact UI that follows where you are:
 
-### Reports
+- **On SharePoint** — shortcuts into the same toolkit surfaces (exports, View Manager, View formatter, etc.)
+- **On Power Apps / Dynamics** — purple **Power Apps** mode with **Open popout** for the in-page Level Up panel
+- **Elsewhere** — a short notice plus **recently visited SharePoint sites** (from browser history and prior use) so you can jump back in
 
-- **Download list/library** – CSV or Excel (XLSX), optional column picker and versions.
-- **Folder count**, **Path lengths** (libraries).
-- **Permissions matrix** – Item-level matrix with inheritance and “Given through”.
+Feedback from the popup header goes to a Microsoft Form.
 
-## Settings *(gear in popup)*
+---
 
-- **Show lists & libraries icon on SharePoint pages** – Site Contents–style launcher.
-- Extension version.
-- **Dark mode** – Header toggle (Early Riser / Night Owl).
+## Power Apps / Dynamics (Level Up)
 
-### Other permissions
+On Power Platform hosts (`powerapps.com`, `dynamics.com`, and related), the extension loads a purple in-page popout adapted from [Level Up for Dynamics 365/Power Apps](https://github.com/rajyraman/Levelup-for-Dynamics-CRM) (MIT): form tools, navigation, impersonation, debugging, favorites, and custom commands. The side panel path remains available via the browser’s side panel UI.
 
-- **`history`** – Powers the “recent SharePoint sites” list when you are not on a SharePoint tab.
+Do **not** hand-edit `levelup/*`. Refresh upstream under `vendor/levelup`, then run:
 
-## Feedback
+```bash
+npm run sync-levelup
+```
 
-- **Send feedback** (speech bubble) in the popup header links to the Microsoft Forms feedback flow.
+(or `pwsh -File scripts/sync-levelup.ps1`). That rebuilds `levelup/`, remaps assets, and applies the SPO theme overlay while keeping the Power Platform purple look.
 
-## Reports (detail)
+---
 
-- **Download list/library contents** – CSV or Excel (XLSX); default XLSX; optional column selection and version history.
-- **Folder count** – Nested folder counts (document libraries).
-- **Path lengths** – Path length report (document libraries).
-- **Permissions matrix** – Item-level matrix with inheritance and explicit vs inherited.
+## Other page helpers
 
-## Files (main extension)
+- **Recycle bin wait banner** — helps the “second stage recycle bin” quick link finish navigating after the first-stage page loads (see [docs/SECOND-STAGE-RECYCLE-BIN-TESTING.md](docs/SECOND-STAGE-RECYCLE-BIN-TESTING.md))
+- **Admin center wait banner** — similar orchestration for certain admin-center hops
+- **View formatter iframe bridge** + `rules/view-formatter-iframe.json` — lets many SharePoint views render inside the formatter preview
 
-| Area | Files |
+If a recent SharePoint site list is empty when you’re off SharePoint, the popup needs the **`history`** permission (already declared) and some prior visits to `*.sharepoint.com`.
+
+---
+
+## Development
+
+- **Node.js 18+** — from the repo root: `npm test`
+- View Manager REST logic lives in **`lib/viewsDataCore.mjs`** (unit tested) and is mirrored in injected **`getViewsData.js`** — keep those in sync after changes
+- Owssvr vs REST fallback notes: [OWSSVR-LISTS.md](OWSSVR-LISTS.md)
+- Ship a release: bump `manifest.json`, then `release/create-release.ps1` (see [release/CREATE-RELEASE-INSTRUCTIONS.md](release/CREATE-RELEASE-INSTRUCTIONS.md))
+
+### Layout (high level)
+
+| Area | Where |
 |------|--------|
-| Config | `manifest.json` |
-| Service worker | `sw.js` (imports Level Up + SPO `background.js`) |
-| Popup | `popup.html`, `popup.js` (ES module), `lib/popupUi.mjs` (shared column / quick-links helpers) |
-| Full-page views | `views.html`, `views.js`, `filterTypeaheadLogic.js` |
-| View formatter | `view-formatter.html`, `view-formatter.js`, `getViewFormatContext.js`, `rules/view-formatter-iframe.json` |
-| Page bridge | `content.js`, `background.js` |
-| Power Apps popout | `powerAppsToolkitPopout.js` |
-| Power Apps (Level Up) | `levelup/` (built artifacts), source in `vendor/levelup/`, overlays in `scripts/levelup-adaptations/` |
-| Injected scripts | `exportCSV.js`, `getFields.js`, `getSearchSchema.js`, `getViewsData.js`, `checkListPage.js`, `getListType.js`, `getRefinableMappings.js`, `getPageContext.js`, `getPageContextJson.js`, `getSiteLists.js`, … |
-| ZIP / XLSX | `jszip*.js`, `jszip-restore-define.js` |
-| Facts / feedback constant | `sharepoint-facts.js` |
+| Manifest / SW | `manifest.json`, `sw.js` → `background.js` + Level Up background |
+| Compass UI | `content.js`, `compassToolkitPanels.js`, `compassUniversalSearch.js`, `compassColumnCreator.js` |
+| Popup | `popup.html`, `popup.js`, `lib/popupUi.mjs` |
+| View Manager / formatter | `views.html` / `views.js`, `view-formatter.html` / `view-formatter.js` |
+| Injected page scripts | `exportCSV.js`, `permissionsMatrixExport.js`, `get*.js`, `createColumn.js`, … |
+| Power Apps popout | `powerAppsToolkitPopout.js`, `levelup/` |
+| Level Up source / sync | `vendor/levelup/`, `scripts/sync-levelup.ps1`, `scripts/levelup-adaptations/` |
+| Shared libs / tests | `lib/`, `test/` |
 
-## Updating Level Up (Power Apps tools)
-
-Upstream: https://github.com/rajyraman/Levelup-for-Dynamics-CRM (MIT — see `levelup/LICENSE`).
-
-1. Refresh `vendor/levelup` from upstream (replace the folder, or `git subtree` / pull as you prefer). Keep `UPSTREAM_COMMIT.txt` / `UPSTREAM_REPO.txt` if present.
-2. From the repo root: `npm run sync-levelup` (or `pwsh -File scripts/sync-levelup.ps1`).
-3. Reload the unpacked extension.
-
-Do **not** hand-edit `levelup/*` — `scripts/sync-levelup.ps1` rebuilds it, remaps asset paths into `levelup/`, and applies the SPO theme overlay (`spo-theme.css`) while keeping Power Platform purple.
-
-- **View Manager REST** logic lives in **`lib/viewsDataCore.mjs`** (unit tests) and is mirrored in page-injected **`getViewsData.js`**.
-
-See **OWSSVR-LISTS.md** for owssvr vs REST fallback behavior.
-
-## Development & tests
-
-- Install [Node.js](https://nodejs.org/) **18+**, then from the repo root run **`npm test`** (`node --test` over `test/**/*.mjs` and related tests).
-- After changing **`lib/viewsDataCore.mjs`**, keep **`getViewsData.js`** (and Lite copy if present) in sync.
+---
 
 ## Credits
 
-Power Apps / Dynamics tools incorporate [Level Up for Dynamics 365/Power Apps](https://github.com/rajyraman/Levelup-for-Dynamics-CRM) by Natraj Yegnaraman, licensed under the [MIT License](levelup/LICENSE). The upstream copyright notice and permission text are preserved in `levelup/LICENSE` and `vendor/levelup/LICENSE`.
+Power Apps / Dynamics tools incorporate [Level Up for Dynamics 365/Power Apps](https://github.com/rajyraman/Levelup-for-Dynamics-CRM) by Natraj Yegnaraman ([MIT](levelup/LICENSE)). Upstream copyright and license text are preserved in `levelup/LICENSE` and `vendor/levelup/LICENSE`.
 
 ## License
 
-Use and modify as you like. See also `levelup/LICENSE` for the incorporated Level Up code.
+Use and modify as you like for the SPOToolkit portions. Level Up code remains under its MIT license as noted above.

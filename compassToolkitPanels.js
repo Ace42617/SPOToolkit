@@ -57,6 +57,98 @@
     return d.innerHTML;
   }
 
+  function exportLogBody(msg) {
+    return String(msg || "").replace(/^(Permissions matrix|List \/ library|Folder count|Path length):\s*/i, "").trim();
+  }
+
+  function classifyExportLogMessage(msg) {
+    const m = String(msg || "").trim();
+    if (!m) return "info";
+    const body = exportLogBody(m);
+    if (/cancel/i.test(m) && /export/i.test(m)) return "warn";
+    if (/\bHTTP\s*\d{3}\b|\berror\b|\bfail(?:ed|ure)?\b|\bexception\b|\bthrottl/i.test(m)) return "error";
+    if (/^Skipped\b|\bempty list\b|\bnot a document library\b|\bwarn(?:ing)?\b/i.test(body) || /^Skipped\b/i.test(m)) return "skip";
+    if (/^Finished\b|^Ready\b|\bDone!\b|\bcomplete\b|\bdownloaded\b|\bsuccess\b/i.test(body) || /\bDone!\b/i.test(m)) return "ok";
+    if (/^\d+%\s*[—-]|\b\d+\s+of\s+\d+\s+(?:lists|rows|items|webs?)\b|^Scanning\b|^Loading\b|\bloaded\b/i.test(body) || /^\d+%\s*[—-]/.test(m)) return "progress";
+    if (/^Exporting\b|^Building\b|^Discovering\b|^Inventory|^Fetching\b|^Adding\b|^Found\b|^Sharing links\b|^List \/ library|^Folder count|^Path length/i.test(body) || /^(Exporting|Building|Discovering|Inventory)/i.test(m)) return "action";
+    if (/\bstarted\b|\bbackground tab\b|\bworker connected\b/i.test(m)) return "start";
+    if (/^Permissions matrix:/i.test(m)) return "action";
+    return "info";
+  }
+
+  function paintExportLogTokens(text, clsPrefix) {
+    const p = clsPrefix || "sp-toolkit-export";
+    if (!text) return "";
+    const re = /(\(~?[\d,][^)]*\))|(\bHTTP\s*\d{3}\b)|(\b~?\d[\d,]*(?:\.\d+)?%?(?:\s*(?:of|\/)\s*~?\d[\d,]*)?(?:\s*(?:items?|lists?|rows?|item\(s\)|list\(s\)|site\(s\)|webs?))?\b)|([—–…])/g;
+    let html = "";
+    let last = 0;
+    let match;
+    while ((match = re.exec(text))) {
+      html += escapeHtml(text.slice(last, match.index));
+      if (match[1]) html += "<span class=\"" + p + "-tok-meta\">" + escapeHtml(match[1]) + "</span>";
+      else if (match[2]) html += "<span class=\"" + p + "-tok-err\">" + escapeHtml(match[2]) + "</span>";
+      else if (match[3]) html += "<span class=\"" + p + "-tok-num\">" + escapeHtml(match[3]) + "</span>";
+      else if (match[4]) html += "<span class=\"" + p + "-tok-sep\">" + escapeHtml(match[4]) + "</span>";
+      last = match.index + match[0].length;
+    }
+    html += escapeHtml(text.slice(last));
+    return html;
+  }
+
+  function highlightExportLogMessageHtml(msg) {
+    const p = "sp-toolkit-export";
+    let rest = String(msg || "");
+    let out = "";
+    const pref = rest.match(/^(Permissions matrix|List \/ library|Folder count|Path length):\s*/i);
+    if (pref) {
+      out += "<span class=\"" + p + "-tok-kw\">" + escapeHtml(pref[1]) + ":</span> ";
+      rest = rest.slice(pref[0].length);
+    }
+    const verb = rest.match(/^(Skipped|Finished|Scanning|Loading|Discovering|Inventorying|Building|Exporting|Fetching|Adding|Ready|Found|Sharing links)\b/i);
+    if (verb) {
+      const v = verb[1];
+      const cls = /^Finished$|^Ready$/i.test(v) ? "tok-ok"
+        : /^Skipped$/i.test(v) ? "tok-skip"
+        : /^(Scanning|Loading)$/i.test(v) ? "tok-scan"
+        : "tok-verb";
+      out += "<span class=\"" + p + "-" + cls + "\">" + escapeHtml(v) + "</span>";
+      rest = rest.slice(verb[0].length);
+      const name = rest.match(/^(\s+)([^—(…]+?)(?=(\s*\()|(\s*[—–])|(\s*…)|(\s*\.\.\.)|$)/);
+      if (name && name[2] && name[2].trim()) {
+        out += escapeHtml(name[1]) + "<span class=\"" + p + "-tok-name\">" + escapeHtml(name[2].replace(/\s+$/, "")) + "</span>";
+        rest = rest.slice(name[0].length);
+      }
+    } else {
+      const loaded = rest.match(/^(.+?)(\s+[—–]\s+)(loaded)\b/i);
+      if (loaded) {
+        out += "<span class=\"" + p + "-tok-name\">" + escapeHtml(loaded[1]) + "</span>";
+        out += "<span class=\"" + p + "-tok-sep\">" + escapeHtml(loaded[2]) + "</span>";
+        out += "<span class=\"" + p + "-tok-scan\">" + escapeHtml(loaded[3]) + "</span>";
+        rest = rest.slice(loaded[0].length);
+      }
+    }
+    out += paintExportLogTokens(rest, p);
+    return out;
+  }
+
+  function renderExportProgressLogHtml(logLines) {
+    if (!Array.isArray(logLines) || !logLines.length) return "";
+    return logLines.map(function (line) {
+      const d = line && line.t ? new Date(line.t) : null;
+      const ts = d && !isNaN(d.getTime())
+        ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+        : "";
+      const msg = String((line && line.msg) || "").replace(/\s*\(still working…\)+/gi, "").trim();
+      const kind = classifyExportLogMessage(msg);
+      return (
+        "<div class=\"sp-toolkit-export-log-line sp-toolkit-export-log-" + kind + "\">" +
+        (ts ? "<span class=\"sp-toolkit-export-log-ts\">[" + escapeHtml(ts) + "]</span>" : "") +
+        "<span class=\"sp-toolkit-export-log-msg\">" + highlightExportLogMessageHtml(msg) + "</span>" +
+        "</div>"
+      );
+    }).join("");
+  }
+
   function copyTextToClipboard(text) {
     const s = String(text == null ? "" : text);
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -426,6 +518,9 @@
         persistCompassActiveTab(paneId);
       });
     }
+    if (!options.skipFocus) {
+      focusCompassPanePrimaryField(panel, paneId);
+    }
   }
 
   function applyReportsPaneLayout(panel) {
@@ -434,13 +529,18 @@
     const reportSelect = host && host.querySelector(".sp-toolkit-compass-report-select");
     if (!host || !reportSelect) return;
     const reportType = reportSelect.value || "exportCSV";
-    const showReportLists = reportType === "exportCSV" || reportType === "folderCount" || reportType === "pathLengths";
+    const isMatrixLike = reportType === "permissionsMatrix" || reportType === "everythingBagel";
+    const showReportLists =
+      reportType === "exportCSV" ||
+      reportType === "folderCount" ||
+      reportType === "pathLengths" ||
+      isMatrixLike;
     host.classList.toggle("sp-toolkit-reports-lists-mode", showReportLists);
-    host.classList.toggle("sp-toolkit-reports-matrix-mode", reportType === "permissionsMatrix");
+    host.classList.toggle("sp-toolkit-reports-matrix-mode", isMatrixLike);
     const reportsScroll = host.closest(".sp-toolkit-compass-scroll");
     if (reportsScroll) {
       reportsScroll.classList.toggle("sp-toolkit-reports-lists-scroll", showReportLists);
-      reportsScroll.classList.toggle("sp-toolkit-reports-matrix-scroll", reportType === "permissionsMatrix");
+      reportsScroll.classList.toggle("sp-toolkit-reports-matrix-scroll", isMatrixLike);
     }
   }
 
@@ -536,6 +636,9 @@
     if (!options.skipResize) {
       noteCompassPanelContentChanged(panel);
     }
+    if (!options.skipFocus) {
+      focusCompassPanePrimaryField(panel, paneId);
+    }
   }
 
   function focusCompassPanePrimaryField(panel, paneId) {
@@ -547,24 +650,34 @@
       quicklinks: "#quicklinksFilter",
       context: "#contextFilterInput",
       columns: "#searchSchemaFilter",
-      siteContents: ".sp-toolkit-site-contents-name-filter input"
+      siteContents: ".sp-toolkit-sc-name-filter-input",
+      reports: ".sp-toolkit-report-lists-filter"
     };
     const selector = selectorsByPane[paneId];
     if (!selector) return;
 
     let attempts = 0;
-    const maxAttempts = 3;
+    const maxAttempts = 8;
     function tryFocus() {
       if (!panel.isConnected) return;
+      const activePane = panel.querySelector(".sp-toolkit-compass-pane.sp-toolkit-compass-pane-active");
+      if (activePane && activePane.getAttribute("data-compass-pane") !== paneId) return;
       const el = panel.querySelector(selector);
-      if (el && typeof el.focus === "function" && !el.disabled && el.offsetParent !== null) {
-        el.focus({ preventScroll: true });
-        if (typeof el.select === "function" && (paneId === "quicklinks" || paneId === "context" || paneId === "columns")) {
+      if (el && typeof el.focus === "function" && !el.disabled) {
+        const visible = el.offsetParent !== null || (el.getClientRects && el.getClientRects().length > 0);
+        if (visible) {
           try {
-            el.select();
-          } catch (_) {}
+            el.focus({ preventScroll: true });
+          } catch (_) {
+            el.focus();
+          }
+          if (typeof el.select === "function") {
+            try {
+              el.select();
+            } catch (_) {}
+          }
+          return;
         }
-        return;
       }
       attempts += 1;
       if (attempts < maxAttempts) requestAnimationFrame(tryFocus);
@@ -952,6 +1065,9 @@
     applyFlowListAnimation(content, ".sp-toolkit-ql-list li");
     panel.dataset.compassQuicklinksReady = "1";
     noteCompassPanelContentChanged(panel);
+    if (panel.dataset.compassActivePane === "quicklinks") {
+      focusCompassPanePrimaryField(panel, "quicklinks");
+    }
     } finally {
       delete panel.dataset.compassQuicklinksLoading;
     }
@@ -1304,9 +1420,34 @@
     window.open(siteUrl + "/_layouts/15/managedproperty.aspx?property=" + enc + "&level=sitecol", "_blank", "noopener,noreferrer");
   }
 
+  function updateViewsPaneButtons(host) {
+    if (!host) return;
+    const listIdClean = String(host.dataset.listId || "").replace(/[{}]/g, "").trim();
+    const siteUrl = String(host.dataset.siteUrl || "").replace(/\/$/, "");
+    const onList = host.dataset.onListView === "1";
+    const canOpenViewManager = !!(siteUrl && listIdClean);
+    const b1 = host.querySelector(".sp-toolkit-compass-vm-open");
+    const b2 = host.querySelector(".sp-toolkit-compass-vf-open");
+    if (b1) {
+      b1.disabled = !canOpenViewManager;
+      b1.title = canOpenViewManager ? "Open View Manager" : "Open a list or library view first";
+    }
+    if (b2) {
+      b2.disabled = !onList;
+      b2.title = onList ? "Open View formatter" : "Open a list or library view first";
+    }
+  }
+
   function wireViewsPane(panel, onListOrLibraryView, siteUrl, currentListId) {
     const host = panel.querySelector(".sp-toolkit-compass-views-host");
-    if (!host || host.dataset.wired === "1") return;
+    if (!host) return;
+    host.dataset.siteUrl = String(siteUrl || "").replace(/\/$/, "");
+    host.dataset.listId = String(currentListId || "").replace(/[{}]/g, "").trim();
+    host.dataset.onListView = onListOrLibraryView ? "1" : "0";
+    if (host.dataset.wired === "1") {
+      updateViewsPaneButtons(host);
+      return;
+    }
     host.dataset.wired = "1";
     host.innerHTML = "";
     const p = document.createElement("p");
@@ -1318,17 +1459,15 @@
     row.className = "sp-toolkit-compass-btnrow";
     const b1 = document.createElement("button");
     b1.type = "button";
-    b1.className = "sp-toolkit-compass-primary";
+    b1.className = "sp-toolkit-compass-primary sp-toolkit-compass-vm-open";
     b1.textContent = "Open View Manager";
-    const listIdClean = String(currentListId || "").replace(/[{}]/g, "").trim();
-    const canOpenViewManager = !!(siteUrl && listIdClean);
-    b1.disabled = !canOpenViewManager;
-    b1.title = canOpenViewManager ? "Open View Manager" : "Open a list or library view first";
     b1.addEventListener("click", function () {
-      if (!canOpenViewManager) return;
+      const listIdClean = String(host.dataset.listId || "").replace(/[{}]/g, "").trim();
+      const webUrl = String(host.dataset.siteUrl || "").replace(/\/$/, "");
+      if (!listIdClean || !webUrl) return;
       try {
         chrome.runtime.sendMessage(
-          { type: "SPOToolkitOpenViewManager", listId: listIdClean, webUrl: siteUrl },
+          { type: "SPOToolkitOpenViewManager", listId: listIdClean, webUrl: webUrl },
           function (res) {
             if (chrome.runtime.lastError || (res && res.ok === false)) {
               console.warn("SPOToolkit: View Manager open failed", chrome.runtime.lastError || res);
@@ -1342,12 +1481,10 @@
     row.appendChild(b1);
     const b2 = document.createElement("button");
     b2.type = "button";
-    b2.className = "sp-toolkit-compass-secondary";
+    b2.className = "sp-toolkit-compass-secondary sp-toolkit-compass-vf-open";
     b2.textContent = "View formatter";
-    b2.disabled = !onListOrLibraryView;
-    b2.title = onListOrLibraryView ? "Open View formatter" : "Open a list or library view first";
     b2.addEventListener("click", function () {
-      if (!onListOrLibraryView) return;
+      if (host.dataset.onListView !== "1") return;
       try {
         chrome.runtime.sendMessage({ type: "SPOToolkitOpenViewFormatter", previewUrl: window.location.href });
       } catch (e) {
@@ -1356,8 +1493,19 @@
     });
     row.appendChild(b2);
     host.appendChild(row);
+    updateViewsPaneButtons(host);
     noteCompassPanelContentChanged(panel);
   }
+
+  window.SPOT_refreshCompassViewsPane = function (panel, ctx) {
+    if (!panel) return;
+    wireViewsPane(
+      panel,
+      !!(ctx && ctx.onListOrLibraryView),
+      (ctx && ctx.siteUrl) || panel.dataset.compassSiteKey || "",
+      (ctx && ctx.currentListId) || panel.dataset.compassCurrentListId || ""
+    );
+  };
 
   function getPageSizePromise() {
     return new Promise(function (resolve) {
@@ -1387,6 +1535,7 @@
       "<div class=\"sp-toolkit-compass-settings-row\"><label for=\"spToolkitSettingPopupSearch\">Open universal search when dropdown opens</label><input type=\"checkbox\" id=\"spToolkitSettingPopupSearch\"/></div>" +
       "<div class=\"sp-toolkit-compass-settings-row\"><label for=\"spToolkitSettingPopoutSearch\">Open universal search when popout opens</label><input type=\"checkbox\" id=\"spToolkitSettingPopoutSearch\"/></div>" +
       "<div class=\"sp-toolkit-compass-settings-row\"><label for=\"spToolkitSettingRememberTab\">Remember last tab when opening popout</label><input type=\"checkbox\" id=\"spToolkitSettingRememberTab\"/></div>" +
+      "<div class=\"sp-toolkit-compass-settings-row\"><label for=\"spToolkitSettingSillyWorker\">Silly mode (snake icon + joke title)</label><input type=\"checkbox\" id=\"spToolkitSettingSillyWorker\"/></div>" +
       "<div class=\"sp-toolkit-compass-settings-row\"><label for=\"spToolkitSettingShortcutsEnabled\">Enable keyboard shortcut macros</label><input type=\"checkbox\" id=\"spToolkitSettingShortcutsEnabled\"/></div>" +
       "<div id=\"spToolkitShortcutRows\" class=\"sp-toolkit-compass-settings-shortcuts\">" +
       "<div class=\"sp-toolkit-compass-settings-row\"><label for=\"spToolkitShortcutOpenPanel\">Open popout</label><input id=\"spToolkitShortcutOpenPanel\" type=\"text\" placeholder=\"alt+shift+s\"/></div>" +
@@ -1411,6 +1560,7 @@
     const popupSearchChk = host.querySelector("#spToolkitSettingPopupSearch");
     const popoutSearchChk = host.querySelector("#spToolkitSettingPopoutSearch");
     const rememberTabChk = host.querySelector("#spToolkitSettingRememberTab");
+    const sillyWorkerChk = host.querySelector("#spToolkitSettingSillyWorker");
     const shortcutsEnabledChk = host.querySelector("#spToolkitSettingShortcutsEnabled");
     const shortcutRows = host.querySelector("#spToolkitShortcutRows");
     const shortcutInputs = {
@@ -1480,12 +1630,13 @@
     }
 
     chrome.storage.local.get(
-      ["listsLauncherEnabled", "universalSearchOpenOnLoad", "compassUniversalSearchOpenOnLoad", COMPASS_REMEMBER_TAB_KEY, COMPASS_SHORTCUTS_ENABLED_KEY, COMPASS_SHORTCUTS_KEY, ANIMATION_SECONDS_KEY, LAUNCHER_ICON_SCALE_KEY],
+      ["listsLauncherEnabled", "universalSearchOpenOnLoad", "compassUniversalSearchOpenOnLoad", COMPASS_REMEMBER_TAB_KEY, "exportWorkerSillyMode", COMPASS_SHORTCUTS_ENABLED_KEY, COMPASS_SHORTCUTS_KEY, ANIMATION_SECONDS_KEY, LAUNCHER_ICON_SCALE_KEY],
       function (st) {
         if (launcherChk) launcherChk.checked = st.listsLauncherEnabled !== false;
-        if (popupSearchChk) popupSearchChk.checked = !!st.universalSearchOpenOnLoad;
-        if (popoutSearchChk) popoutSearchChk.checked = !!st.compassUniversalSearchOpenOnLoad;
+        if (popupSearchChk) popupSearchChk.checked = st.universalSearchOpenOnLoad === true;
+        if (popoutSearchChk) popoutSearchChk.checked = st.compassUniversalSearchOpenOnLoad === true;
         if (rememberTabChk) rememberTabChk.checked = st[COMPASS_REMEMBER_TAB_KEY] !== false;
+        if (sillyWorkerChk) sillyWorkerChk.checked = st.exportWorkerSillyMode === true;
         const shortcutsEnabled = !!st[COMPASS_SHORTCUTS_ENABLED_KEY];
         if (shortcutsEnabledChk) shortcutsEnabledChk.checked = shortcutsEnabled;
         applyShortcutsEnabledUi(shortcutsEnabled);
@@ -1523,6 +1674,11 @@
     if (rememberTabChk) {
       rememberTabChk.addEventListener("change", function () {
         chrome.storage.local.set({ [COMPASS_REMEMBER_TAB_KEY]: rememberTabChk.checked });
+      });
+    }
+    if (sillyWorkerChk) {
+      sillyWorkerChk.addEventListener("change", function () {
+        chrome.storage.local.set({ exportWorkerSillyMode: sillyWorkerChk.checked });
       });
     }
     if (shortcutsEnabledChk) {
@@ -1613,7 +1769,7 @@
   function buildReportsPane(panel, invoke, siteUrlFromCtx, currentListIdFromCtx) {
     const host = panel.querySelector(".sp-toolkit-compass-reports-host");
     if (!host) return;
-    if (host.dataset.built === "18") {
+    if (host.dataset.built === "20") {
       return;
     }
     if (host.dataset.building === "1") return;
@@ -1630,6 +1786,7 @@
       "<span class=\"sp-toolkit-export-progress-msg\">Export console</span></div>" +
       "<div class=\"sp-toolkit-export-progress-meta\">" +
       "<span class=\"sp-toolkit-export-progress-elapsed\"></span>" +
+      "<button type=\"button\" class=\"sp-toolkit-compass-secondary sp-toolkit-export-open-worker\" title=\"Open export worker tab\">Open tab</button>" +
       "<button type=\"button\" class=\"sp-toolkit-compass-secondary sp-toolkit-export-cancel\" title=\"Stop export\">Cancel</button>" +
       "<span class=\"sp-toolkit-export-progress-pct\"></span></div></div></div>" +
       "<div class=\"sp-toolkit-export-progress-log\"></div></div>" +
@@ -1642,6 +1799,7 @@
       "<option value=\"folderCount\">Folder &amp; Item Counts</option>" +
       "<option value=\"pathLengths\">Path Length Report</option>" +
       "<option value=\"permissionsMatrix\">Permissions Matrix</option>" +
+      "<option value=\"everythingBagel\">Everything Bagel</option>" +
       "</select></div>" +
       "<div class=\"sp-toolkit-compass-report-opts sp-toolkit-compass-form-stack\">" +
       "<div class=\"sp-toolkit-report-lists-row sp-toolkit-compass-matrix-card\" style=\"display:none\">" +
@@ -1656,19 +1814,11 @@
       "<span class=\"sp-toolkit-report-lists-count\" aria-live=\"polite\"></span></div>" +
       "<input type=\"search\" class=\"sp-toolkit-report-lists-filter sp-toolkit-compass-context-filter\" placeholder=\"Filter by subsite path or list name…\" autocomplete=\"off\" />" +
       "<div class=\"sp-toolkit-report-lists-list\">Click Load lists to choose site lists and libraries.</div></div></div>" +
-      "<div class=\"sp-toolkit-matrix-row sp-toolkit-compass-matrix-card\" style=\"display:none\">" +
-      "<div class=\"sp-toolkit-compass-field sp-toolkit-matrix-sites-block\">" +
-      "<label class=\"sp-toolkit-compass-label\">Sites to scan</label>" +
-      "<div class=\"sp-toolkit-matrix-sites-toolbar\">" +
-      "<button type=\"button\" class=\"sp-toolkit-compass-secondary sp-toolkit-btn-matrix-load\">Load sites</button>" +
-      "<button type=\"button\" class=\"sp-toolkit-compass-secondary sp-toolkit-btn-matrix-all\">All</button>" +
-      "<button type=\"button\" class=\"sp-toolkit-compass-secondary sp-toolkit-btn-matrix-none\">None</button></div>" +
-      "<div class=\"sp-toolkit-matrix-sites-list\">Click Load sites to choose root site and subsites.</div></div></div>" +
       "</div>" +
       "<div class=\"sp-toolkit-compass-reports-footer\">" +
       "<div class=\"sp-toolkit-compass-field sp-toolkit-export-row\"><label class=\"sp-toolkit-compass-label\">Format</label>" +
       "<select class=\"sp-toolkit-compass-format-select\"><option value=\"xlsx\">Excel (.xlsx)</option><option value=\"csv\">CSV (.csv)</option></select></div>" +
-      "<p class=\"sp-toolkit-compass-muted sp-toolkit-report-bundle-hint\">Multi-list exports download as one .zip folder bundle.</p>" +
+      "<p class=\"sp-toolkit-compass-muted sp-toolkit-report-bundle-hint\">Selecting 2+ lists downloads a .zip folder bundle; a single list downloads one file.</p>" +
       "<div class=\"sp-toolkit-compass-btnrow\">" +
       "<button type=\"button\" class=\"sp-toolkit-compass-primary sp-toolkit-btn-run-export\">Run</button>" +
       "<button type=\"button\" class=\"sp-toolkit-compass-secondary sp-toolkit-btn-cols\">Choose columns</button>" +
@@ -1684,8 +1834,8 @@
       "<div class=\"sp-toolkit-compass-field\"><label class=\"sp-toolkit-compass-label\">Page size</label><select class=\"sp-toolkit-page-size\"><option value=\"500\">500</option><option value=\"1000\">1000</option><option value=\"5000\">5000</option></select></div>" +
       "<div class=\"sp-toolkit-compass-field\"><label class=\"sp-toolkit-compass-label\">Default export format</label><select class=\"sp-toolkit-default-format\"><option value=\"xlsx\">Excel</option><option value=\"csv\">CSV</option></select></div>" +
       "<div class=\"sp-toolkit-matrix-settings-section\">" +
-      "<label class=\"sp-toolkit-compass-label\">Permissions matrix</label>" +
-      "<label class=\"sp-toolkit-chk-row\"><input type=\"checkbox\" class=\"sp-toolkit-chk-matrix\" checked/><span>Include subsites when loading site list</span></label>" +
+      "<label class=\"sp-toolkit-compass-label\">Permissions matrix / Everything Bagel</label>" +
+      "<label class=\"sp-toolkit-chk-row\"><input type=\"checkbox\" class=\"sp-toolkit-chk-matrix\" checked/><span>Include subsites when loading lists</span></label>" +
       "<label class=\"sp-toolkit-chk-row\"><input type=\"checkbox\" class=\"sp-toolkit-chk-matrix-expand\"/><span>Expand groups in matrix</span></label>" +
       "<label class=\"sp-toolkit-chk-row\"><input type=\"checkbox\" class=\"sp-toolkit-chk-matrix-all-inherited\"/><span>Include ALL inherited rows (slow)</span></label>" +
       "<label class=\"sp-toolkit-chk-row\"><input type=\"checkbox\" class=\"sp-toolkit-chk-matrix-folder-links\" checked/><span>Include folder sharing links</span></label>" +
@@ -1700,7 +1850,6 @@
     const statusEl = host.querySelector(".sp-toolkit-compass-reports-status");
     const reportSelect = host.querySelector(".sp-toolkit-compass-report-select");
     const formatSelect = host.querySelector(".sp-toolkit-compass-format-select");
-    const matrixRow = host.querySelector(".sp-toolkit-matrix-row");
     const reportListsRow = host.querySelector(".sp-toolkit-report-lists-row");
     const reportListsList = host.querySelector(".sp-toolkit-report-lists-list");
     const reportListsFilter = host.querySelector(".sp-toolkit-report-lists-filter");
@@ -1713,14 +1862,12 @@
     const chkMatrixSharingFetchAll = host.querySelector(".sp-toolkit-chk-matrix-sharing-fetch-all");
     const matrixMaxItems = host.querySelector(".sp-toolkit-matrix-max-items");
     const matrixPageSize = host.querySelector(".sp-toolkit-matrix-page-size");
-    const matrixSitesList = matrixRow.querySelector(".sp-toolkit-matrix-sites-list");
     const progressConsole = host.querySelector(".sp-toolkit-export-progress-console");
     const progressBarWrap = host.querySelector(".sp-toolkit-export-progress-bar-wrap");
     const progressBar = host.querySelector(".sp-toolkit-export-progress-bar");
     const progressElapsed = host.querySelector(".sp-toolkit-export-progress-elapsed");
     const progressMsg = host.querySelector(".sp-toolkit-export-progress-msg");
     const progressLog = host.querySelector(".sp-toolkit-export-progress-log");
-    let matrixSitePlan = [];
     let reportListPlan = [];
     let reportListsExpandedPaths = new Set();
     let reportListsTreeIndex = {};
@@ -1732,10 +1879,40 @@
     const pickStatus = host.querySelector(".sp-toolkit-compass-picker-status");
     let pickerData = null;
 
-    function setStatus(msg, kind) {
+    function focusExportWorkerTab() {
+      try {
+        chrome.runtime.sendMessage({ type: "SPCSVExportFocusWorker" });
+      } catch (_) {}
+    }
+
+    function setStatus(msg, kind, opts) {
       if (!statusEl) return;
-      statusEl.textContent = msg || "";
-      statusEl.className = "sp-toolkit-compass-reports-status" + (kind ? " " + kind : "");
+      opts = opts || {};
+      statusEl.className = "sp-toolkit-compass-reports-status" + (kind ? " " + kind : "") + (opts.workerLink ? " sp-toolkit-reports-status-link" : "");
+      statusEl.textContent = "";
+      if (!msg) return;
+      if (opts.workerLink) {
+        var a = document.createElement("a");
+        a.href = "#";
+        a.className = "sp-toolkit-export-worker-link";
+        a.textContent = msg;
+        a.title = "Open the export worker tab";
+        a.addEventListener("click", function (e) {
+          e.preventDefault();
+          focusExportWorkerTab();
+        });
+        statusEl.appendChild(a);
+      } else {
+        statusEl.textContent = msg;
+      }
+    }
+
+    function clearStaleExportRunningStatus() {
+      if (!statusEl) return;
+      var text = (statusEl.textContent || "").trim();
+      if (/background tab|keep working here|open for Snake/i.test(text) || statusEl.querySelector(".sp-toolkit-export-worker-link")) {
+        setStatus("");
+      }
     }
 
     function normalizeListGuid(g) {
@@ -1850,35 +2027,17 @@
       return { roots: roots, nodeByPath: nodeByPath };
     }
 
-    function ensureReportTreePathExpanded(pathKey) {
-      if (!pathKey) return;
-      reportListsExpandedPaths.add(pathKey);
-      var parentKey = findReportSiteParentPath(pathKey, Object.keys(reportListsTreeIndex));
-      if (parentKey) ensureReportTreePathExpanded(parentKey);
-    }
-
-    function seedReportListsExpandedPaths(roots, nodeByPath, sel) {
+    function seedReportListsExpandedPaths(roots, nodeByPath) {
       reportListsTreeIndex = nodeByPath || {};
       var validKeys = {};
       Object.keys(reportListsTreeIndex).forEach(function (k) {
         validKeys[k] = true;
       });
+      // Keep sites/subsites collapsed by default; only preserve paths the user already expanded.
       Array.from(reportListsExpandedPaths).forEach(function (k) {
         if (!validKeys[k]) reportListsExpandedPaths.delete(k);
       });
-      if (!reportListsExpandedPaths.size) {
-        roots.forEach(function (r) {
-          reportListsExpandedPaths.add(r.pathKey);
-        });
-      }
-      function walk(node) {
-        var hasSelected = node.lists.some(function (e) {
-          return sel[reportListEntryKey(e).toLowerCase()];
-        });
-        if (hasSelected) ensureReportTreePathExpanded(node.pathKey);
-        node.children.forEach(walk);
-      }
-      roots.forEach(walk);
+      void roots;
     }
 
     function setReportTreeExpanded(expanded) {
@@ -1933,8 +2092,10 @@
       div.setAttribute("data-site-key", siteKey);
       div.setAttribute("data-search", searchText);
       div.style.setProperty("--tree-depth", String(depth));
+      // Keep input outside label+for (nested for causes double-toggle / stuck checks).
       div.innerHTML =
-        "<label for=\"" + id + "\"><input type=\"checkbox\" id=\"" + id + "\" data-key=\"" + escapeHtml(key) + "\" " + (sel[key.toLowerCase()] ? "checked" : "") + "/>" +
+        "<input type=\"checkbox\" id=\"" + id + "\" data-key=\"" + escapeHtml(key) + "\" " + (sel[key.toLowerCase()] ? "checked" : "") + "/>" +
+        "<label for=\"" + id + "\">" +
         "<span class=\"sp-toolkit-report-list-item-main\">" +
         "<span class=\"sp-toolkit-report-list-item-title\">" +
         "<span class=\"sp-toolkit-report-list-badge " + kindClass + "\">" + escapeHtml(kindLabel) + "</span>" +
@@ -1948,13 +2109,16 @@
       var listCount = node.lists.length;
       var childCount = node.children.length;
       var metaParts = [];
-      if (listCount) metaParts.push(listCount + (listCount === 1 ? " list" : " lists"));
       if (childCount) metaParts.push(childCount + (childCount === 1 ? " subsite" : " subsites"));
+      if (listCount) metaParts.push(listCount + (listCount === 1 ? " list" : " lists"));
       var el = document.createElement("div");
       el.className = "sp-toolkit-report-tree-node" + (expanded ? "" : " sp-toolkit-report-tree-collapsed");
       el.setAttribute("data-tree-path", node.pathKey);
       el.setAttribute("data-site-key", reportSiteGroupKey({ siteUrl: node.siteUrl }));
       el.style.setProperty("--tree-depth", String(depth));
+      var siteBadge = depth > 0
+        ? "<span class=\"sp-toolkit-report-list-badge subsite\">Subsite</span>"
+        : "<span class=\"sp-toolkit-report-list-badge site\">Site</span>";
       el.innerHTML =
         "<div class=\"sp-toolkit-report-tree-site-heading\">" +
         "<button type=\"button\" class=\"sp-toolkit-report-tree-toggle\" aria-expanded=\"" + (expanded ? "true" : "false") + "\" aria-label=\"Toggle " + escapeHtml(node.siteTitle) + "\">" +
@@ -1962,12 +2126,16 @@
         "<div class=\"sp-toolkit-report-tree-site-label\">" +
         "<input type=\"checkbox\" class=\"sp-toolkit-report-tree-site-cb\" data-tree-path=\"" + escapeHtml(node.pathKey) + "\" title=\"Select all lists in this site\" />" +
         "<span class=\"sp-toolkit-report-tree-site-text\">" +
-        "<span class=\"sp-toolkit-report-lists-site-title\">" + escapeHtml(node.siteTitle) + "</span>" +
+        "<span class=\"sp-toolkit-report-lists-site-title\">" + siteBadge + "<span class=\"sp-toolkit-report-lists-site-name\">" + escapeHtml(node.siteTitle) + "</span></span>" +
         "<span class=\"sp-toolkit-report-lists-site-path\">" + escapeHtml(node.path) + "</span>" +
         (metaParts.length ? "<span class=\"sp-toolkit-report-tree-site-meta\">" + escapeHtml(metaParts.join(" · ")) + "</span>" : "") +
         "</span></div></div>" +
         "<div class=\"sp-toolkit-report-tree-body\"></div>";
       var body = el.querySelector(".sp-toolkit-report-tree-body");
+      // Subsites first (still collapsed unless the user expands), then this site's lists.
+      node.children.forEach(function (child) {
+        body.appendChild(renderReportSiteTreeNode(child, sel, depth + 1));
+      });
       if (node.lists.length) {
         var listsWrap = document.createElement("div");
         listsWrap.className = "sp-toolkit-report-tree-lists";
@@ -1976,9 +2144,6 @@
         });
         body.appendChild(listsWrap);
       }
-      node.children.forEach(function (child) {
-        body.appendChild(renderReportSiteTreeNode(child, sel, depth + 1));
-      });
       return el;
     }
 
@@ -2004,7 +2169,7 @@
       if (!reportListsCount || !reportListsList) return;
       var visibleItems = Array.from(reportListsList.querySelectorAll(".sp-toolkit-report-list-item:not(.sp-toolkit-report-list-hidden)"));
       var checkedVisible = visibleItems.filter(function (item) {
-        var cb = item.querySelector("input[type=checkbox]");
+        var cb = item.querySelector(":scope > input[type=checkbox], input[type=checkbox]");
         return cb && cb.checked;
       }).length;
       var totalVisible = visibleItems.length;
@@ -2082,7 +2247,7 @@
       var reportType = reportSelect ? reportSelect.value : "exportCSV";
       var libOnly = reportType === "folderCount" || reportType === "pathLengths";
       var tree = buildReportSiteTree(reportListPlan, libOnly);
-      seedReportListsExpandedPaths(tree.roots, tree.nodeByPath, sel);
+      seedReportListsExpandedPaths(tree.roots, tree.nodeByPath);
       reportListsList.classList.add("sp-toolkit-report-lists-tree");
       reportListsList.innerHTML = "";
       tree.roots.forEach(function (node) {
@@ -2107,36 +2272,27 @@
       }, extra || {});
     }
 
-    function getSelectedMatrixPaths() {
-      if (!matrixSitesList) return [];
-      return Array.from(matrixSitesList.querySelectorAll("input[type=checkbox]:checked")).map(function (cb) {
-        return cb.getAttribute("data-path");
-      }).filter(Boolean);
+    function sitePathFromReportListEntry(entry) {
+      var p = String(entry && entry.sitePath || "").trim();
+      if (p) return p.replace(/\/$/, "") || "/";
+      try {
+        return new URL(String(entry.siteUrl || "")).pathname.replace(/\/$/, "") || "/";
+      } catch (_) {
+        return String(entry && entry.siteUrl || "").replace(/\/$/, "");
+      }
     }
 
-    function renderMatrixSites(plan, selectedPaths) {
-      if (!matrixSitesList) return;
-      matrixSitePlan = plan || [];
-      var sel = {};
-      (selectedPaths || plan.map(function (e) { return e.path; })).forEach(function (p) {
-        sel[String(p).toLowerCase()] = true;
+    function matrixPathsFromSelectedLists(selectedLists) {
+      var seen = {};
+      var paths = [];
+      (selectedLists || []).forEach(function (entry) {
+        var path = sitePathFromReportListEntry(entry);
+        var key = path.toLowerCase();
+        if (!path || seen[key]) return;
+        seen[key] = true;
+        paths.push(path);
       });
-      if (!plan.length) {
-        matrixSitesList.innerHTML = "<span>Click Load sites to choose subsites.</span>";
-        return;
-      }
-      matrixSitesList.innerHTML = "";
-      plan.forEach(function (entry) {
-        var path = entry.path || "";
-        var id = "cmp-mx-" + path.replace(/[^a-zA-Z0-9]/g, "_");
-        var div = document.createElement("div");
-        div.className = "sp-toolkit-matrix-site-item";
-        div.innerHTML =
-          '<label><input type="checkbox" id="' + id + '" data-path="' + escapeHtml(path) + '" ' + (sel[path.toLowerCase()] ? "checked" : "") + "/>" +
-          "<span><strong>" + escapeHtml(entry.title || path) + "</strong><br/><span style=\"opacity:.75;font-size:11px\">" +
-          escapeHtml(path) + (entry.listCount || entry.itemCount ? " · " + (entry.listCount || 0) + " lists · " + (entry.itemCount || 0) + " items" : "") + "</span></span></label>";
-        matrixSitesList.appendChild(div);
-      });
+      return paths;
     }
 
     function formatCompassElapsed(ms) {
@@ -2172,6 +2328,7 @@
       if (reportsMain) reportsMain.classList.remove("sp-toolkit-reports-export-active", "sp-toolkit-reports-export-tracking");
       var reportsScrollOff = host.closest(".sp-toolkit-compass-scroll");
       if (reportsScrollOff) reportsScrollOff.classList.remove("sp-toolkit-reports-scroll-locked");
+      clearStaleExportRunningStatus();
       if (statusEl) statusEl.classList.remove("sp-toolkit-reports-status-hidden");
     }
 
@@ -2230,7 +2387,12 @@
           showReportsMainView();
           startProgressPolling();
           try { chrome.runtime.sendMessage({ type: "SPCSVExportEnsureWorker" }); } catch (_) {}
+          if (statusEl && !statusEl.querySelector(".sp-toolkit-export-worker-link")) {
+            setStatus("Export running in a background tab. Keep working here — open for Snake & progress.", "ok", { workerLink: true });
+          }
         } else {
+          var doneMsg = String(data.message || (data.success ? "Export complete" : "Export finished")).replace(/\s*\(still working…\)+/gi, "").trim();
+          setStatus(doneMsg, data.success ? "ok" : "error");
           scheduleExportProgressDismiss();
           stopProgressPolling();
         }
@@ -2253,12 +2415,7 @@
           progressElapsed.style.display = "none";
         }
         if (progressLog && Array.isArray(data.log)) {
-          progressLog.textContent = data.log.map(function (line) {
-            var d = line.t ? new Date(line.t) : null;
-            var ts = d ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
-            var msg = String(line.msg || "").replace(/\s*\(still working…\)+/gi, "").trim();
-            return (ts ? "[" + ts + "] " : "") + msg;
-          }).join("\n");
+          progressLog.innerHTML = renderExportProgressLogHtml(data.log);
           scrollCompassExportLogToEnd(progressLog);
         }
         noteCompassPanelContentChanged(panel);
@@ -2311,9 +2468,7 @@
         includeFolderSharingLinks: !!(chkMatrixFolderLinks && chkMatrixFolderLinks.checked),
         sharingLinkFetchAll: !!(chkMatrixSharingFetchAll && chkMatrixSharingFetchAll.checked),
         maxListItems: matrixMaxItems ? parseInt(matrixMaxItems.value, 10) || 2000 : 2000,
-        listItemPageSize: matrixPageSize ? parseInt(matrixPageSize.value, 10) || 5000 : 5000,
-        sitePlan: matrixSitePlan || [],
-        selectedPaths: getSelectedMatrixPaths()
+        listItemPageSize: matrixPageSize ? parseInt(matrixPageSize.value, 10) || 5000 : 5000
       }, extra || {});
     }
 
@@ -2331,36 +2486,23 @@
     async function refreshReportsPaneContext() {
       var selCtx = await resolveReportSelectionContext(invoke, siteUrlFromCtx, currentListIdFromCtx);
       var siteKey = normalizeMatrixSiteKey(selCtx.siteUrl);
-      var prevKey = host.dataset.matrixSiteKey || "";
       var prevReportKey = host.dataset.reportSiteKey || "";
       host.dataset.matrixSiteKey = siteKey;
       host.dataset.reportSiteKey = siteKey;
       host.dataset.reportSiteUrl = selCtx.siteUrl || "";
       host.dataset.reportCurrentListId = selCtx.listId || "";
       host.dataset.reportOnListPage = selCtx.onListPage ? "1" : "0";
-      var defaultKeys = null;
       chrome.storage.local.get(["matrixExportPrefs", REPORT_EXPORT_PREFS_KEY], function (r) {
         var p = r.matrixExportPrefs || {};
         applyMatrixControlPrefs(p);
-        if (siteKey && p.siteKey === siteKey && Array.isArray(p.sitePlan) && p.sitePlan.length) {
-          renderMatrixSites(p.sitePlan, p.selectedPaths);
-        } else if (siteKey !== prevKey) {
-          matrixSitePlan = [];
-          if (matrixSitesList) {
-            matrixSitesList.innerHTML = "<span>Click Load sites to choose root site and subsites.</span>";
-          }
-        }
         var rp = r[REPORT_EXPORT_PREFS_KEY] || {};
         if (siteKey && rp.siteKey === siteKey && Array.isArray(rp.listPlan) && rp.listPlan.length) {
-          defaultKeys = defaultReportListSelectionKeys(rp.listPlan, selCtx.listId, selCtx.onListPage, selCtx.siteUrl);
-          renderReportLists(rp.listPlan, defaultKeys, selCtx);
-          chrome.storage.local.set({
-            reportExportPrefs: buildReportExportPrefsPayload({
-              siteKey: siteKey,
-              listPlan: rp.listPlan,
-              selectedKeys: defaultKeys
-            })
-          });
+          var savedKeys = Array.isArray(rp.selectedKeys) ? rp.selectedKeys.filter(Boolean) : null;
+          var keysToUse = savedKeys && savedKeys.length
+            ? savedKeys
+            : defaultReportListSelectionKeys(rp.listPlan, selCtx.listId, selCtx.onListPage, selCtx.siteUrl);
+          renderReportLists(rp.listPlan, keysToUse, selCtx);
+          // Do not overwrite the user's saved selection with defaults on every refresh.
         } else if (siteKey !== prevReportKey) {
           reportListPlan = [];
           if (reportListsList) {
@@ -2414,46 +2556,6 @@
 
     host._spotRefreshReportsContext = refreshReportsPaneContext;
     void refreshReportsPaneContext();
-
-    host.querySelector(".sp-toolkit-btn-matrix-load")?.addEventListener("click", function () {
-      if (matrixSitesList) matrixSitesList.innerHTML = "<span class=\"sp-toolkit-panel-loading\">Loading site inventory…</span>";
-      setStatus("Loading sites… large sites can take up to a minute.", "info");
-      resolveReportContext(invoke, siteUrlFromCtx, currentListIdFromCtx).then(function (ctx) {
-        var siteUrl = ctx.siteUrl || "";
-        if (!siteUrl) {
-          if (matrixSitesList) matrixSitesList.innerHTML = "<span>Open a SharePoint site page first.</span>";
-          setStatus("Open a SharePoint site page first.", "error");
-          return;
-        }
-        var siteKey = normalizeMatrixSiteKey(siteUrl);
-        host.dataset.matrixSiteKey = siteKey;
-        return invoke({ action: "getMatrixScanPlan", siteUrl: siteUrl, includeSubsites: !!(chkMatrix && chkMatrix.checked) }).then(function (res) {
-          if (!res || !res.ok) {
-            if (matrixSitesList) matrixSitesList.innerHTML = "<span>" + escapeHtml((res && res.error) || "Failed to load sites.") + "</span>";
-            setStatus((res && res.error) || "Failed to load sites.", "error");
-            return;
-          }
-          renderMatrixSites(res.plan || [], (res.plan || []).map(function (e) { return e.path; }));
-          setStatus("Loaded " + (res.plan || []).length + " site(s). Select subsites to scan, then Run.", "ok");
-          chrome.storage.local.set({
-            matrixExportPrefs: buildMatrixPrefsPayload({
-              siteKey: siteKey,
-              sitePlan: res.plan || [],
-              selectedPaths: (res.plan || []).map(function (e) { return e.path; })
-            })
-          });
-        });
-      }).catch(function (err) {
-        if (matrixSitesList) matrixSitesList.innerHTML = "<span>" + escapeHtml((err && err.message) || "Failed to load sites.") + "</span>";
-        setStatus((err && err.message) || "Failed to load sites.", "error");
-      });
-    });
-    host.querySelector(".sp-toolkit-btn-matrix-all")?.addEventListener("click", function () {
-      matrixSitesList.querySelectorAll("input[type=checkbox]").forEach(function (cb) { cb.checked = true; });
-    });
-    host.querySelector(".sp-toolkit-btn-matrix-none")?.addEventListener("click", function () {
-      matrixSitesList.querySelectorAll("input[type=checkbox]").forEach(function (cb) { cb.checked = false; });
-    });
 
     host.querySelector(".sp-toolkit-btn-report-lists-load")?.addEventListener("click", function () {
       void loadReportListPlan();
@@ -2525,24 +2627,39 @@
         });
       } catch (_) {}
     });
+    host.querySelector(".sp-toolkit-export-open-worker")?.addEventListener("click", function () {
+      focusExportWorkerTab();
+    });
 
     function toggleReportOptions() {
       const v = reportSelect.value;
-      const isMatrix = v === "permissionsMatrix";
-      const showReportLists = v === "exportCSV" || v === "folderCount" || v === "pathLengths";
+      const isMatrix = v === "permissionsMatrix" || v === "everythingBagel";
+      const showReportLists = v === "exportCSV" || v === "folderCount" || v === "pathLengths" || isMatrix;
       const showExportFormat = v === "exportCSV";
       const show = showExportFormat || isMatrix || showReportLists;
       const reportOpts = host.querySelector(".sp-toolkit-compass-report-opts");
       if (reportOpts) reportOpts.style.display = show ? "flex" : "none";
       if (reportListsRow) reportListsRow.style.display = showReportLists ? "flex" : "none";
-      matrixRow.style.display = isMatrix ? "flex" : "none";
       exportRow.style.display = showExportFormat ? "flex" : "none";
       var bundleHint = host.querySelector(".sp-toolkit-report-bundle-hint");
-      if (bundleHint) bundleHint.style.display = showReportLists ? "" : "none";
+      if (bundleHint) bundleHint.style.display = showReportLists && !isMatrix ? "" : "none";
       host.querySelector(".sp-toolkit-btn-cols").style.display = showExportFormat ? "" : "none";
       host.classList.toggle("sp-toolkit-reports-matrix-mode", isMatrix);
       syncReportListsLayoutMode();
-      if (showReportLists && reportListPlan.length) renderReportLists(reportListPlan);
+      if (showReportLists && reportListPlan.length) {
+        var keepKeys = getSelectedReportLists().map(reportListEntryKey);
+        if (!keepKeys.length) {
+          keepKeys = Array.from(reportListsList.querySelectorAll("input[type=checkbox][data-key]")).map(function (cb) {
+            return cb.getAttribute("data-key");
+          }).filter(Boolean);
+        }
+        // Preserve current checks across report-type toggles that re-render the tree.
+        if (!keepKeys.length) {
+          renderReportLists(reportListPlan);
+        } else {
+          renderReportLists(reportListPlan, keepKeys);
+        }
+      }
     }
     reportSelect.addEventListener("change", toggleReportOptions);
     toggleReportOptions();
@@ -2671,7 +2788,12 @@
         setStatus("Open a SharePoint site or list page first, then try again.", "error");
         return;
       }
-      const needsListPicker = reportType === "exportCSV" || reportType === "folderCount" || reportType === "pathLengths";
+      const isMatrix = reportType === "permissionsMatrix" || reportType === "everythingBagel";
+      const needsListPicker =
+        reportType === "exportCSV" ||
+        reportType === "folderCount" ||
+        reportType === "pathLengths" ||
+        isMatrix;
       let selectedLists = needsListPicker ? getSelectedReportLists() : [];
       if (needsListPicker && !selectedLists.length) {
         if (!reportListPlan.length) {
@@ -2690,16 +2812,26 @@
           return;
         }
       }
+      const selectedMatrixPaths = isMatrix ? matrixPathsFromSelectedLists(selectedLists) : [];
+      if (isMatrix && !selectedMatrixPaths.length) {
+        setStatus(
+          reportType === "everythingBagel"
+            ? "Select at least one list or library to include in the Everything Bagel report."
+            : "Select at least one list or library to include in the permissions matrix.",
+          "error"
+        );
+        return;
+      }
       const effectiveListId = selectedLists.length === 1 ? normalizeListGuid(selectedLists[0].listId) : listId;
       const effectiveSiteUrl = selectedLists.length === 1 ? String(selectedLists[0].siteUrl || siteUrl).replace(/\/$/, "") : siteUrl;
       const includeVersions = !!(host.querySelector(".sp-toolkit-chk-versions") && host.querySelector(".sp-toolkit-chk-versions").checked);
       const pageLimit = await getPageSizePromise();
-      const exportFormat = reportType === "permissionsMatrix" ? "xlsx" : (formatSelect.value || "xlsx");
+      const exportFormat = isMatrix ? "xlsx" : (formatSelect.value || "xlsx");
       const msg = {
         action: "runExportCSV",
         siteUrl: effectiveSiteUrl,
-        listId: effectiveListId,
-        viewId: viewId,
+        listId: isMatrix ? "" : effectiveListId,
+        viewId: isMatrix ? "" : viewId,
         exportFilename: "",
         pageLimit: pageLimit,
         includeVersions: includeVersions,
@@ -2713,7 +2845,7 @@
         matrixSharingLinkFetchAll: !!(chkMatrixSharingFetchAll && chkMatrixSharingFetchAll.checked),
         matrixMaxListItems: matrixMaxItems ? parseInt(matrixMaxItems.value, 10) || 2000 : 2000,
         matrixListItemPageSize: matrixPageSize ? parseInt(matrixPageSize.value, 10) || 5000 : 5000,
-        matrixSelectedPaths: getSelectedMatrixPaths(),
+        matrixSelectedPaths: isMatrix ? selectedMatrixPaths : null,
         reportSelectedLists: selectedLists.length ? selectedLists : null,
         rootSiteTitle: selectedLists.length > 1 ? (function () {
           try {
@@ -2727,9 +2859,9 @@
         response && response.message != null && response.message !== ""
           ? response.message
           : response && response.ok
-            ? "Export running in a background tab. Keep working here — open the background tab for Snake and live progress."
+            ? "Export running in a background tab. Keep working here — open for Snake & progress."
             : (response && response.error) || "Export failed.";
-      setStatus(statusMessage, response && response.ok ? "ok" : "error");
+      setStatus(statusMessage, response && response.ok ? "ok" : "error", response && response.ok ? { workerLink: true } : null);
       if (response && response.ok) {
         refreshProgressConsole();
         startProgressPolling();
@@ -2739,11 +2871,14 @@
     }
 
     host.querySelector(".sp-toolkit-btn-run-export").addEventListener("click", function () {
-      if (reportSelect.value === "exportCSV" || reportSelect.value === "folderCount" || reportSelect.value === "pathLengths" || reportSelect.value === "permissionsMatrix") {
+      if (reportSelect.value === "exportCSV" || reportSelect.value === "folderCount" || reportSelect.value === "pathLengths" || reportSelect.value === "permissionsMatrix" || reportSelect.value === "everythingBagel") {
         runExport(null);
       }
     });
-    host.dataset.built = "18";
+    host.dataset.built = "20";
+    if (panel.dataset.compassActivePane === "reports") {
+      focusCompassPanePrimaryField(panel, "reports");
+    }
     } finally {
       delete host.dataset.building;
     }
@@ -2820,6 +2955,7 @@
     const onListOrLibraryView = !!(ctx && ctx.onListOrLibraryView);
     const currentListId = (ctx && ctx.currentListId) || "";
     applyListOnlyCompassTabs(panel, onListOrLibraryView);
+    wireViewsPane(panel, onListOrLibraryView, siteUrl, currentListId);
     chrome.storage.local.get([COMPASS_ACTIVE_TAB_KEY, COMPASS_REMEMBER_TAB_KEY], function (st) {
       const remember = st[COMPASS_REMEMBER_TAB_KEY] !== false;
       const paneId = resolveRememberedCompassPane(remember ? st[COMPASS_ACTIVE_TAB_KEY] : null, onListOrLibraryView);
@@ -2829,6 +2965,7 @@
         reg.activeId === paneId &&
         isCompassPaneContentReady(panel, paneId, onListOrLibraryView)
       ) {
+        focusCompassPanePrimaryField(panel, paneId);
         return;
       }
       switchCompassPane(panel, paneId, invokeToolkitAction, siteUrl, onSiteContentsPage, onListOrLibraryView, currentListId);
@@ -2843,6 +2980,7 @@
     if (panel.dataset.compassToolListeners === "1") {
       wireCompassPaneRegistry(panel);
       refreshCompassTabRegistry(panel);
+      window.SPOT_focusCompassPanePrimaryField = focusCompassPanePrimaryField;
       return;
     }
     wireCompassPaneRegistry(panel);
@@ -2859,6 +2997,7 @@
     window.SPOT_resetCompassPanelSize = resetCompassPanelSize;
     window.SPOT_updateCompassTabIndicator = updateTabIndicator;
     window.SPOT_updateCompassPanelTitle = updateCompassPanelTitle;
+    window.SPOT_focusCompassPanePrimaryField = focusCompassPanePrimaryField;
     window.SPOT_clearCompassPagePropsCache = clearPagePropsCacheForUrl;
     if (!window._SPOT_compassPanelResizeBound) {
       window._SPOT_compassPanelResizeBound = true;

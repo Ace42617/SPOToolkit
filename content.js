@@ -302,15 +302,58 @@ const LISTS_LAUNCHER_CSS =
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-progress-msg{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-progress-console.sp-toolkit-export-console-active .sp-toolkit-export-progress-msg{color:var(--brand-accent);}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-progress-meta{display:flex;align-items:center;gap:10px;flex-shrink:0;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-cancel{display:none;padding:2px 8px;font-size:10px;line-height:1.4;min-height:0;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-progress-console.sp-toolkit-export-console-active .sp-toolkit-export-cancel{display:inline-flex;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-cancel,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-open-worker{display:none;padding:2px 8px;font-size:10px;line-height:1.4;min-height:0;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-progress-console.sp-toolkit-export-console-active .sp-toolkit-export-cancel,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-progress-console.sp-toolkit-export-console-active .sp-toolkit-export-open-worker{display:inline-flex;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-worker-link{color:inherit;text-decoration:underline;text-decoration-color:rgba(134,239,172,.45);text-underline-offset:2px;cursor:pointer;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-worker-link:hover{text-decoration-color:currentColor;color:#86efac;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-worker-link{text-decoration-color:rgba(55,174,28,.4);}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-worker-link:hover{color:#2d8d1b;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-progress-elapsed{font-size:11px;font-weight:600;color:rgba(255,255,255,.55);font-variant-numeric:tabular-nums;min-width:3.5em;text-align:right;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-progress-elapsed{color:#64748b;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-progress-pct{font-size:11px;font-weight:700;color:var(--brand-accent);white-space:nowrap;}" +
   "@keyframes sp-export-spin{to{transform:rotate(360deg);}}" +
   "@keyframes sp-export-bar-wave{0%{transform:translateX(-100%);}100%{transform:translateX(100%);}}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-progress-log{flex:1;min-height:0;max-height:180px;overflow-y:auto;overflow-x:hidden;padding:0 10px 10px;font-family:Consolas,ui-monospace,monospace;font-size:11px;line-height:1.4;color:rgba(255,255,255,.72);white-space:pre-wrap;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-progress-log{color:#64748b;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-progress-log{flex:1;min-height:0;max-height:180px;overflow-y:auto;overflow-x:hidden;padding:4px 10px 10px;font-family:Consolas,ui-monospace,monospace;font-size:11px;line-height:1.45;color:rgba(230,237,246,.78);display:flex;flex-direction:column;gap:3px;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-log-line{display:flex;gap:8px;align-items:flex-start;padding:2px 6px;border-radius:5px;border-left:2px solid transparent;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-log-ts{flex:0 0 auto;color:rgba(100,116,139,.85);font-variant-numeric:tabular-nums;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-log-msg{min-width:0;flex:1;white-space:pre-wrap;word-break:break-word;color:rgba(203,213,225,.88);}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-tok-kw{color:#a78bfa;font-weight:500;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-tok-verb{color:#c4b5fd;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-tok-scan{color:#67e8f9;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-tok-ok{color:#86efac;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-tok-skip{color:#fbbf24;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-tok-name{color:#e2e8f0;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-tok-num{color:#fcd34d;font-variant-numeric:tabular-nums;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-tok-meta{color:#94a3b8;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-tok-sep{color:#64748b;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-tok-err{color:#fca5a5;font-weight:600;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-log-start{border-left-color:rgba(125,211,252,.45);background:rgba(56,189,248,.06);}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-log-action{border-left-color:rgba(167,139,250,.4);background:rgba(139,92,246,.06);}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-log-progress{border-left-color:rgba(103,232,249,.4);background:rgba(34,211,238,.05);}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-log-ok{border-left-color:rgba(134,239,172,.5);background:rgba(55,174,28,.07);}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-log-skip{border-left-color:rgba(251,191,36,.45);background:rgba(245,158,11,.07);}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-log-warn{border-left-color:rgba(251,146,60,.5);background:rgba(249,115,22,.08);}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-export-log-error{border-left-color:rgba(248,113,113,.55);background:rgba(239,68,68,.08);}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-progress-log{color:#475569;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-log-ts{color:#94a3b8;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-log-msg{color:#64748b;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-tok-kw{color:#7c3aed;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-tok-verb{color:#6d28d9;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-tok-scan{color:#0891b2;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-tok-ok{color:#15803d;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-tok-skip{color:#b45309;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-tok-name{color:#0f172a;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-tok-num{color:#a16207;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-tok-meta{color:#64748b;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-tok-sep{color:#94a3b8;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-tok-err{color:#b91c1c;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-log-start{border-left-color:#38bdf8;background:#f0f9ff;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-log-action{border-left-color:#a78bfa;background:#f5f3ff;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-log-progress{border-left-color:#22d3ee;background:#ecfeff;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-log-ok{border-left-color:#37ae1c;background:#ecf9e8;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-log-skip{border-left-color:#f59e0b;background:#fffbeb;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-log-warn{border-left-color:#f97316;background:#fff7ed;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-export-log-error{border-left-color:#ef4444;background:#fef2f2;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-reports-status.sp-toolkit-reports-status-hidden{display:none!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-reports-main.sp-toolkit-reports-export-active .sp-toolkit-compass-reports-config{display:none!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-reports-main.sp-toolkit-reports-export-active{display:flex;flex-direction:column;flex:1;min-height:240px;}" +
@@ -329,13 +372,16 @@ const LISTS_LAUNCHER_CSS =
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-refinable-out ul{margin:6px 0 0 18px;padding:0;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-ref-type{opacity:.75;font-size:11px;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-lists-panel-body{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-wrap{overflow:auto;flex:1;min-height:0;width:100%;box-sizing:border-box;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th[data-column=\"name\"]{width:42%;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th[data-column=\"type\"]{width:22%;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th[data-column=\"items\"]{width:10%;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th[data-column=\"modified\"]{width:16%;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th[data-column=\"settings\"]{width:10%;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-wrap{overflow-x:hidden;overflow-y:auto;flex:1;min-height:0;width:100%;box-sizing:border-box;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table{width:100%;max-width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-sc-toolbar{display:flex;align-items:center;gap:10px;flex-shrink:0;padding:12px 14px 10px;box-sizing:border-box;width:100%;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-sc-toolbar .sp-toolkit-sc-name-filter-input{flex:1 1 auto;min-width:0;margin:0;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-sc-toolbar .sp-toolkit-sc-type-filter{flex:0 0 10.5rem;width:10.5rem;max-width:36%;margin:0;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th[data-column=\"name\"]{width:auto;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th[data-column=\"type\"]{width:9.5rem;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th[data-column=\"items\"]{width:3.75rem;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th[data-column=\"modified\"]{width:8.5rem;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th[data-column=\"settings\"]{width:6.75rem;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-contents-table th{color:rgba(255,255,255,.92)!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-contents-table td{color:rgba(255,255,255,.92)!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-contents-table .sp-toolkit-row-name a{color:rgba(255,255,255,.95)!important;}" +
@@ -347,51 +393,53 @@ const LISTS_LAUNCHER_CSS =
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-header-tenant-line{color:rgba(255,255,255,.75)!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th{text-align:left;padding:8px 10px;font-weight:600;border-bottom:1px solid rgba(255,255,255,.12);color:inherit;white-space:nowrap;cursor:pointer;user-select:text;-webkit-user-select:text;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th:first-child," + "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table td:first-child{padding-left:12px;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th:last-child," + "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table td:last-child{padding-right:12px;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th:hover{opacity:.9;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th .sp-toolkit-sort-icon{opacity:.6;margin-left:4px;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table th{border-bottom-color:#E4E6F5;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-site-contents-name-filter{display:flex;align-items:center;gap:6px;max-width:none;width:100%;min-width:0;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-site-contents-name-filter .sp-toolkit-sc-filter-icon{width:16px;height:16px;min-width:16px;flex-shrink:0;opacity:.88;color:rgba(255,255,255,.88);}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-site-contents-name-filter .sp-toolkit-sc-filter-icon{color:#5A5F8A;opacity:.85;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-site-contents-name-filter .sp-toolkit-sc-filter-icon path{fill:currentColor;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-site-contents-name-filter input{flex:1;min-width:0;width:auto!important;max-width:none!important;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-filter-row th{padding:4px 8px;vertical-align:middle;cursor:default;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-filter-row th:hover{opacity:1;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-filter-row input," +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-filter-row select{width:100%;max-width:none;padding:6px 8px;font-size:12px;border-radius:6px;border:1px solid rgba(255,255,255,.15);background:#252a30;color:rgba(255,255,255,.95);font-family:inherit;cursor:pointer;appearance:auto;-webkit-appearance:menulist;-moz-appearance:menulist;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-filter-row input{background:#252a30;color:rgba(255,255,255,.95);cursor:text;appearance:none;-webkit-appearance:none;-moz-appearance:none;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-filter-row select:hover{border-color:rgba(255,255,255,.25);}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-filter-row select:focus{outline:none;border-color:rgba(55,174,28,.5);box-shadow:0 0 0 2px rgba(55,174,28,.15);}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-filter-row input," +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-filter-row select{background:#f5f6ff;border-color:#E4E6F5;color:#1C1F4A;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-filter-row input{background:#fff;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-filter-row select:hover{border-color:#CDD0EE;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-filter-row select:focus{border-color:#37ae1c;box-shadow:0 0 0 2px rgba(55,174,28,.2);}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-contents-table thead tr.sp-toolkit-filter-row th{position:sticky;top:0;z-index:6;background:#181b23;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table thead tr.sp-toolkit-filter-row th{position:sticky;top:0;z-index:6;background:#fff;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-contents-table thead tr.sp-toolkit-column-header-row th{position:sticky;top:2.625rem;z-index:5;background:#181b23;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table thead tr.sp-toolkit-column-header-row th{position:sticky;top:2.625rem;z-index:5;background:#fff;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-sc-type-filter{cursor:pointer;appearance:auto;-webkit-appearance:menulist;-moz-appearance:menulist;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-contents-table thead tr.sp-toolkit-column-header-row th{position:sticky;top:0;z-index:5;background:#181b23;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table thead tr.sp-toolkit-column-header-row th{position:sticky;top:0;z-index:5;background:#fff;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:middle;white-space:nowrap;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table td{border-bottom-color:#E4E6F5;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-name{display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-name{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-icon-wrap{flex-shrink:0;display:inline-flex;align-items:center;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-icon{flex-shrink:0;width:20px;height:20px;color:inherit;opacity:.85;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-sc-expand{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:22px;height:28px;margin:0;padding:0;border:none;border-radius:6px;background:transparent;color:inherit;cursor:pointer;opacity:.85;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-sc-expand:hover{background:rgba(55,174,28,.12);opacity:1;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-sc-expand-spacer{flex:0 0 auto;width:22px;height:1px;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-sc-chevron{display:block;width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:6px solid currentColor;transition:transform .16s cubic-bezier(.4,0,.2,1);transform:rotate(0deg);transform-origin:40% 50%;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-sc-expand[aria-expanded=\"true\"] .sp-toolkit-sc-chevron,#" + LISTS_LAUNCHER_PANEL_ID + " tr.sp-toolkit-sc-expanded .sp-toolkit-sc-chevron{transform:rotate(90deg);}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-sc-status-row td{font-size:11px;opacity:.72;font-style:italic;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-sc-status-row.sp-toolkit-sc-status-err td{color:#fca5a5;opacity:.95;font-style:normal;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-name a{color:inherit;text-decoration:none;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis;flex:1;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-contents-table .sp-toolkit-row-name a:hover{color:#86efac;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-row-name a:hover{color:#37ae1c;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table tr.sp-toolkit-current .sp-toolkit-row-name a{font-weight:600;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table tr.sp-toolkit-current td:first-child{border-left:3px solid #37ae1c;padding-left:9px;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table td.sp-toolkit-type-cell{display:flex;align-items:center;color:inherit;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table td.sp-toolkit-type-cell{color:inherit;vertical-align:middle;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-type-pill{display:inline-flex;align-items:center;justify-content:center;line-height:1;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;white-space:nowrap;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-type-pill{background:rgba(55,174,28,.25);color:#86efac;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-type-pill{background:#EEF0FE;color:#5A5F8A;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table td:nth-child(3),#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table td:nth-child(4){text-align:center;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-settings{display:flex;align-items:center;justify-content:center;gap:2px;min-width:56px;text-align:center;vertical-align:middle;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-settings a{display:inline-flex;align-items:center;justify-content:center;color:inherit;opacity:.7;padding:4px;border-radius:4px;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-settings a:hover{opacity:1;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-settings svg{width:18px;height:18px;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-view-manager{display:inline-flex;align-items:center;justify-content:center;color:inherit;opacity:.7;padding:4px;margin:0;border:none;background:transparent;cursor:pointer;border-radius:4px;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-view-manager:hover{opacity:1;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-view-manager svg{width:18px;height:18px;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-settings{display:flex;align-items:center;justify-content:flex-end;gap:2px;min-width:0;box-sizing:border-box;text-align:right;vertical-align:middle;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-settings .sp-toolkit-row-action," +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-settings a," +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-settings button{" +
+    "display:inline-flex!important;align-items:center;justify-content:center;" +
+    "box-sizing:border-box;width:28px!important;height:28px!important;min-width:28px!important;max-width:28px!important;" +
+    "min-height:28px!important;max-height:28px!important;padding:0!important;margin:0!important;" +
+    "border:none!important;border-radius:6px;background:transparent!important;color:inherit!important;" +
+    "opacity:.75;cursor:pointer;flex:0 0 28px;line-height:0!important;font:inherit!important;" +
+    "appearance:none!important;-webkit-appearance:none!important;-moz-appearance:none!important;" +
+    "text-decoration:none!important;vertical-align:middle;" +
+  "}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-settings .sp-toolkit-row-action:hover," +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-settings a:hover," +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-settings button:hover{opacity:1;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-settings .sp-toolkit-row-action svg," +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-settings a svg," +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-settings button svg{width:16px!important;height:16px!important;display:block;flex:none;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th[data-column=\"settings\"]{cursor:default;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-row-name a:hover{text-decoration:underline;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-lists-loading,.sp-toolkit-lists-error{padding:14px;font-size:13px;color:#9ca3bf;transition:color .2s;}" +
@@ -413,14 +461,18 @@ const LISTS_LAUNCHER_CSS =
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-flow-list .sp-toolkit-compass-colrow," +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-flow-list .refinable-mappings-list li{opacity:1!important;transform:none!important;animation:none!important;}" +
   "@keyframes sp-toolkit-flow-down{0%{opacity:0;transform:translateY(-6px);}100%{opacity:1;transform:translateY(0);}}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table.sp-toolkit-lists-loaded tbody tr{animation:sp-toolkit-item-in .3s ease-out backwards;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table.sp-toolkit-lists-loaded tbody tr:nth-child(1){animation-delay:0.02s;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table.sp-toolkit-lists-loaded tbody tr:nth-child(2){animation-delay:0.04s;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table.sp-toolkit-lists-loaded tbody tr:nth-child(3){animation-delay:0.06s;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table.sp-toolkit-lists-loaded tbody tr:nth-child(4){animation-delay:0.08s;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table.sp-toolkit-lists-loaded tbody tr:nth-child(5){animation-delay:0.1s;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table.sp-toolkit-lists-loaded tbody tr:nth-child(n+6){animation-delay:0.12s;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table.sp-toolkit-lists-enter tbody tr{animation:sp-toolkit-item-in .3s ease-out backwards;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table.sp-toolkit-lists-enter tbody tr:nth-child(1){animation-delay:0.02s;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table.sp-toolkit-lists-enter tbody tr:nth-child(2){animation-delay:0.04s;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table.sp-toolkit-lists-enter tbody tr:nth-child(3){animation-delay:0.06s;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table.sp-toolkit-lists-enter tbody tr:nth-child(4){animation-delay:0.08s;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table.sp-toolkit-lists-enter tbody tr:nth-child(5){animation-delay:0.1s;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table.sp-toolkit-lists-enter tbody tr:nth-child(n+6){animation-delay:0.12s;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table tbody tr.sp-toolkit-sc-soft-in{animation:sp-toolkit-sc-soft-in .28s ease-out both;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table tbody tr.sp-toolkit-sc-soft-out{animation:sp-toolkit-sc-soft-out .18s ease-in both;pointer-events:none;}" +
   "@keyframes sp-toolkit-item-in{0%{opacity:0;transform:translateX(-6px);}100%{opacity:1;transform:translateX(0);}}" +
+  "@keyframes sp-toolkit-sc-soft-in{0%{opacity:0;transform:translateY(-4px);}100%{opacity:1;transform:translateY(0);}}" +
+  "@keyframes sp-toolkit-sc-soft-out{0%{opacity:1;transform:translateY(0);}100%{opacity:0;transform:translateY(-3px);}}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + "{backdrop-filter:blur(6px);}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-lists-panel-header{padding:12px 14px 10px;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-panel-title-label{font-size:13px;font-weight:700;letter-spacing:.01em;}" +
@@ -467,8 +519,8 @@ const LISTS_LAUNCHER_CSS =
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-ql-section-label{color:var(--pp-txt-soft)!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-ql-list a{background:var(--pp-surface)!important;border:1.5px solid var(--pp-border)!important;color:var(--pp-txt)!important;min-height:74px!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-ql-list a:hover{background:var(--pp-brand-faint)!important;border-color:var(--pp-brand-soft)!important;color:var(--pp-brand)!important;box-shadow:0 2px 8px rgba(55,174,28,.08)!important;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-context-filter,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-columns-filter,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-ql-filter,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-reports-host select,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-matrix-field input,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-matrix-field select,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-refinable-type,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-refinable-num{background:var(--pp-surface-2)!important;border:1.5px solid var(--pp-border)!important;color:var(--pp-txt)!important;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-context-filter:focus,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-columns-filter:focus,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-ql-filter:focus,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-reports-host select:focus,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-refinable-type:focus,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-refinable-num:focus{outline:none;border-color:var(--pp-brand-soft)!important;box-shadow:0 0 0 2px rgba(55,174,28,.15)!important;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-context-filter,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-columns-filter,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-ql-filter,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-report-lists-filter,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-sc-name-filter-input,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-sc-type-filter,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-reports-host select,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-matrix-field input,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-matrix-field select,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-refinable-type,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-refinable-num{background:var(--pp-surface-2)!important;border:1.5px solid var(--pp-border)!important;color:var(--pp-txt)!important;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-context-filter:focus,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-columns-filter:focus,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-ql-filter:focus,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-report-lists-filter:focus,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-sc-name-filter-input:focus,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-sc-type-filter:focus,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-reports-host select:focus,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-refinable-type:focus,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-refinable-num:focus{outline:none;border-color:var(--pp-brand-soft)!important;box-shadow:0 0 0 2px rgba(55,174,28,.15)!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-ctx-row{border-bottom:1px solid var(--pp-border)!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-ctx-k{color:var(--pp-txt-mid)!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-ctx-v{color:var(--pp-txt)!important;}" +
@@ -492,6 +544,9 @@ const LISTS_LAUNCHER_CSS =
   "#" + LISTS_LAUNCHER_PANEL_ID + " .column-creator-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .column-creator-submit{padding:7px 12px;border-radius:8px;border:none;background:var(--pp-brand);color:#fff;font-size:12px;font-weight:600;cursor:pointer;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .column-creator-submit:disabled{opacity:.55;cursor:not-allowed;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .column-creator-submit[hidden]{display:none!important;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .column-creator-cancel{padding:7px 12px;border-radius:8px;border:1.5px solid var(--pp-border);background:transparent;color:var(--pp-txt-mid,#94a3b8);font-size:12px;font-weight:600;cursor:pointer;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .column-creator-cancel:hover{border-color:var(--pp-txt-soft,#64748b);color:var(--pp-txt,#e2e8f0);}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .column-creator-status{font-size:11px;color:var(--pp-txt-soft);}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .column-creator-status.err{color:#f87171;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .column-creator-status.ok{color:#4ade80;}" +
@@ -526,9 +581,11 @@ const LISTS_LAUNCHER_CSS =
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table thead tr.sp-toolkit-filter-row th,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table thead tr.sp-toolkit-column-header-row th{background:var(--pp-surface)!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table th,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table td{border-bottom:1px solid var(--pp-border)!important;color:var(--pp-txt)!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-filter-row input,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-contents-table .sp-toolkit-filter-row select{background:var(--pp-surface-2)!important;border:1px solid var(--pp-border)!important;color:var(--pp-txt)!important;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " #quicklinksContent{display:block!important;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-pane[data-compass-pane='quicklinks'] .sp-toolkit-compass-scroll{padding:0!important;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-pane[data-compass-pane='quicklinks'] .sp-toolkit-compass-quicklinks-host{padding:10px 12px 12px;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-pane[data-compass-pane='quicklinks'].active,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-pane[data-compass-pane='quicklinks'].sp-toolkit-compass-pane-active{flex-direction:column!important;overflow:hidden!important;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-pane[data-compass-pane='quicklinks'] .sp-toolkit-compass-scroll{padding:0!important;display:flex!important;flex-direction:column!important;flex:1 1 auto!important;min-height:0!important;overflow:hidden!important;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-pane[data-compass-pane='quicklinks'] .sp-toolkit-compass-quicklinks-host{padding:0!important;flex:1 1 auto!important;min-height:0!important;display:flex!important;flex-direction:column!important;overflow:hidden!important;width:100%!important;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-pane[data-compass-pane='quicklinks'] .sp-toolkit-ql-filter-row{flex-shrink:0!important;padding:12px 14px 10px!important;margin:0!important;border-bottom:none!important;background:var(--pp-bg,var(--bg))!important;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + " #quicklinksContent,#" + LISTS_LAUNCHER_PANEL_ID + " .sp-toolkit-compass-pane[data-compass-pane='quicklinks'] .sp-toolkit-ql-content{display:block!important;flex:1 1 auto!important;min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;padding:0 14px 14px!important;box-sizing:border-box!important;width:100%!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " #contextPanel,#" + LISTS_LAUNCHER_PANEL_ID + " #searchSchemaPanel{display:flex!important;flex-direction:column!important;min-height:0!important;gap:0!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " #refinablePropsPanel{padding:0!important;display:flex;flex-direction:column;gap:12px;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + " .context-row .name{font-size:11px;font-weight:700;color:var(--pp-txt-mid)!important;}" +
@@ -559,8 +616,8 @@ const LISTS_LAUNCHER_CSS =
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-compass-pane-tab.active:hover{color:#37ae1c!important;background:transparent!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-ql-list a:hover{background:rgba(123,137,245,.14)!important;border-color:rgba(123,137,245,.38)!important;color:#dbe6ff!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-ql-list a:hover{background:#eef2ff!important;border-color:#cfd7ff!important;color:#3d4fd6!important;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-compass-context-filter:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-compass-columns-filter:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-ql-filter:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-compass-reports-host select:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-compass-refinable-type:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-compass-refinable-num:hover{border-color:rgba(123,137,245,.45)!important;background:rgba(123,137,245,.12)!important;color:#dbe6ff!important;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-compass-context-filter:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-compass-columns-filter:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-ql-filter:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-compass-reports-host select:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-compass-refinable-type:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-compass-refinable-num:hover{border-color:#c7d1ff!important;background:#f1f4ff!important;color:#3d4fd6!important;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-compass-context-filter:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-compass-columns-filter:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-ql-filter:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-sc-name-filter-input:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-sc-type-filter:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-compass-reports-host select:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-compass-refinable-type:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-compass-refinable-num:hover{border-color:rgba(123,137,245,.45)!important;background:rgba(123,137,245,.12)!important;color:#dbe6ff!important;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-compass-context-filter:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-compass-columns-filter:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-ql-filter:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-sc-name-filter-input:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-sc-type-filter:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-compass-reports-host select:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-compass-refinable-type:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-compass-refinable-num:hover{border-color:#c7d1ff!important;background:#f1f4ff!important;color:#3d4fd6!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-compass-secondary:hover{background:rgba(123,137,245,.16)!important;color:#dbe6ff!important;border-color:rgba(123,137,245,.42)!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-compass-secondary:hover{background:#eef2ff!important;color:#3d4fd6!important;border-color:#cfd7ff!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-compass-primary:hover{background:#2aa642!important;border-color:#2aa642!important;box-shadow:0 6px 18px rgba(42,166,66,.28)!important;}" +
@@ -575,8 +632,12 @@ const LISTS_LAUNCHER_CSS =
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-sc-sub:hover{background:#eef2ff!important;border-color:#cfd7ff!important;color:#3d4fd6!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-contents-table tbody tr:hover td{background:rgba(123,137,245,.06)!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table tbody tr:hover td{background:#f7f9ff!important;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-contents-table .sp-toolkit-row-settings a:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-contents-table .sp-toolkit-row-view-manager:hover{background:rgba(123,137,245,.16)!important;color:#dbe6ff!important;opacity:1!important;}" +
-  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-row-settings a:hover,#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-row-view-manager:hover{background:#eef2ff!important;color:#3d4fd6!important;opacity:1!important;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-contents-table .sp-toolkit-row-settings .sp-toolkit-row-action:hover," +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-contents-table .sp-toolkit-row-settings a:hover," +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-contents-table .sp-toolkit-row-settings button:hover{background:rgba(123,137,245,.16)!important;color:#dbe6ff!important;opacity:1!important;}" +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-row-settings .sp-toolkit-row-action:hover," +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-row-settings a:hover," +
+  "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-contents-table .sp-toolkit-row-settings button:hover{background:#eef2ff!important;color:#3d4fd6!important;opacity:1!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-dark .sp-toolkit-subsites-list a:hover{background:rgba(123,137,245,.2)!important;color:#dbe6ff!important;}" +
   "#" + LISTS_LAUNCHER_PANEL_ID + ".sp-toolkit-lists-panel-light .sp-toolkit-subsites-list a:hover{background:#e8eeff!important;color:#3d4fd6!important;}";
 
@@ -1554,10 +1615,31 @@ const LISTS_LAUNCHER_PARITY_CSS = `
   background:var(--surface-2)!important;
 }
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-pane[data-compass-pane='quicklinks'] .sp-toolkit-compass-scroll{
-  padding:12px 14px 14px!important;
+  padding:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  flex:1 1 auto!important;
+  min-height:0!important;
+  overflow:hidden!important;
 }
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-pane[data-compass-pane='quicklinks'] .sp-toolkit-compass-quicklinks-host{
   padding:0!important;
+  flex:1 1 auto!important;
+  min-height:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  overflow:hidden!important;
+  width:100%!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-pane[data-compass-pane='quicklinks'] #quicklinksContent,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-pane[data-compass-pane='quicklinks'] .sp-toolkit-ql-content{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  padding:0 14px 14px!important;
+  box-sizing:border-box!important;
+  width:100%!important;
 }
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-pane[data-compass-pane='quicklinks'] .sp-toolkit-ql-filter{
   min-height:34px!important;
@@ -1626,6 +1708,9 @@ const LISTS_LAUNCHER_PARITY_CSS = `
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-ql-filter,
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-context-filter,
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-columns-filter,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-lists-filter,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-sc-name-filter-input,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-sc-type-filter,
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-report-select,
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-format-select,
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-page-size,
@@ -1642,6 +1727,15 @@ const LISTS_LAUNCHER_PARITY_CSS = `
   line-height:1.35!important;
   padding:8px 12px!important;
   box-sizing:border-box!important;
+  border-radius:10px!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-sc-type-filter{
+  padding-right:30px!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-pane[data-compass-pane='siteContents'] .sp-toolkit-sc-name-filter-input{
+  min-height:34px!important;
+  border-radius:10px!important;
+  padding:8px 12px!important;
 }
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-report-select,
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-format-select,
@@ -1663,7 +1757,8 @@ const LISTS_LAUNCHER_PARITY_CSS = `
 }
 #${LISTS_LAUNCHER_PANEL_ID} #contextPanel .toolbar,
 #${LISTS_LAUNCHER_PANEL_ID} #searchSchemaPanel .toolbar,
-#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-ql-filter-row{
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-ql-filter-row,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-sc-toolbar{
   display:flex!important;
   gap:var(--compass-list-toolbar-gap)!important;
   min-height:36px!important;
@@ -1672,6 +1767,11 @@ const LISTS_LAUNCHER_PARITY_CSS = `
   padding:0 0 var(--compass-list-toolbar-pad-bottom)!important;
   border-bottom:1px solid var(--border)!important;
   flex-shrink:0!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-pane[data-compass-pane='siteContents'] .sp-toolkit-sc-toolbar{
+  border-bottom:none!important;
+  padding:12px 14px 10px!important;
+  margin:0!important;
 }
 #${LISTS_LAUNCHER_PANEL_ID} #quicklinksFilter,
 #${LISTS_LAUNCHER_PANEL_ID} #contextFilterInput,
@@ -1693,9 +1793,11 @@ const LISTS_LAUNCHER_PARITY_CSS = `
   display:none;
 }
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-pane[data-compass-pane='quicklinks'] .sp-toolkit-ql-filter-row{
+  flex-shrink:0!important;
   border-bottom:none!important;
-  padding:0!important;
-  margin:0 0 10px!important;
+  padding:12px 14px 10px!important;
+  margin:0!important;
+  background:var(--bg)!important;
 }
 #${LISTS_LAUNCHER_PANEL_ID} #searchSchemaCount,
 #${LISTS_LAUNCHER_PANEL_ID} #contextCount,
@@ -1748,26 +1850,9 @@ const LISTS_LAUNCHER_PARITY_CSS = `
   overflow:hidden!important;
   padding-bottom:12px!important;
 }
-#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-matrix-mode.sp-toolkit-compass-reports-host,
-#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-matrix-mode .sp-toolkit-compass-reports-main,
-#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-matrix-mode .sp-toolkit-compass-reports-config,
-#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-matrix-mode .sp-toolkit-compass-report-opts,
-#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-matrix-mode .sp-toolkit-matrix-row,
-#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-matrix-mode .sp-toolkit-matrix-sites-block{
-  flex:1!important;
-  min-height:0!important;
-  display:flex!important;
-  flex-direction:column!important;
-}
-#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-matrix-mode .sp-toolkit-compass-reports-status,
-#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-matrix-mode .sp-toolkit-compass-reports-config > .sp-toolkit-compass-field{
-  flex:0 0 auto!important;
-}
-#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-matrix-mode .sp-toolkit-matrix-sites-toolbar{
-  flex:0 0 auto!important;
-}
-#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-matrix-mode .sp-toolkit-matrix-sites-block > .sp-toolkit-compass-label{
-  flex:0 0 auto!important;
+/* Matrix reuses the shared lists picker layout (lists-mode). Keep matrix-mode for footer tweaks only. */
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-matrix-row{
+  display:none!important;
 }
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-pane[data-compass-pane='reports'] .sp-toolkit-compass-scroll.sp-toolkit-reports-lists-scroll{
   display:flex!important;
@@ -1968,9 +2053,17 @@ const LISTS_LAUNCHER_PARITY_CSS = `
   margin-top:0!important;
 }
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-lists-site-title{
+  display:flex!important;
+  align-items:center!important;
+  gap:8px!important;
+  min-width:0!important;
   font-size:12px!important;
   font-weight:700!important;
   line-height:1.35!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-lists-site-name{
+  min-width:0!important;
+  word-break:break-word!important;
 }
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-lists-site-path{
   margin-top:2px!important;
@@ -1980,6 +2073,9 @@ const LISTS_LAUNCHER_PARITY_CSS = `
   word-break:break-all!important;
 }
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-list-item{
+  display:flex!important;
+  align-items:flex-start!important;
+  gap:10px!important;
   margin:0 0 4px!important;
   padding:6px 8px!important;
   border-radius:8px!important;
@@ -1990,11 +2086,17 @@ const LISTS_LAUNCHER_PARITY_CSS = `
   border-color:rgba(55,174,28,.18)!important;
 }
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-list-item label{
+  display:flex!important;
   align-items:flex-start!important;
   gap:10px!important;
+  min-width:0!important;
+  flex:1!important;
+  margin:0!important;
+  cursor:pointer!important;
 }
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-list-item input{
   margin-top:3px!important;
+  flex-shrink:0!important;
 }
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-list-item-main{
   display:flex!important;
@@ -2033,6 +2135,14 @@ const LISTS_LAUNCHER_PARITY_CSS = `
   background:rgba(96,165,250,.16)!important;
   color:#93c5fd!important;
 }
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-list-badge.subsite{
+  background:rgba(196,181,253,.16)!important;
+  color:#c4b5fd!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-list-badge.site{
+  background:rgba(148,163,184,.16)!important;
+  color:#cbd5e1!important;
+}
 #${LISTS_LAUNCHER_PANEL_ID}.sp-toolkit-lists-panel-light .sp-toolkit-report-list-badge.library{
   background:#e8f7e4!important;
   color:#2d8d1b!important;
@@ -2040,6 +2150,14 @@ const LISTS_LAUNCHER_PARITY_CSS = `
 #${LISTS_LAUNCHER_PANEL_ID}.sp-toolkit-lists-panel-light .sp-toolkit-report-list-badge.list{
   background:#eef3ff!important;
   color:#3d4fd6!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID}.sp-toolkit-lists-panel-light .sp-toolkit-report-list-badge.subsite{
+  background:#f3e8ff!important;
+  color:#7c3aed!important;
+}
+#${LISTS_LAUNCHER_PANEL_ID}.sp-toolkit-lists-panel-light .sp-toolkit-report-list-badge.site{
+  background:#eef2f7!important;
+  color:#475569!important;
 }
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-list-meta{
   font-size:11px!important;
@@ -2050,12 +2168,6 @@ const LISTS_LAUNCHER_PARITY_CSS = `
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-lists-site-heading.sp-toolkit-report-list-hidden,
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-report-tree-node.sp-toolkit-report-list-hidden{
   display:none!important;
-}
-#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-matrix-mode .sp-toolkit-matrix-sites-list{
-  flex:1!important;
-  min-height:0!important;
-  max-height:none!important;
-  overflow-y:auto!important;
 }
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-reports-matrix-mode .sp-toolkit-compass-btnrow{
   flex:0 0 auto!important;
@@ -2264,7 +2376,8 @@ const LISTS_LAUNCHER_PARITY_CSS = `
 /* Bottom scroll fade — inner scrollports only (not form panels or whole tab scroll) */
 #${LISTS_LAUNCHER_PANEL_ID} #contextList,
 #${LISTS_LAUNCHER_PANEL_ID} #searchSchemaList,
-#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-pane[data-compass-pane='quicklinks'] .sp-toolkit-compass-scroll,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-pane[data-compass-pane='quicklinks'] #quicklinksContent,
+#${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-compass-pane[data-compass-pane='quicklinks'] .sp-toolkit-ql-content,
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-contents-wrap,
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-subsites-view,
 #${LISTS_LAUNCHER_PANEL_ID} .sp-toolkit-site-contents-stack .sp-toolkit-subsites-view.visible,
@@ -2818,7 +2931,19 @@ function resetCompassPanelForSiteChange(panel) {
     delete panel._spToolkitSubsitesCache;
     delete panel._siteContentsSubsites;
     delete panel._siteContentsRenderRows;
+    delete panel._siteContentsFiltersWired;
+    delete panel._siteContentsFilter;
+    delete panel._siteContentsExpanded;
+    delete panel._siteContentsChildCache;
+    delete panel._siteContentsRootWebUrl;
   } catch (_) {}
+  const scNameFilter = panel.querySelector(".sp-toolkit-sc-name-filter-input");
+  if (scNameFilter) scNameFilter.value = "";
+  const scTypeFilter = panel.querySelector(".sp-toolkit-sc-type-filter");
+  if (scTypeFilter) {
+    scTypeFilter.innerHTML = "<option value=\"\">All types</option>";
+    scTypeFilter.value = "";
+  }
   const navTabs = panel.querySelector(".sp-toolkit-compass-nav-tabs");
   if (navTabs) {
     navTabs.innerHTML = "";
@@ -2902,20 +3027,72 @@ function initCompassPanelEarly(panel, siteKey, currentListId) {
   });
 }
 
-function applySiteContentsSubsites(panel, subsites) {
-  if (!panel) return;
-  panel._spToolkitSubsitesCache = Array.isArray(subsites) ? subsites : [];
-  panel._siteContentsSubsites = panel._spToolkitSubsitesCache.map(function (s) {
+function normalizeSiteContentsWebUrl(url) {
+  return String(url || "").replace(/\/$/, "");
+}
+
+function mapSiteContentsSubsiteRows(subsites) {
+  return (Array.isArray(subsites) ? subsites : []).map(function (s) {
+    var url = normalizeSiteContentsWebUrl(s.url || s.viewUrl || "");
     return {
       isSubsite: true,
       title: s.title || "Untitled",
-      viewUrl: s.url || "",
+      viewUrl: url,
+      webUrl: url,
       typeLabel: "Subsite",
       itemCount: null,
       modified: null
     };
-  });
-  const typeSelect = panel.querySelector(".sp-toolkit-contents-table .sp-toolkit-filter-row select");
+  }).filter(function (s) { return !!s.viewUrl; });
+}
+
+function fetchSiteContentsWeb(webUrl, callback) {
+  var key = normalizeSiteContentsWebUrl(webUrl);
+  if (!key) {
+    callback({ ok: false, error: "No web URL", lists: [], subsites: [] });
+    return;
+  }
+  var requestId = "scw_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9);
+  function onMsg(ev) {
+    if (!ev.data || ev.data.__spcsv !== true || ev.data.type !== "SPCSVWebContentsResult") return;
+    if (ev.data.requestId !== requestId) return;
+    window.removeEventListener("message", onMsg);
+    try {
+      var paramsEl = document.querySelector('script[data-sp-site-contents-web-params="1"][data-request-id="' + requestId + '"]');
+      if (paramsEl) paramsEl.remove();
+    } catch (_) {}
+    callback({
+      ok: ev.data.ok !== false && !ev.data.error,
+      error: ev.data.error || "",
+      lists: Array.isArray(ev.data.lists) ? ev.data.lists : [],
+      subsites: Array.isArray(ev.data.subsites) ? ev.data.subsites : [],
+      webUrl: normalizeSiteContentsWebUrl(ev.data.webUrl || key)
+    });
+  }
+  window.addEventListener("message", onMsg);
+  var paramsEl = document.createElement("script");
+  paramsEl.type = "application/json";
+  paramsEl.setAttribute("data-sp-site-contents-web-params", "1");
+  paramsEl.setAttribute("data-request-id", requestId);
+  paramsEl.textContent = JSON.stringify({ webUrl: key, requestId: requestId });
+  (document.documentElement || document.head || document.body).appendChild(paramsEl);
+  var script = document.createElement("script");
+  script.src = chrome.runtime.getURL("getWebContents.js");
+  script.onload = function () { script.remove(); };
+  script.onerror = function () {
+    window.removeEventListener("message", onMsg);
+    script.remove();
+    try { paramsEl.remove(); } catch (_) {}
+    callback({ ok: false, error: "Failed to load web contents script", lists: [], subsites: [] });
+  };
+  (document.head || document.documentElement).appendChild(script);
+}
+
+function applySiteContentsSubsites(panel, subsites) {
+  if (!panel) return;
+  panel._spToolkitSubsitesCache = Array.isArray(subsites) ? subsites : [];
+  panel._siteContentsSubsites = mapSiteContentsSubsiteRows(panel._spToolkitSubsitesCache);
+  const typeSelect = panel.querySelector(".sp-toolkit-sc-type-filter");
   if (typeSelect && !typeSelect.querySelector('option[value="Subsite"]')) {
     const opt = document.createElement("option");
     opt.value = "Subsite";
@@ -3057,21 +3234,8 @@ function toggleListsLauncher() {
       if (thead && tableEl) {
         thead.innerHTML = "";
         const cols = [{ key: "name", label: "Name" }, { key: "type", label: "Type" }, { key: "items", label: "Items" }, { key: "modified", label: "Modified" }, { key: "settings", label: "" }];
-        const filterRow = document.createElement("tr");
-        filterRow.className = "sp-toolkit-filter-row";
-        const filterNameTh = document.createElement("th");
-        filterNameTh.setAttribute("data-column", "name");
-        const nameFilterWrap = document.createElement("div");
-        nameFilterWrap.className = "sp-toolkit-site-contents-name-filter";
-        nameFilterWrap.innerHTML =
-          "<svg class=\"sp-toolkit-sc-filter-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\" focusable=\"false\"><path fill=\"currentColor\" fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M10.5 3.75a6.75 6.75 0 100 13.5 6.75 6.75 0 000-13.5zM2.25 10.5a8.25 8.25 0 1114.59 5.31l3.94 3.94a.75.75 0 11-1.06 1.06l-3.94-3.94A8.25 8.25 0 012.25 10.5z\"/></svg>";
-        const nameInput = document.createElement("input");
-        nameInput.type = "text";
-        nameInput.placeholder = "Filter…";
-        nameInput.setAttribute("aria-label", "Filter by name");
-        nameFilterWrap.appendChild(nameInput);
-        filterNameTh.appendChild(nameFilterWrap);
-        filterRow.appendChild(filterNameTh);
+        const nameInput = panel.querySelector(".sp-toolkit-sc-name-filter-input");
+        const typeSelect = panel.querySelector(".sp-toolkit-sc-type-filter");
         const uniqueTypes = [];
         const typeSet = {};
         lists.forEach(function (item) {
@@ -3084,26 +3248,21 @@ function toggleListsLauncher() {
           uniqueTypes.push("Subsite");
         }
         uniqueTypes.sort();
-        const filterTypeTh = document.createElement("th");
-        filterTypeTh.setAttribute("data-column", "type");
-        const typeSelect = document.createElement("select");
-        typeSelect.setAttribute("aria-label", "Filter by type");
-        const typeAll = document.createElement("option");
-        typeAll.value = "";
-        typeAll.textContent = "All types";
-        typeSelect.appendChild(typeAll);
-        uniqueTypes.forEach(function (t) {
-          const opt = document.createElement("option");
-          opt.value = t;
-          opt.textContent = t;
-          typeSelect.appendChild(opt);
-        });
-        filterTypeTh.appendChild(typeSelect);
-        filterRow.appendChild(filterTypeTh);
-        filterRow.appendChild(document.createElement("th"));
-        filterRow.appendChild(document.createElement("th"));
-        filterRow.appendChild(document.createElement("th"));
-        thead.appendChild(filterRow);
+        if (typeSelect) {
+          const prevType = typeSelect.value || "";
+          typeSelect.innerHTML = "";
+          const typeAll = document.createElement("option");
+          typeAll.value = "";
+          typeAll.textContent = "All types";
+          typeSelect.appendChild(typeAll);
+          uniqueTypes.forEach(function (t) {
+            const opt = document.createElement("option");
+            opt.value = t;
+            opt.textContent = t;
+            typeSelect.appendChild(opt);
+          });
+          if (prevType && typeSet[prevType]) typeSelect.value = prevType;
+        }
         const headerRow = document.createElement("tr");
         headerRow.className = "sp-toolkit-column-header-row";
         cols.forEach(function (c) {
@@ -3114,81 +3273,208 @@ function toggleListsLauncher() {
         });
         thead.appendChild(headerRow);
         panel._siteContentsLists = lists;
+        panel._siteContentsRootWebUrl = normalizeSiteContentsWebUrl(siteUrl);
         panel._siteContentsCurrentPath = currentPath;
-        panel._siteContentsSort = { col: "type", dir: 1 };
-        panel._siteContentsFilter = { name: "", type: "" };
-        function renderRows() {
-          if (!tbody) return;
-          const listData = (panel._siteContentsLists || []).concat(panel._siteContentsSubsites || []);
-          const sort = panel._siteContentsSort || { col: null, dir: 1 };
-          const filter = panel._siteContentsFilter || { name: "", type: "" };
-          let filtered = listData.filter(function (item) {
-            const title = (item.title || "Untitled").toLowerCase();
-            const typeLabel = item.typeLabel != null ? item.typeLabel : (item.isSubsite ? "Subsite" : (item.isLibrary ? "Document library" : "List"));
-            if (filter.name && title.indexOf(filter.name.toLowerCase()) === -1) return false;
-            if (filter.type && typeLabel !== filter.type) return false;
-            return true;
-          });
+        panel._siteContentsSort = panel._siteContentsSort || { col: "type", dir: 1 };
+        panel._siteContentsExpanded = panel._siteContentsExpanded || {};
+        panel._siteContentsChildCache = panel._siteContentsChildCache || {};
+        panel._siteContentsFilter = {
+          name: (nameInput && nameInput.value || "").trim(),
+          type: (typeSelect && typeSelect.value) || ""
+        };
+        function siteContentsTypeLabel(item) {
+          return item.typeLabel != null ? item.typeLabel : (item.isSubsite ? "Subsite" : (item.isLibrary ? "Document library" : "List"));
+        }
+        function siteContentsSubsiteDepthLabel(depth) {
+          const n = Math.max(0, depth | 0);
+          return "Sub" + "sub".repeat(n) + "site";
+        }
+        function siteContentsItemMatches(item, filter) {
+          const title = (item.title || "Untitled").toLowerCase();
+          const typeLabel = siteContentsTypeLabel(item);
+          if (filter.name && title.indexOf(filter.name.toLowerCase()) === -1) return false;
+          if (filter.type && typeLabel !== filter.type) return false;
+          return true;
+        }
+        function siteContentsSortItems(items, sort) {
           const col = sort.col;
           const dir = sort.dir;
-          if (col === "name") filtered.sort(function (a, b) { const x = (a.title || "").toLowerCase(), y = (b.title || "").toLowerCase(); return dir * (x < y ? -1 : x > y ? 1 : 0); });
-          else if (col === "type") filtered.sort(function (a, b) { const x = (a.typeLabel != null ? a.typeLabel : (a.isSubsite ? "Subsite" : (a.isLibrary ? "Document library" : "List"))); const y = (b.typeLabel != null ? b.typeLabel : (b.isSubsite ? "Subsite" : (b.isLibrary ? "Document library" : "List"))); return dir * (x < y ? -1 : x > y ? 1 : 0); });
-          else if (col === "items") filtered.sort(function (a, b) { const x = (a.itemCount != null ? a.itemCount : -1) | 0; const y = (b.itemCount != null ? b.itemCount : -1) | 0; return dir * (x - y); });
-          else if (col === "modified") filtered.sort(function (a, b) { const x = new Date(a.modified || 0).getTime(); const y = new Date(b.modified || 0).getTime(); return dir * (x - y); });
-          tbody.innerHTML = "";
-          const path = panel._siteContentsCurrentPath || "";
-          filtered.forEach(function (item) {
-            const viewPath = item.viewUrl ? (function () { try { return new URL(item.viewUrl).pathname.replace(/\/$/, "") || "/"; } catch (_) { return ""; } }()) : "";
-            let isCurrent = false;
-            if (item.isSubsite) {
-              isCurrent = viewPath && (path === viewPath || path.startsWith(viewPath + "/"));
-            } else {
-              isCurrent = viewPath && (path === viewPath || path.startsWith(viewPath + "/"));
+          const arr = items.slice();
+          if (col === "name") arr.sort(function (a, b) { const x = (a.title || "").toLowerCase(), y = (b.title || "").toLowerCase(); return dir * (x < y ? -1 : x > y ? 1 : 0); });
+          else if (col === "type") arr.sort(function (a, b) { const x = siteContentsTypeLabel(a), y = siteContentsTypeLabel(b); return dir * (x < y ? -1 : x > y ? 1 : 0); });
+          else if (col === "items") arr.sort(function (a, b) { const x = (a.itemCount != null ? a.itemCount : -1) | 0; const y = (b.itemCount != null ? b.itemCount : -1) | 0; return dir * (x - y); });
+          else if (col === "modified") arr.sort(function (a, b) { const x = new Date(a.modified || 0).getTime(); const y = new Date(b.modified || 0).getTime(); return dir * (x - y); });
+          return arr;
+        }
+        function siteContentsHasMatchingDescendant(webUrl, filter) {
+          if (!filter.name && !filter.type) return false;
+          const cache = panel._siteContentsChildCache[normalizeSiteContentsWebUrl(webUrl)];
+          if (!cache || cache.loading || !cache.lists) return false;
+          const kids = (cache.lists || []).concat(cache.subsites || []);
+          for (let i = 0; i < kids.length; i++) {
+            if (siteContentsItemMatches(kids[i], filter)) return true;
+            if (kids[i].isSubsite && siteContentsHasMatchingDescendant(kids[i].viewUrl, filter)) return true;
+          }
+          return false;
+        }
+        function escapeSiteContentsAttr(value) {
+          if (window.CSS && typeof CSS.escape === "function") return CSS.escape(value);
+          return String(value || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        }
+        function findSiteContentsSubsiteRow(webKey) {
+          if (!tbody) return null;
+          return tbody.querySelector('tr.sp-toolkit-sc-subsite-row[data-sc-subsite-key="' + escapeSiteContentsAttr(webKey) + '"]');
+        }
+        function collectSiteContentsChildRows(parentTr) {
+          const parentDepth = parseInt(parentTr.getAttribute("data-sc-depth") || "0", 10);
+          const rows = [];
+          let next = parentTr.nextElementSibling;
+          while (next) {
+            const d = parseInt(next.getAttribute("data-sc-depth") || "0", 10);
+            if (isNaN(d) || d <= parentDepth) break;
+            rows.push(next);
+            next = next.nextElementSibling;
+          }
+          return rows;
+        }
+        function softRemoveSiteContentsRows(rows, done) {
+          if (!rows.length) {
+            if (done) done();
+            return;
+          }
+          let left = rows.length;
+          rows.forEach(function (tr) {
+            tr.classList.remove("sp-toolkit-sc-soft-in");
+            tr.classList.add("sp-toolkit-sc-soft-out");
+            var finished = false;
+            function finish() {
+              if (finished) return;
+              finished = true;
+              if (tr.parentNode) tr.parentNode.removeChild(tr);
+              left -= 1;
+              if (left <= 0 && done) done();
             }
-            const tr = document.createElement("tr");
-            if (isCurrent) tr.classList.add("sp-toolkit-current");
-            const nameCell = document.createElement("td");
-            const nameDiv = document.createElement("div");
-            nameDiv.className = "sp-toolkit-row-name";
-            nameDiv.innerHTML = (item.isSubsite ? iconSubsite : (item.isLibrary ? iconLibrary : iconList)) + " ";
-            const a = document.createElement("a");
-            a.href = item.viewUrl || "#";
-            a.textContent = item.title || "Untitled";
-            a.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); closeListsLauncherPanel(); if (item.viewUrl) requestAnimationFrame(function () { window.location.href = item.viewUrl; }); });
-            nameDiv.appendChild(a);
-            nameCell.appendChild(nameDiv);
-            tr.appendChild(nameCell);
-            const typeLabel = item.typeLabel != null ? item.typeLabel : (item.isSubsite ? "Subsite" : (item.isLibrary ? "Document library" : "List"));
-            const typeCell = document.createElement("td");
-            typeCell.className = "sp-toolkit-type-cell";
-            const pill = document.createElement("span");
-            pill.className = "sp-toolkit-type-pill";
-            pill.textContent = typeLabel;
-            typeCell.appendChild(pill);
-            tr.appendChild(typeCell);
-            const itemsCell = document.createElement("td");
-            itemsCell.textContent = item.itemCount != null ? String(item.itemCount) : "—";
-            tr.appendChild(itemsCell);
-            const modCell = document.createElement("td");
-            modCell.textContent = item.modified ? formatModified(item.modified) : "—";
-            tr.appendChild(modCell);
-            const settingsCell = document.createElement("td");
-            settingsCell.className = "sp-toolkit-row-settings";
-            if (!item.isSubsite) {
+            tr.addEventListener("animationend", finish, { once: true });
+            setTimeout(finish, 220);
+          });
+        }
+        function setSiteContentsExpandState(tr, open) {
+          if (!tr) return;
+          tr.classList.toggle("sp-toolkit-sc-expanded", !!open);
+          const toggle = tr.querySelector(".sp-toolkit-sc-expand");
+          if (!toggle) return;
+          toggle.setAttribute("aria-expanded", open ? "true" : "false");
+          const title = (tr.getAttribute("data-sc-title") || "subsite");
+          toggle.title = open ? "Collapse subsite contents" : "Expand subsite contents";
+          toggle.setAttribute("aria-label", (open ? "Collapse " : "Expand ") + title);
+        }
+        function createSiteContentsStatusRow(depth, text, isError) {
+          const tr = document.createElement("tr");
+          tr.className = "sp-toolkit-sc-status-row" + (isError ? " sp-toolkit-sc-status-err" : "");
+          tr.setAttribute("data-sc-depth", String(depth));
+          const td = document.createElement("td");
+          td.colSpan = 5;
+          td.style.paddingLeft = (12 + depth * 18 + 22) + "px";
+          td.textContent = text;
+          tr.appendChild(td);
+          return tr;
+        }
+        function createSiteContentsItemRow(item, depth, ownerWebUrl) {
+          const path = panel._siteContentsCurrentPath || "";
+          const rootWebUrl = panel._siteContentsRootWebUrl || normalizeSiteContentsWebUrl(siteUrl);
+          const viewPath = item.viewUrl ? (function () { try { return new URL(item.viewUrl).pathname.replace(/\/$/, "") || "/"; } catch (_) { return ""; } }()) : "";
+          const isCurrent = !!(viewPath && (path === viewPath || path.startsWith(viewPath + "/")));
+          const webKey = item.isSubsite ? normalizeSiteContentsWebUrl(item.viewUrl) : "";
+          const expanded = !!(item.isSubsite && panel._siteContentsExpanded[webKey]);
+
+          const tr = document.createElement("tr");
+          tr.setAttribute("data-sc-depth", String(depth));
+          if (isCurrent) tr.classList.add("sp-toolkit-current");
+          if (depth > 0) tr.classList.add("sp-toolkit-sc-child");
+          if (item.isSubsite) {
+            tr.classList.add("sp-toolkit-sc-subsite-row");
+            tr.setAttribute("data-sc-subsite-key", webKey);
+            tr.setAttribute("data-sc-title", item.title || "Untitled");
+            if (expanded) tr.classList.add("sp-toolkit-sc-expanded");
+          }
+
+          const nameCell = document.createElement("td");
+          const nameDiv = document.createElement("div");
+          nameDiv.className = "sp-toolkit-row-name";
+          nameDiv.style.paddingLeft = (depth * 18) + "px";
+
+          if (item.isSubsite) {
+            const toggle = document.createElement("button");
+            toggle.type = "button";
+            toggle.className = "sp-toolkit-sc-expand";
+            toggle.title = expanded ? "Collapse subsite contents" : "Expand subsite contents";
+            toggle.setAttribute("aria-label", (expanded ? "Collapse " : "Expand ") + (item.title || "subsite"));
+            toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+            toggle.innerHTML = "<span class=\"sp-toolkit-sc-chevron\" aria-hidden=\"true\"></span>";
+            toggle.addEventListener("click", function (e) {
+              e.preventDefault();
+              e.stopPropagation();
+              toggleSiteContentsExpand(tr, webKey);
+            });
+            nameDiv.appendChild(toggle);
+          } else {
+            const spacer = document.createElement("span");
+            spacer.className = "sp-toolkit-sc-expand-spacer";
+            spacer.setAttribute("aria-hidden", "true");
+            nameDiv.appendChild(spacer);
+          }
+
+          const iconWrap = document.createElement("span");
+          iconWrap.className = "sp-toolkit-row-icon-wrap";
+          iconWrap.innerHTML = item.isSubsite ? iconSubsite : (item.isLibrary ? iconLibrary : iconList);
+          nameDiv.appendChild(iconWrap);
+
+          const a = document.createElement("a");
+          a.href = item.viewUrl || "#";
+          a.textContent = item.title || "Untitled";
+          a.addEventListener("click", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeListsLauncherPanel();
+            if (item.viewUrl) requestAnimationFrame(function () { window.location.href = item.viewUrl; });
+          });
+          nameDiv.appendChild(a);
+          nameCell.appendChild(nameDiv);
+          tr.appendChild(nameCell);
+
+          const typeCell = document.createElement("td");
+          typeCell.className = "sp-toolkit-type-cell";
+          const pill = document.createElement("span");
+          pill.className = "sp-toolkit-type-pill";
+          pill.textContent = item.isSubsite ? siteContentsSubsiteDepthLabel(depth) : siteContentsTypeLabel(item);
+          typeCell.appendChild(pill);
+          tr.appendChild(typeCell);
+
+          const itemsCell = document.createElement("td");
+          itemsCell.textContent = item.itemCount != null ? String(item.itemCount) : "—";
+          tr.appendChild(itemsCell);
+          const modCell = document.createElement("td");
+          modCell.textContent = item.modified ? formatModified(item.modified) : "—";
+          tr.appendChild(modCell);
+
+          const settingsCell = document.createElement("td");
+          settingsCell.className = "sp-toolkit-row-settings";
+          if (!item.isSubsite) {
+            const listWebUrl = normalizeSiteContentsWebUrl(item.webUrl || ownerWebUrl || rootWebUrl);
             const listGuid = item.id != null ? ("{" + String(item.id).replace(/[{}]/g, "").trim().toUpperCase() + "}") : "";
-            if (listGuid && siteUrl) {
+            if (listGuid && listWebUrl) {
               const guidNoBraces = String(item.id).replace(/[{}]/g, "").trim().toUpperCase();
               const vmBtn = document.createElement("button");
               vmBtn.type = "button";
-              vmBtn.className = "sp-toolkit-row-view-manager";
+              vmBtn.className = "sp-toolkit-row-action sp-toolkit-row-view-manager";
               vmBtn.title = "View Manager for this list";
               vmBtn.setAttribute("aria-label", "View Manager for " + (item.title || "list"));
-              vmBtn.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>";
+              vmBtn.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>";
               vmBtn.addEventListener("click", function (e) {
                 e.preventDefault();
                 e.stopPropagation();
                 try {
-                  chrome.runtime.sendMessage({ type: "SPOToolkitOpenViewManager", listId: guidNoBraces, webUrl: siteUrl }, function (res) {
+                  chrome.runtime.sendMessage({ type: "SPOToolkitOpenViewManager", listId: guidNoBraces, webUrl: listWebUrl }, function (res) {
                     if (chrome.runtime.lastError || (res && res.ok === false)) {
                       console.warn("SPOToolkit: View Manager open failed", chrome.runtime.lastError || res);
                     }
@@ -3199,26 +3485,190 @@ function toggleListsLauncher() {
               });
               settingsCell.appendChild(vmBtn);
               const settingsLink = document.createElement("a");
-              settingsLink.href = siteUrl + "/_layouts/15/listedit.aspx?List=" + encodeURIComponent(listGuid);
+              settingsLink.className = "sp-toolkit-row-action";
+              settingsLink.href = listWebUrl + "/_layouts/15/listedit.aspx?List=" + encodeURIComponent(listGuid);
               settingsLink.target = "_blank";
               settingsLink.rel = "noopener";
               settingsLink.title = "List settings";
               settingsLink.setAttribute("aria-label", "Settings for " + (item.title || "list"));
-              settingsLink.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><line x1=\"4\" y1=\"21\" x2=\"4\" y2=\"14\"/><line x1=\"4\" y1=\"10\" x2=\"4\" y2=\"3\"/><line x1=\"12\" y1=\"21\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"3\"/><line x1=\"20\" y1=\"21\" x2=\"20\" y2=\"16\"/><line x1=\"20\" y1=\"12\" x2=\"20\" y2=\"3\"/><line x1=\"1\" y1=\"14\" x2=\"7\" y2=\"14\"/><line x1=\"9\" y1=\"8\" x2=\"15\" y2=\"8\"/><line x1=\"17\" y1=\"16\" x2=\"23\" y2=\"16\"/></svg>";
+              settingsLink.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><line x1=\"4\" y1=\"21\" x2=\"4\" y2=\"14\"/><line x1=\"4\" y1=\"10\" x2=\"4\" y2=\"3\"/><line x1=\"12\" y1=\"21\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"3\"/><line x1=\"20\" y1=\"21\" x2=\"20\" y2=\"16\"/><line x1=\"20\" y1=\"12\" x2=\"20\" y2=\"3\"/><line x1=\"1\" y1=\"14\" x2=\"7\" y2=\"14\"/><line x1=\"9\" y1=\"8\" x2=\"15\" y2=\"8\"/><line x1=\"17\" y1=\"16\" x2=\"23\" y2=\"16\"/></svg>";
               settingsCell.appendChild(settingsLink);
               const permsLink = document.createElement("a");
-              permsLink.href = siteUrl + "/_layouts/15/user.aspx?obj=" + encodeURIComponent(listGuid + ",list");
+              permsLink.className = "sp-toolkit-row-action";
+              permsLink.href = listWebUrl + "/_layouts/15/user.aspx?obj=" + encodeURIComponent(listGuid + ",list");
               permsLink.target = "_blank";
               permsLink.rel = "noopener";
               permsLink.title = "List/library permissions";
               permsLink.setAttribute("aria-label", "Permissions for " + (item.title || "list"));
-              permsLink.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">" + fluentPermissionsKeySvgInner + "</svg>";
+              permsLink.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" aria-hidden=\"true\">" + fluentPermissionsKeySvgInner + "</svg>";
               settingsCell.appendChild(permsLink);
             }
+          } else {
+            const subWebUrl = normalizeSiteContentsWebUrl(item.viewUrl || item.webUrl || "");
+            if (subWebUrl) {
+              const siteSettingsLink = document.createElement("a");
+              siteSettingsLink.className = "sp-toolkit-row-action";
+              siteSettingsLink.href = subWebUrl + "/_layouts/15/settings.aspx";
+              siteSettingsLink.target = "_blank";
+              siteSettingsLink.rel = "noopener";
+              siteSettingsLink.title = "Site settings";
+              siteSettingsLink.setAttribute("aria-label", "Site settings for " + (item.title || "subsite"));
+              siteSettingsLink.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><line x1=\"4\" y1=\"21\" x2=\"4\" y2=\"14\"/><line x1=\"4\" y1=\"10\" x2=\"4\" y2=\"3\"/><line x1=\"12\" y1=\"21\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"3\"/><line x1=\"20\" y1=\"21\" x2=\"20\" y2=\"16\"/><line x1=\"20\" y1=\"12\" x2=\"20\" y2=\"3\"/><line x1=\"1\" y1=\"14\" x2=\"7\" y2=\"14\"/><line x1=\"9\" y1=\"8\" x2=\"15\" y2=\"8\"/><line x1=\"17\" y1=\"16\" x2=\"23\" y2=\"16\"/></svg>";
+              settingsCell.appendChild(siteSettingsLink);
+              const sitePermsLink = document.createElement("a");
+              sitePermsLink.className = "sp-toolkit-row-action";
+              sitePermsLink.href = subWebUrl + "/_layouts/15/user.aspx";
+              sitePermsLink.target = "_blank";
+              sitePermsLink.rel = "noopener";
+              sitePermsLink.title = "Site permissions";
+              sitePermsLink.setAttribute("aria-label", "Permissions for " + (item.title || "subsite"));
+              sitePermsLink.innerHTML = "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" aria-hidden=\"true\">" + fluentPermissionsKeySvgInner + "</svg>";
+              settingsCell.appendChild(sitePermsLink);
             }
-            tr.appendChild(settingsCell);
-            tbody.appendChild(tr);
+          }
+          tr.appendChild(settingsCell);
+          return tr;
+        }
+        function buildSiteContentsChildRows(webKey, depth, soft) {
+          const filter = panel._siteContentsFilter || { name: "", type: "" };
+          const sort = panel._siteContentsSort || { col: null, dir: 1 };
+          const cache = panel._siteContentsChildCache[webKey];
+          const rows = [];
+          if (!cache || cache.loading) {
+            rows.push(createSiteContentsStatusRow(depth, "Loading contents…", false));
+            return rows;
+          }
+          if (cache.error) {
+            rows.push(createSiteContentsStatusRow(depth, cache.error, true));
+            return rows;
+          }
+          const sorted = siteContentsSortItems((cache.lists || []).concat(cache.subsites || []), sort);
+          sorted.forEach(function (item) {
+            const matches = siteContentsItemMatches(item, filter);
+            const hasKids = !!(item.isSubsite && siteContentsHasMatchingDescendant(item.viewUrl, filter));
+            if (!matches && !hasKids) return;
+            const childKey = item.isSubsite ? normalizeSiteContentsWebUrl(item.viewUrl) : "";
+            const childExpanded = !!(item.isSubsite && (panel._siteContentsExpanded[childKey] || hasKids));
+            const tr = createSiteContentsItemRow(item, depth, webKey);
+            if (soft) tr.classList.add("sp-toolkit-sc-soft-in");
+            rows.push(tr);
+            if (item.isSubsite && childExpanded) {
+              if (!panel._siteContentsChildCache[childKey] || (!panel._siteContentsChildCache[childKey].lists && !panel._siteContentsChildCache[childKey].loading)) {
+                ensureSiteContentsWebLoaded(childKey, true);
+              }
+              Array.prototype.push.apply(rows, buildSiteContentsChildRows(childKey, depth + 1, soft));
+            }
           });
+          if (!rows.length) {
+            rows.push(createSiteContentsStatusRow(depth, "No contents", false));
+          }
+          return rows;
+        }
+        function insertSiteContentsChildRows(parentTr, webKey, soft) {
+          if (!parentTr || !tbody) return;
+          const depth = parseInt(parentTr.getAttribute("data-sc-depth") || "0", 10) + 1;
+          softRemoveSiteContentsRows(collectSiteContentsChildRows(parentTr), function () {
+            const rows = buildSiteContentsChildRows(webKey, depth, soft);
+            let ref = parentTr;
+            rows.forEach(function (tr) {
+              if (ref.nextSibling) tbody.insertBefore(tr, ref.nextSibling);
+              else tbody.appendChild(tr);
+              ref = tr;
+            });
+            setSiteContentsExpandState(parentTr, true);
+            if (typeof window.SPOT_noteCompassPanelContentChanged === "function") {
+              window.SPOT_noteCompassPanelContentChanged(panel);
+            }
+          });
+        }
+        function ensureSiteContentsWebLoaded(webUrl, quiet) {
+          const key = normalizeSiteContentsWebUrl(webUrl);
+          if (!key) return;
+          const cache = panel._siteContentsChildCache[key];
+          if (cache && (cache.loading || cache.lists)) return;
+          panel._siteContentsChildCache[key] = { loading: true, lists: null, subsites: null, error: "" };
+          const parentTr = findSiteContentsSubsiteRow(key);
+          if (parentTr && panel._siteContentsExpanded[key] && !quiet) {
+            insertSiteContentsChildRows(parentTr, key, true);
+          }
+          fetchSiteContentsWeb(key, function (res) {
+            panel._siteContentsChildCache[key] = {
+              loading: false,
+              lists: (res.lists || []).map(function (item) {
+                return Object.assign({}, item, { webUrl: key });
+              }),
+              subsites: mapSiteContentsSubsiteRows(res.subsites || []),
+              error: res.ok ? "" : (res.error || "Failed to load")
+            };
+            const row = findSiteContentsSubsiteRow(key);
+            if (row && panel._siteContentsExpanded[key]) {
+              insertSiteContentsChildRows(row, key, true);
+            }
+          });
+        }
+        function toggleSiteContentsExpand(parentTr, webKey) {
+          const key = normalizeSiteContentsWebUrl(webKey);
+          if (!parentTr || !key) return;
+          if (panel._siteContentsExpanded[key]) {
+            delete panel._siteContentsExpanded[key];
+            setSiteContentsExpandState(parentTr, false);
+            softRemoveSiteContentsRows(collectSiteContentsChildRows(parentTr), function () {
+              if (typeof window.SPOT_noteCompassPanelContentChanged === "function") {
+                window.SPOT_noteCompassPanelContentChanged(panel);
+              }
+            });
+            return;
+          }
+          panel._siteContentsExpanded[key] = true;
+          setSiteContentsExpandState(parentTr, true);
+          const cache = panel._siteContentsChildCache[key];
+          if (!cache || (!cache.lists && !cache.loading && !cache.error)) {
+            ensureSiteContentsWebLoaded(key);
+            return;
+          }
+          insertSiteContentsChildRows(parentTr, key, true);
+        }
+        function renderRows(opts) {
+          if (!tbody) return;
+          opts = opts || {};
+          const sort = panel._siteContentsSort || { col: null, dir: 1 };
+          const filter = panel._siteContentsFilter || { name: "", type: "" };
+          const rootWebUrl = panel._siteContentsRootWebUrl || normalizeSiteContentsWebUrl(siteUrl);
+          const animateEnter = opts.animateEnter === true;
+          if (tableEl) {
+            tableEl.classList.remove("sp-toolkit-lists-enter");
+            if (animateEnter) tableEl.classList.add("sp-toolkit-lists-enter");
+          }
+          tbody.innerHTML = "";
+
+          function appendTree(items, depth, ownerWebUrl) {
+            const sorted = siteContentsSortItems(items || [], sort);
+            sorted.forEach(function (item) {
+              const matches = siteContentsItemMatches(item, filter);
+              const hasKids = !!(item.isSubsite && siteContentsHasMatchingDescendant(item.viewUrl, filter));
+              if (!matches && !hasKids) return;
+              const webKey = item.isSubsite ? normalizeSiteContentsWebUrl(item.viewUrl) : "";
+              const forceOpen = !!(item.isSubsite && (filter.name || filter.type) && hasKids);
+              const showChildren = !!(item.isSubsite && (panel._siteContentsExpanded[webKey] || forceOpen));
+              if (showChildren && item.isSubsite) panel._siteContentsExpanded[webKey] = true;
+              const tr = createSiteContentsItemRow(item, depth, ownerWebUrl);
+              tbody.appendChild(tr);
+              if (!showChildren) return;
+              if (!panel._siteContentsChildCache[webKey] || (!panel._siteContentsChildCache[webKey].lists && !panel._siteContentsChildCache[webKey].loading && !panel._siteContentsChildCache[webKey].error)) {
+                ensureSiteContentsWebLoaded(webKey, true);
+              }
+              buildSiteContentsChildRows(webKey, depth + 1, false).forEach(function (childTr) {
+                tbody.appendChild(childTr);
+              });
+            });
+          }
+
+          appendTree((panel._siteContentsLists || []).concat(panel._siteContentsSubsites || []), 0, rootWebUrl);
+          if (animateEnter && tableEl) {
+            setTimeout(function () {
+              tableEl.classList.remove("sp-toolkit-lists-enter");
+            }, 450);
+          }
           if (typeof window.SPOT_noteCompassPanelContentChanged === "function") {
             window.SPOT_noteCompassPanelContentChanged(panel);
           }
@@ -3244,20 +3694,40 @@ function toggleListsLauncher() {
             renderRows();
           });
         });
-        nameInput.addEventListener("input", function () { panel._siteContentsFilter = panel._siteContentsFilter || {}; panel._siteContentsFilter.name = nameInput.value.trim(); renderRows(); });
-        typeSelect.addEventListener("change", function () { panel._siteContentsFilter = panel._siteContentsFilter || {}; panel._siteContentsFilter.type = typeSelect.value; renderRows(); });
+        if (!panel._siteContentsFiltersWired) {
+          panel._siteContentsFiltersWired = true;
+          if (nameInput) {
+            nameInput.addEventListener("input", function () {
+              panel._siteContentsFilter = panel._siteContentsFilter || {};
+              panel._siteContentsFilter.name = nameInput.value.trim();
+              if (typeof panel._siteContentsRenderRows === "function") panel._siteContentsRenderRows();
+            });
+          }
+          if (typeSelect) {
+            typeSelect.addEventListener("change", function () {
+              panel._siteContentsFilter = panel._siteContentsFilter || {};
+              panel._siteContentsFilter.type = typeSelect.value;
+              if (typeof panel._siteContentsRenderRows === "function") panel._siteContentsRenderRows();
+            });
+          }
+        }
         panel._siteContentsRenderRows = renderRows;
-        renderRows();
-        requestAnimationFrame(function () {
+        renderRows({ animateEnter: true });
+        if (typeof window.SPOT_focusCompassPanePrimaryField === "function") {
+          window.SPOT_focusCompassPanePrimaryField(panel, "siteContents");
+        } else if (nameInput) {
           requestAnimationFrame(function () {
-            try {
-              const activePane = panel.querySelector(".sp-toolkit-compass-pane.sp-toolkit-compass-pane-active");
-              if (activePane && activePane.getAttribute("data-compass-pane") === "siteContents" && nameInput) {
-                nameInput.focus({ preventScroll: true });
-              }
-            } catch (_) {}
+            requestAnimationFrame(function () {
+              try {
+                const activePane = panel.querySelector(".sp-toolkit-compass-pane.sp-toolkit-compass-pane-active");
+                if (activePane && activePane.getAttribute("data-compass-pane") === "siteContents") {
+                  nameInput.focus({ preventScroll: true });
+                  if (typeof nameInput.select === "function") nameInput.select();
+                }
+              } catch (_) {}
+            });
           });
-        });
+        }
         updateSortIcons();
       }
       function escapeHtml(str) {
@@ -3301,6 +3771,13 @@ function toggleListsLauncher() {
       applyTenantLine(headerLeftEl, tenantLineText);
       const currentListIdForPanel = ev.data.currentListId && String(ev.data.currentListId).replace(/^\{|\}$/g, "").trim();
       if (currentListIdForPanel) panel.dataset.compassCurrentListId = currentListIdForPanel;
+      if (typeof window.SPOT_refreshCompassViewsPane === "function") {
+        window.SPOT_refreshCompassViewsPane(panel, {
+          siteUrl: siteUrl || panel.dataset.compassSiteKey || "",
+          currentListId: panel.dataset.compassCurrentListId || "",
+          onListOrLibraryView: !!panel.dataset.compassCurrentListId
+        });
+      }
       const cacheKey = (siteUrl || "").replace(/\/$/, "");
       if (cacheKey) {
         siteListsCacheBySite[cacheKey] = {
@@ -3487,6 +3964,10 @@ function initListsLauncherUI() {
     "<div class=\"sp-toolkit-compass-pane tab-content\" data-compass-pane=\"toolkitSettings\"><div class=\"sp-toolkit-compass-scroll\"><div class=\"sp-toolkit-compass-settings-host\"></div></div></div>" +
     "<div class=\"sp-toolkit-compass-pane tab-content sp-toolkit-compass-pane-active active\" data-compass-pane=\"siteContents\">" +
     "<div class=\"sp-toolkit-site-contents-stack\">" +
+    "<div class=\"sp-toolkit-sc-toolbar\" role=\"search\">" +
+    "<input type=\"search\" class=\"sp-toolkit-sc-name-filter-input sp-toolkit-ql-filter\" placeholder=\"Filter…\" aria-label=\"Filter by name\" autocomplete=\"off\" />" +
+    "<select class=\"sp-toolkit-sc-type-filter\" aria-label=\"Filter by type\"><option value=\"\">All types</option></select>" +
+    "</div>" +
     "<div class=\"sp-toolkit-contents-wrap\">" +
     "<div class=\"sp-toolkit-lists-loading\"><span class=\"sp-toolkit-lists-loading-dot\"></span><span class=\"sp-toolkit-lists-loading-dot\"></span><span class=\"sp-toolkit-lists-loading-dot\"></span><span>Loading…</span></div>" +
     "<div class=\"sp-toolkit-lists-error\" style=\"display:none\"></div>" +
@@ -3786,7 +4267,7 @@ async function relayExportDownloadPerform(detail) {
   };
   if (normalized.text != null) payload.text = normalized.text;
   else payload.bufferBase64 = arrayBufferToBase64(normalized.buffer);
-  const timeoutMs = Math.min(45000, exportDownloadTimeoutMs(normalized));
+  const timeoutMs = Math.max(120000, exportDownloadTimeoutMs(normalized));
   const resp = await new Promise((resolve, reject) => {
     let settled = false;
     const timer = setTimeout(function () {
@@ -3821,10 +4302,13 @@ async function relayExportDownloadRequest(detail) {
     window.postMessage({
       __spcsv: true,
       type: "SPCSVExportDownloadResult",
-      detail: { requestId, ok: !!ok, error: error || "" }
+      detail: { requestId: requestId || "", ok: !!ok, error: error || "" }
     }, "*");
   };
-  if (!requestId) return;
+  if (!requestId) {
+    reply(false, "Download request missing id");
+    return;
+  }
   try {
     await relayExportDownloadPerform(detail);
     reply(true);
@@ -3907,6 +4391,7 @@ function onPageMessage(e) {
     } catch (err) {}
     spotRefreshExportProgressUI();
   } else if (e.data.type === "SPCSVExportProgress") {
+    if (window.__SPOToolkitExportCancel) return;
     const msg = cleanExportHeadline(d.message || "Export in progress…");
     const percent = d.percent != null ? d.percent : undefined;
     const logLine = d.pulse ? null : (d.logLine || d.message || msg);
@@ -3939,15 +4424,20 @@ function onPageMessage(e) {
     } catch (err) {}
     spotRefreshExportProgressUI();
   } else if (e.data.type === "SPCSVExportCancel") {
+    // cancelExportCSV already posts this to the page; don't bounce it back to background
+    // or we recurse forever (Cancel → cancelExportCSV → postMessage → Cancel → …).
+    if (window.__SPOToolkitExportCancel) return;
+    window.__SPOToolkitExportCancel = true;
     try {
       chrome.runtime.sendMessage({ type: "SPCSVExportCancel" });
     } catch (err) {}
   } else if (e.data.type === "SPCSVExportDownloadRequest") {
-    void relayExportDownloadRequest(d.detail || {});
+    // `d` is already e.data.detail — do not unwrap .detail again (that caused silent timeouts).
+    void relayExportDownloadRequest(d);
   } else if (e.data.type === "SPCSVExportDownloadChunk") {
-    void handleExportDownloadChunk(d.detail || {});
+    void handleExportDownloadChunk(d);
   } else if (e.data.type === "SPCSVExportDownloadChunkEnd") {
-    void finalizeExportDownloadTransfer(d.detail || {});
+    void finalizeExportDownloadTransfer(d);
   }
 }
 
@@ -4007,15 +4497,19 @@ function runExportInjection(message, sendResponse, options) {
     try {
       chrome.runtime.sendMessage({
         type: "SPCSVExportStarted",
-        report: message.report === "permissionsMatrix" ? "permissionsMatrix" : (message.report || "export"),
-        message: message.report === "permissionsMatrix" ? "Permissions matrix export started…" : "Export started…"
+        report: (message.report === "permissionsMatrix" || message.report === "everythingBagel")
+          ? message.report
+          : (message.report || "export"),
+        message: message.report === "everythingBagel"
+          ? "Everything Bagel export started…"
+          : (message.report === "permissionsMatrix" ? "Permissions matrix export started…" : "Export started…")
       });
     } catch (_) {}
   } else {
     setupListeners();
   }
   const { siteUrl, listId, viewId, exportFilename, pageLimit, includeVersions, selectedColumns, report, format, matrixIncludeSubsites, matrixIncludeAllInherited } = message;
-  const isMatrixReport = report === "permissionsMatrix";
+  const isMatrixReport = report === "permissionsMatrix" || report === "everythingBagel";
   const exportScriptName = isMatrixReport ? "permissionsMatrixExport.js" : "exportCSV.js";
   const params = {
     u: (siteUrl || "").replace(/\/$/, ""),
@@ -4036,11 +4530,12 @@ function runExportInjection(message, sendResponse, options) {
     if (message.matrixSharingLinkFetchAll === false) params.matrixSharingLinkFetchAll = false;
     if (message.matrixMaxListItems != null) params.matrixMaxListItems = parseInt(message.matrixMaxListItems, 10) || 2000;
     if (message.matrixListItemPageSize != null) params.matrixListItemPageSize = parseInt(message.matrixListItemPageSize, 10) || 5000;
-    if (Array.isArray(message.matrixSelectedPaths) && message.matrixSelectedPaths.length) {
+    // Always pass selection (including []) so an empty pick cannot fall back to whole-site scan.
+    if (Array.isArray(message.matrixSelectedPaths)) {
       params.matrixSelectedPaths = message.matrixSelectedPaths;
     }
   }
-  if (!isMatrixReport && Array.isArray(message.reportSelectedLists) && message.reportSelectedLists.length) {
+  if (Array.isArray(message.reportSelectedLists) && message.reportSelectedLists.length) {
     params.reportSelectedLists = message.reportSelectedLists;
     if (message.rootSiteTitle) params.rootSiteTitle = message.rootSiteTitle;
   }
@@ -4075,7 +4570,12 @@ function runExportInjection(message, sendResponse, options) {
   const folderBundleReport = !isMatrixReport && (report === "exportCSV" || report === "folderCount" || report === "pathLengths");
   const needsXlsxPreload = format === "xlsx" || isMatrixReport || folderBundleReport;
   if (needsXlsxPreload) {
-    const scriptChain = [chrome.runtime.getURL("jszip.min.js")];
+    // Temporarily disable SharePoint AMD so JSZip attaches to window.JSZip.
+    const scriptChain = [
+      chrome.runtime.getURL("jszip-preload.js"),
+      chrome.runtime.getURL("jszip.min.js"),
+      chrome.runtime.getURL("jszip-restore-define.js")
+    ];
     if (isMatrixReport) scriptChain.push(chrome.runtime.getURL("permissionsMatrixStyles.js"));
     scriptChain.push(chrome.runtime.getURL(exportScriptName));
     loadScriptChain(scriptChain, () => {
@@ -4092,7 +4592,8 @@ function runExportInjection(message, sendResponse, options) {
 function tryResumeMatrixExportInTab(prefetched) {
   if (!/sharepoint\.com/i.test(location.href || "")) return;
   function attemptResume(data) {
-    if (!data || !data.active || data.report !== "permissionsMatrix" || !data.exportParams) return;
+    if (!data || !data.active || !data.exportParams) return;
+    if (data.report !== "permissionsMatrix" && data.report !== "everythingBagel") return;
     if (window.__SPOToolkitExportRunning || window.__SPOToolkitMatrixResumeAttempted) return;
     window.__SPOToolkitMatrixResumeAttempted = true;
     chrome.tabs.getCurrent(function (tab) {
@@ -4108,11 +4609,12 @@ function tryResumeMatrixExportInTab(prefetched) {
       enableMatrixWorkerUnloadWarning();
       setupListeners();
       try {
+        var resumeLabel = data.report === "everythingBagel" ? "Everything Bagel" : "permissions matrix";
         chrome.runtime.sendMessage({
           type: "SPCSVExportProgress",
-          report: "permissionsMatrix",
-          message: "Resuming permissions matrix export after refresh…",
-          logLine: "Resuming permissions matrix export after refresh…",
+          report: data.report,
+          message: "Resuming " + resumeLabel + " export after refresh…",
+          logLine: "Resuming " + resumeLabel + " export after refresh…",
           percent: data.percent
         });
       } catch (_) {}
@@ -4159,8 +4661,18 @@ function dispatchToolkitMessage(message, sendResponse) {
   }
   if (message.action === "matrixWorkerLockAndRun") {
     if (window.SPOToolkitMatrixWorkerLock) {
-      const report = (message.exportMessage && message.exportMessage.report) || "exportCSV";
-      window.SPOToolkitMatrixWorkerLock.show(report);
+      const exportMessage = message.exportMessage || {};
+      const report = exportMessage.report || "exportCSV";
+      let siteName = "";
+      try {
+        const ctx = window._spPageContextInfo;
+        if (ctx) siteName = ctx.webTitle || ctx.siteTitle || "";
+      } catch (_) {}
+      window.SPOToolkitMatrixWorkerLock.show({
+        report: report,
+        siteName: siteName,
+        siteUrl: exportMessage.siteUrl || ""
+      });
     }
     enableMatrixWorkerUnloadWarning();
     runExportInjection(message.exportMessage, sendResponse, { skipStarted: true });
@@ -4175,7 +4687,18 @@ function dispatchToolkitMessage(message, sendResponse) {
     return false;
   }
   if (message.action === "runExportCSVWorker" && message._workerFrame) {
-    if (window.SPOToolkitMatrixWorkerLock) window.SPOToolkitMatrixWorkerLock.show();
+    if (window.SPOToolkitMatrixWorkerLock) {
+      let siteName = "";
+      try {
+        const ctx = window._spPageContextInfo;
+        if (ctx) siteName = ctx.webTitle || ctx.siteTitle || "";
+      } catch (_) {}
+      window.SPOToolkitMatrixWorkerLock.show({
+        report: message.report || "exportCSV",
+        siteName: siteName,
+        siteUrl: message.siteUrl || ""
+      });
+    }
     enableMatrixWorkerUnloadWarning();
     runExportInjection(message, sendResponse, { skipStarted: true });
     return true;
@@ -4599,11 +5122,33 @@ function refreshCompassForNavigation() {
     delete panel.dataset.compassContextLoaded;
     panel._compassContextFlat = null;
   } catch (_) {}
-  toolkitActionPromise({ action: "checkListPage" }).then(function (chk) {
+  Promise.all([
+    toolkitActionPromise({ action: "checkListPage" }),
+    toolkitActionPromise({ action: "getPageContext" })
+  ]).then(function (results) {
+    const chk = results[0] || {};
+    const ctx = results[1] || {};
+    const onList = !!(chk && chk.isListPage);
     if (typeof window.SPOT_applyCompassTabAvailability === "function") {
-      window.SPOT_applyCompassTabAvailability(panel, !!(chk && chk.isListPage));
+      window.SPOT_applyCompassTabAvailability(panel, onList);
     }
-  }).catch(function () {});
+    const listId = String((ctx && ctx.pageListId) || "").replace(/[{}]/g, "").trim();
+    if (listId) panel.dataset.compassCurrentListId = listId;
+    else if (!onList) delete panel.dataset.compassCurrentListId;
+    if (typeof window.SPOT_refreshCompassViewsPane === "function") {
+      window.SPOT_refreshCompassViewsPane(panel, {
+        siteUrl: (ctx && ctx.webAbsoluteUrl) || panel.dataset.compassSiteKey || getCompassSiteKeyFromLocation() || "",
+        currentListId: panel.dataset.compassCurrentListId || "",
+        onListOrLibraryView: onList
+      });
+    }
+  }).catch(function () {
+    toolkitActionPromise({ action: "checkListPage" }).then(function (chk) {
+      if (typeof window.SPOT_applyCompassTabAvailability === "function") {
+        window.SPOT_applyCompassTabAvailability(panel, !!(chk && chk.isListPage));
+      }
+    }).catch(function () {});
+  });
   const repHost = panel.querySelector(".sp-toolkit-compass-reports-host");
   if (repHost && typeof repHost._spotRefreshReportsContext === "function") {
     void repHost._spotRefreshReportsContext();
@@ -4647,7 +5192,7 @@ if (document.body) {
 try {
   chrome.runtime.sendMessage({ type: "SPCSVExportProgressGet" }, function (data) {
     if (chrome.runtime.lastError || !data || !data.active) return;
-    if (data.report === "permissionsMatrix" && data.exportParams && data.workerTabId != null) {
+    if ((data.report === "permissionsMatrix" || data.report === "everythingBagel") && data.exportParams && data.workerTabId != null) {
       chrome.tabs.getCurrent(function (tab) {
         if (chrome.runtime.lastError || !tab || tab.id !== data.workerTabId) return;
         tryResumeMatrixExportInTab(data);

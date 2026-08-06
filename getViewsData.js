@@ -1,5 +1,4 @@
 // Injected: View Manager REST loader. Behavior must match lib/viewsDataCore.mjs — run `npm test` after edits.
-// Lite copy: SP-Developer-Toolkit-Lite/getViewsData.js
 (function () {
   var ACCEPT_NOMETADATA = "application/json;odata=nometadata";
   var RESULT_TYPE = "SPCSVViewsDataResult";

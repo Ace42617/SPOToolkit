@@ -531,7 +531,7 @@ function resolveExportWorkerUrl(exportMessage, fallbackUrl) {
     if (first.siteUrl) return String(first.siteUrl).replace(/\/$/, "");
   }
   const siteUrl = String(msg.siteUrl || "").replace(/\/$/, "");
-  if (report === "permissionsMatrix") {
+  if (report === "permissionsMatrix" || report === "everythingBagel") {
     const paths = msg.matrixSelectedPaths;
     if (Array.isArray(paths) && paths.length) {
       try {
@@ -559,6 +559,7 @@ function resolveExportWorkerUrl(exportMessage, fallbackUrl) {
 function exportReportLabel(report) {
   const map = {
     permissionsMatrix: "Permissions matrix export",
+    everythingBagel: "Everything Bagel export",
     exportCSV: "List / library export",
     folderCount: "Folder count report",
     pathLengths: "Path length report"
@@ -595,10 +596,16 @@ function startExportWorker(exportMessage, sender, sendResponse) {
     return;
   }
   if (exportProgressMemory.active) {
+    const running = exportReportLabel(exportProgressMemory.report || "export");
+    const requested = exportReportLabel((exportMessage && exportMessage.report) || "exportCSV");
     sendResponse({
-      ok: true,
+      ok: false,
       alreadyRunning: true,
-      message: "An export is already running. Progress updates below."
+      error:
+        running +
+        " is already running. Wait for it to finish (or Cancel), then start " +
+        requested +
+        "."
     });
     return;
   }
@@ -640,7 +647,7 @@ function startExportWorker(exportMessage, sender, sendResponse) {
         logLine: reportTitle + " started…"
       });
       updateExportProgressMemory({
-        logLine: "Export running in a background tab — keep working here; play Snake in the worker tab."
+        logLine: "Export running in a background tab — keep working here; open the worker tab for Snake & progress."
       });
       waitForTabReady(workerTab.id, function () {
         chrome.tabs.sendMessage(workerTab.id, {
@@ -665,10 +672,39 @@ function startExportWorker(exportMessage, sender, sendResponse) {
           sendResponse({
             ok: true,
             workerLock: true,
-            message: "Export running in a background tab. Keep working here — open the background tab for Snake and progress."
+            workerTabId: workerTab.id,
+            message: "Export running in a background tab. Keep working here — open for Snake & progress."
           });
         });
       });
+    });
+  });
+}
+
+function focusExportWorkerTab(sendResponse) {
+  const tabId = exportProgressMemory.workerTabId;
+  if (tabId == null) {
+    sendResponse({ ok: false, error: "No export worker tab." });
+    return;
+  }
+  chrome.tabs.get(tabId, function (tab) {
+    if (chrome.runtime.lastError || !tab) {
+      sendResponse({ ok: false, error: "Export worker tab is gone." });
+      return;
+    }
+    chrome.tabs.update(tabId, { active: true }, function () {
+      if (chrome.runtime.lastError) {
+        sendResponse({ ok: false, error: chrome.runtime.lastError.message || "Could not switch to worker tab." });
+        return;
+      }
+      if (tab.windowId != null) {
+        chrome.windows.update(tab.windowId, { focused: true }, function () {
+          void chrome.runtime.lastError;
+          sendResponse({ ok: true });
+        });
+      } else {
+        sendResponse({ ok: true });
+      }
     });
   });
 }
@@ -684,6 +720,7 @@ function isMatrixSharePointUrl(url) {
 }
 
 function cancelExportInWorkerTab(notifyCancelled) {
+  const alreadyCancelled = !!exportProgressMemory.cancelled;
   exportWorker.params = null;
   const tabId = exportProgressMemory.workerTabId;
   if (tabId != null) {
@@ -691,16 +728,39 @@ function cancelExportInWorkerTab(notifyCancelled) {
       chrome.tabs.sendMessage(tabId, { action: "cancelExportCSV" });
     } catch (_) {}
   }
-  if (notifyCancelled && exportProgressMemory.active) {
+  if (!notifyCancelled) {
     updateExportProgressMemory({
-      active: false,
-      success: false,
-      cancelled: true,
-      message: "Export cancelled.",
-      logLine: "Export cancelled.",
-      finishedAt: Date.now(),
+      exportParams: null,
       workerReady: false
     });
+    return;
+  }
+  if (alreadyCancelled) return;
+  updateExportProgressMemory({
+    active: false,
+    success: false,
+    cancelled: true,
+    message: "Export cancelled.",
+    logLine: "Export cancelled.",
+    finishedAt: Date.now(),
+    workerReady: false,
+    exportParams: null
+  });
+  if (tabId != null) {
+    const closeMs = 4000;
+    try {
+      chrome.tabs.sendMessage(tabId, {
+        action: "matrixWorkerFinish",
+        success: false,
+        message: "Export cancelled.",
+        autoCloseMs: closeMs
+      });
+    } catch (_) {}
+    setTimeout(function () {
+      chrome.tabs.remove(tabId, function () {
+        void chrome.runtime.lastError;
+      });
+    }, closeMs);
   }
 }
 
@@ -756,12 +816,12 @@ function touchExportProgressStaleCheck() {
       });
       return;
     }
-    if (alive || !exportWorker.params || exportReconnectInFlight) return;
+    if (alive || !exportWorker.params || exportReconnectInFlight || exportProgressMemory.cancelled) return;
     if (ageMs > EXPORT_STALE_MS) {
       exportReconnectInFlight = true;
       updateExportProgressMemory({ logLine: "Export not responding — restarting background worker…" });
       const tabId = exportProgressMemory.workerTabId;
-      const params = exportWorker.params || exportProgressMemory.exportParams;
+      const params = exportWorker.params;
       if (tabId != null && params) {
         try {
           chrome.tabs.sendMessage(tabId, { action: "cancelExportCSV" }, function () {
@@ -966,35 +1026,71 @@ function downloadBufferInBackground(detail) {
   detail = detail || {};
   const buffer = detail.buffer;
   if (!buffer) return Promise.reject(new Error("Empty download payload"));
-  const blob = new Blob([buffer], { type: detail.mime || "application/octet-stream" });
-  const url = URL.createObjectURL(blob);
   const filename = String(detail.path || "export.dat").replace(/\\/g, "/");
   const timeoutMs = exportDownloadTimeoutMs(detail);
+  const bytes = buffer.byteLength || 0;
+  // MV3 service workers often lack URL.createObjectURL; data: downloads also have size limits.
+  const canBlobUrl = typeof URL !== "undefined" && typeof URL.createObjectURL === "function";
+  const DATA_URL_MAX_BYTES = 1.5 * 1024 * 1024;
+
   return new Promise(function (resolve, reject) {
-    chrome.downloads.download({
-      url: url,
-      filename: filename,
-      conflictAction: "uniquify",
-      saveAs: false
-    }, function (downloadId) {
-      if (chrome.runtime.lastError || downloadId == null) {
-        URL.revokeObjectURL(url);
-        reject(new Error(chrome.runtime.lastError?.message || "Download failed"));
+    function startDownload(url, revoke) {
+      chrome.downloads.download(
+        {
+          url: url,
+          filename: filename,
+          conflictAction: "uniquify",
+          saveAs: false
+        },
+        function (downloadId) {
+          if (chrome.runtime.lastError || downloadId == null) {
+            if (revoke) {
+              try {
+                revoke();
+              } catch (_) {}
+            }
+            reject(new Error(chrome.runtime.lastError?.message || "Download failed"));
+            return;
+          }
+          // Accept as soon as Chrome queues the download; tab fallback handles SW gaps.
+          resolve();
+          waitForBackgroundDownload(downloadId, timeoutMs)
+            .then(function () {
+              if (revoke) setTimeout(revoke, 5000);
+            })
+            .catch(function () {
+              if (revoke) setTimeout(revoke, 15000);
+            });
+        }
+      );
+    }
+
+    if (canBlobUrl) {
+      try {
+        const blob = new Blob([buffer], { type: detail.mime || "application/octet-stream" });
+        const url = URL.createObjectURL(blob);
+        startDownload(url, function () {
+          try {
+            URL.revokeObjectURL(url);
+          } catch (_) {}
+        });
+        return;
+      } catch (_) {
+        /* fall through to data URL / tab fallback */
+      }
+    }
+
+    if (bytes <= DATA_URL_MAX_BYTES) {
+      const dataUrl = buildExportDownloadUrl(detail);
+      if (!dataUrl) {
+        reject(new Error("Empty download payload"));
         return;
       }
-      resolve();
-      waitForBackgroundDownload(downloadId, timeoutMs)
-        .then(function () {
-          setTimeout(function () {
-            try { URL.revokeObjectURL(url); } catch (_) {}
-          }, 5000);
-        })
-        .catch(function () {
-          setTimeout(function () {
-            try { URL.revokeObjectURL(url); } catch (_) {}
-          }, 15000);
-        });
-    });
+      startDownload(dataUrl, null);
+      return;
+    }
+
+    reject(new Error("Service worker cannot host this download; use tab fallback"));
   });
 }
 
@@ -1034,7 +1130,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     };
 
     if (detail.buffer) {
-      downloadBufferInBackground(detail)
+      Promise.resolve()
+        .then(function () {
+          return downloadBufferInBackground(detail);
+        })
         .then(finishOk)
         .catch(function (swErr) {
           const fallbackTabId = workerTabId || uiTabId;
@@ -1042,6 +1141,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             finishErr(swErr);
             return;
           }
+          // Page/tab world supports createObjectURL; use it when the SW cannot.
           triggerAnchorDownloadInTab(fallbackTabId, message.detail || detail, function (resp) {
             if (resp && resp.ok) sendResponse(resp);
             else finishErr(new Error((resp && resp.error) || (swErr && swErr.message) || "Download failed"));
@@ -1065,6 +1165,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     cancelExportInWorkerTab(true);
     sendResponse({ ok: true });
     return false;
+  }
+  if (message.type === "SPCSVExportFocusWorker") {
+    focusExportWorkerTab(sendResponse);
+    return true;
   }
   if (message.type === "SPCSVExportEnsureWorker") {
     touchExportProgressStaleCheck();
@@ -1093,6 +1197,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
   if (message.type === "SPCSVExportProgress") {
+    if (exportProgressMemory.cancelled || (exportProgressMemory.finishedAt && !exportProgressMemory.active)) {
+      sendResponse({ ok: true, ignored: true });
+      return false;
+    }
     updateExportProgressMemory({
       active: true,
       report: message.report || "export",
@@ -1107,6 +1215,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
   if (message.type === "SPCSVExportDone") {
+    if (exportProgressMemory.cancelled) {
+      exportWorker.params = null;
+      sendResponse({ ok: true, ignored: true });
+      return false;
+    }
     const workerTabId = exportProgressMemory.workerTabId;
     const success = !!message.success;
     const doneMessage = message.message || (success ? "Export complete" : "Export failed");
@@ -1117,7 +1230,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       percent: success ? 100 : exportProgressMemory.percent,
       logLine: doneMessage,
       finishedAt: Date.now(),
-      workerReady: false
+      workerReady: false,
+      exportParams: null
     });
     exportWorker.params = null;
     if (workerTabId != null) {

@@ -1,13 +1,6 @@
 // Injected page script: site permissions matrix (aligned with Export-SitePermissionsMatrix.ps1 defaults).
+// Also powers Everything Bagel (same scan + Folder Counts / Path Lengths sheets).
 (function () {
-  try {
-    window.postMessage({
-      __spcsv: true,
-      type: "SPCSVExportStarted",
-      detail: { message: "Permissions matrix export started…", report: "permissionsMatrix" }
-    }, "*");
-  } catch (_) {}
-
   function readParams() {
     try {
       var el = document.getElementById("spcsv-params-json");
@@ -21,6 +14,18 @@
     console.error("Permissions matrix export – missing params.");
     return;
   }
+
+  var IS_BAGEL = params.report === "everythingBagel";
+  var REPORT_KEY = IS_BAGEL ? "everythingBagel" : "permissionsMatrix";
+  var REPORT_LABEL = IS_BAGEL ? "Everything Bagel" : "Permissions matrix";
+
+  try {
+    window.postMessage({
+      __spcsv: true,
+      type: "SPCSVExportStarted",
+      detail: { message: REPORT_LABEL + " export started…", report: REPORT_KEY }
+    }, "*");
+  } catch (_) {}
 
   var exportCancelled = false;
   window.__SPOToolkitExportCancel = false;
@@ -52,7 +57,7 @@
       lastProgressAt = Date.now();
       lastProgressMessage = message;
     }
-    var detail = { message: message, logLine: message, report: "permissionsMatrix" };
+    var detail = { message: message, logLine: message, report: REPORT_KEY };
     if (opts.logLine) detail.logLine = opts.logLine;
     if (isPulse) {
       detail.pulse = true;
@@ -114,9 +119,13 @@
 
   function reportDone(success, message) {
     if (!success) {
-      console.error("Permissions matrix:", message);
+      console.error(REPORT_LABEL + ":", message);
     }
     window.postMessage({ __spcsv: true, type: "SPCSVExportDone", detail: { success: success, message: message, stopReason: "" } }, "*");
+  }
+
+  function progressMsg(suffix) {
+    return REPORT_LABEL + ": " + suffix;
   }
 
   function normalizeGuid(g) {
@@ -235,7 +244,9 @@
     matrix: [21.95, 36, 72, 13.3, 15.3, 35.6, 38, 18.8, 52, 17.3, 17.3, 16.3, 12, 12, 14.3, 12, 13.3, 20, 12, 20, 19.3, 20, 18.3, 19.3, 20, 20, 20],
     groups: [13.3, 53.45, 28, 30.35, 30.35, 12.3, 36, 52, 44, 16.7, 17.3],
     sharing: [18.8, 80, 17.3, 18.3, 13.3, 72, 17.3, 20, 18.3, 20.3, 39.8, 72, 29.3, 60, 14.3, 40, 68, 10.3, 60],
-    allItems: [15.65, 38, 80, 13.3, 11.3, 22, 21.95, 27.2, 21.95, 32]
+    allItems: [15.65, 38, 80, 13.3, 11.3, 22, 21.95, 27.2, 21.95, 32],
+    folderCounts: [18, 28, 40, 22, 12, 14, 14, 16, 12, 16, 56],
+    pathLengths: [18, 28, 56, 56, 16, 16]
   };
 
   function buildWorkbookStylesXml() {
@@ -295,7 +306,184 @@
       if (c === 5 && sVal === "Yes") return 34;
       return 41;
     }
+    if (tableKind === "folderCounts" || tableKind === "pathLengths") return alt;
     return alt;
+  }
+
+  function stripBagelPathPrefix(s) {
+    if (!s || typeof s !== "string") return s || "";
+    var idx = s.indexOf("#");
+    return idx >= 0 ? s.slice(idx + 1).trim() : s;
+  }
+
+  function bagelItemPathAndType(itm, knownFolderPaths) {
+    var path = stripBagelPathPrefix(itm.FileRef || "");
+    if (!path) {
+      var dirRef0 = stripBagelPathPrefix(itm.FileDirRef || "");
+      var leaf0 = stripBagelPathPrefix(itm.FileLeafRef || "");
+      path = (dirRef0 + "/" + leaf0).replace(/\/+/g, "/").replace(/^\/+/, "/");
+    }
+    if (!path || path === "/") return null;
+    path = path.replace(/\/+/g, "/");
+    if (path.length > 1 && path.charAt(path.length - 1) === "/") path = path.slice(0, -1);
+    if (!path) path = "/";
+    var fsVal = itm.FSObjType != null ? itm.FSObjType : itm.FileSystemObjectType;
+    var fsoNum = parseInt(fsVal, 10);
+    var fsFolder = fsVal === 1 || fsVal === "1" || String(fsVal).toLowerCase() === "folder" || fsoNum === 1;
+    var isFolder = !!fsFolder || (knownFolderPaths && knownFolderPaths[path]);
+    var parentPath;
+    if (isFolder) {
+      parentPath = path.replace(/\/[^/]+$/, "") || "/";
+    } else {
+      var dirRef = stripBagelPathPrefix(itm.FileDirRef || "");
+      dirRef = dirRef.replace(/\/+/g, "/");
+      if (dirRef.length > 1 && dirRef.charAt(dirRef.length - 1) === "/") dirRef = dirRef.slice(0, -1);
+      parentPath = dirRef || path.replace(/\/[^/]+$/, "") || "/";
+    }
+    return { path: path, isFolder: !!isFolder, parentPath: parentPath || "/" };
+  }
+
+  function appendBagelFolderCountRows(outRows, items, siteName, listTitle) {
+    if (!items || !items.length) return;
+    var knownFolderPaths = {};
+    for (var i = 0; i < items.length; i++) {
+      var dirRef = stripBagelPathPrefix(items[i].FileDirRef || "");
+      if (dirRef) {
+        dirRef = dirRef.replace(/\/+/g, "/");
+        if (dirRef.length > 1 && dirRef.charAt(dirRef.length - 1) === "/") dirRef = dirRef.slice(0, -1);
+        if (dirRef) knownFolderPaths[dirRef] = true;
+      }
+    }
+    var parsed = [];
+    for (var j = 0; j < items.length; j++) {
+      var x = bagelItemPathAndType(items[j], knownFolderPaths);
+      if (x) parsed.push(x);
+    }
+    if (!parsed.length) return;
+    var pathToFolder = {};
+    var root = null;
+    for (var k = 0; k < parsed.length; k++) {
+      var it0 = parsed[k];
+      var candidate = it0.isFolder ? it0.path : it0.path.replace(/\/[^/]+$/, "").replace(/\/$/, "") || "/";
+      if (!root || candidate.length < root.length) root = candidate;
+    }
+    root = (root || "/").replace(/\/$/, "") || "/";
+    for (var m = 0; m < parsed.length; m++) {
+      var it = parsed[m];
+      var parent = it.parentPath || "/";
+      if (parent && !pathToFolder[parent]) pathToFolder[parent] = { directFolders: 0, directFiles: 0, children: [] };
+      if (it.isFolder) {
+        if (!pathToFolder[it.path]) pathToFolder[it.path] = { directFolders: 0, directFiles: 0, children: [] };
+        if (pathToFolder[parent]) {
+          pathToFolder[parent].directFolders++;
+          if (pathToFolder[parent].children.indexOf(it.path) < 0) pathToFolder[parent].children.push(it.path);
+        }
+      } else if (pathToFolder[parent]) {
+        pathToFolder[parent].directFiles++;
+      }
+    }
+    var allFolders = Object.keys(pathToFolder).filter(function (p) { return pathToFolder[p]; });
+    allFolders.sort(function (a, b) { return b.split("/").length - a.split("/").length; });
+    var totalRecursive = {};
+    var totalNestedFolders = {};
+    var levelsDeep = {};
+    for (var t = 0; t < allFolders.length; t++) {
+      var fp = allFolders[t];
+      var info = pathToFolder[fp];
+      var sum = info.directFiles;
+      var nestedCount = 0;
+      var maxChildDepth = -1;
+      for (var c = 0; c < info.children.length; c++) {
+        var ch = info.children[c];
+        sum += 1 + (totalRecursive[ch] != null ? totalRecursive[ch] : 0);
+        nestedCount += 1 + (totalNestedFolders[ch] != null ? totalNestedFolders[ch] : 0);
+        var cd = levelsDeep[ch] != null ? levelsDeep[ch] : 0;
+        if (cd > maxChildDepth) maxChildDepth = cd;
+      }
+      totalRecursive[fp] = sum;
+      totalNestedFolders[fp] = nestedCount;
+      levelsDeep[fp] = info.children.length === 0 ? 0 : 1 + maxChildDepth;
+    }
+    var folderPaths = Object.keys(pathToFolder).sort();
+    var displayRoot = root;
+    if (folderPaths.length > 0) {
+      var shortest = folderPaths[0];
+      for (var si = 1; si < folderPaths.length; si++) {
+        if (folderPaths[si].length < shortest.length) shortest = folderPaths[si];
+      }
+      displayRoot = shortest;
+    }
+    var normRoot = (displayRoot || "/").replace(/\/+$/, "") || "/";
+    function folderLevelFromPath(p) {
+      if (!p || p === "/") return 0;
+      var norm = p.replace(/\/+$/, "").replace(/^\/+/, "/");
+      if (norm === normRoot || norm.length <= normRoot.length) return 0;
+      if (normRoot !== "/" && norm.indexOf(normRoot + "/") !== 0) return 0;
+      var rel = normRoot === "/" ? norm.replace(/^\/+/, "") : norm.slice(normRoot.length).replace(/^\/+/, "");
+      return rel ? rel.split("/").filter(function (s) { return s.length > 0; }).length : 0;
+    }
+    for (var f = 0; f < folderPaths.length; f++) {
+      var path = folderPaths[f];
+      var finfo = pathToFolder[path];
+      var folderPathDisplay = (path === displayRoot || path === displayRoot + "/") ? "/" : (path.indexOf(displayRoot) === 0 ? "/" + path.slice(displayRoot.length).replace(/^\//, "") : path);
+      var folderName = path.replace(/.*\//, "") || path || "/";
+      outRows.push([
+        siteName,
+        listTitle,
+        folderPathDisplay,
+        folderName,
+        folderLevelFromPath(path),
+        finfo.directFolders,
+        finfo.directFiles,
+        totalNestedFolders[path] != null ? totalNestedFolders[path] : 0,
+        levelsDeep[path] != null ? levelsDeep[path] : 0,
+        totalRecursive[path] != null ? totalRecursive[path] : 0,
+        path
+      ]);
+    }
+  }
+
+  function appendBagelPathLengthRows(outRows, items, siteName, listTitle) {
+    if (!items || !items.length) return;
+    var knownFolderPaths = {};
+    for (var i = 0; i < items.length; i++) {
+      var dirRef = stripBagelPathPrefix(items[i].FileDirRef || "");
+      if (dirRef) {
+        dirRef = dirRef.replace(/\/+$/, "").replace(/^\/+/, "/");
+        if (dirRef.length > 1 && dirRef.charAt(dirRef.length - 1) === "/") dirRef = dirRef.slice(0, -1);
+        if (dirRef) knownFolderPaths[dirRef] = true;
+      }
+    }
+    var shortestPath = null;
+    for (var j = 0; j < items.length; j++) {
+      var x = bagelItemPathAndType(items[j], knownFolderPaths);
+      if (!x || x.isFolder) continue;
+      if (!shortestPath || x.path.length < shortestPath.length) shortestPath = x.path;
+    }
+    var normRoot = (shortestPath ? shortestPath.replace(/\/[^/]+$/, "").replace(/\/+$/, "") : "") || "/";
+    var fileEntries = [];
+    for (var k = 0; k < items.length; k++) {
+      var y = bagelItemPathAndType(items[k], knownFolderPaths);
+      if (!y || y.isFolder) continue;
+      var path = y.path;
+      var pathAfterLibrary = (normRoot === "/" || path.indexOf(normRoot + "/") !== 0) ? path : path.slice(normRoot.length).replace(/^\/+/, "") || "";
+      if (normRoot !== "/" && path === normRoot) pathAfterLibrary = "";
+      var encodedPath = encodeURIComponent(pathAfterLibrary);
+      fileEntries.push({
+        pathAfterLibrary: pathAfterLibrary,
+        encodedPath: encodedPath,
+        friendlyLen: pathAfterLibrary.length,
+        encodedLen: encodedPath.length
+      });
+    }
+    fileEntries.sort(function (a, b) {
+      if (b.encodedLen !== a.encodedLen) return b.encodedLen - a.encodedLen;
+      return b.friendlyLen - a.friendlyLen;
+    });
+    for (var n = 0; n < fileEntries.length; n++) {
+      var e = fileEntries[n];
+      outRows.push([siteName, listTitle, e.pathAfterLibrary, e.encodedPath, e.friendlyLen, e.encodedLen]);
+    }
   }
 
   function buildDashboardStylesXml() { return buildWorkbookStylesXml(); }
@@ -419,7 +607,8 @@
     function buildDataWorksheetXml(built, opts) {
       opts = opts || {};
       var filterRange = built.nc > 0 && built.nr > 0 ? "A1:" + colToLetter(built.nc - 1) + built.nr : "A1";
-      var filterXml = built.nr <= 10000 ? ('<autoFilter ref="' + filterRange + '"/>') : "";
+      // Always enable AutoFilter (All Items is often >>10k rows; the old cap left that sheet unfilterable).
+      var filterXml = built.nr > 0 && built.nc > 0 ? ('<autoFilter ref="' + filterRange + '"/>') : "";
       var freezeXml = built.nr > 1 ? sheetViewsFreezeXml() : "";
       var formatXml = built.nr > 1 ? '<sheetFormatPr defaultRowHeight="15"/>' : "";
       var colsXml = opts.colWidths ? buildColsXml(opts.colWidths, { styleId: COL_STYLE_DEFAULT }) : "";
@@ -573,9 +762,30 @@
   var EXPAND_GROUPS = params.matrixExpandGroups === true;
   var MAX_LIST_ITEMS = params.matrixMaxListItems > 0 ? parseInt(params.matrixMaxListItems, 10) : 2000;
   var PAGE_SIZE = params.matrixListItemPageSize > 0 ? Math.min(5000, Math.max(100, parseInt(params.matrixListItemPageSize, 10))) : 5000;
-  var SELECTED_SITE_PATHS = Array.isArray(params.matrixSelectedPaths)
+  var HAS_EXPLICIT_SITE_SELECTION = Array.isArray(params.matrixSelectedPaths);
+  var SELECTED_SITE_PATHS = HAS_EXPLICIT_SITE_SELECTION
     ? params.matrixSelectedPaths.map(function (p) { return serverRelativeFromAny(p).toLowerCase(); }).filter(Boolean)
     : null;
+  var SELECTED_LIST_KEYS = null;
+  if (Array.isArray(params.reportSelectedLists) && params.reportSelectedLists.length) {
+    SELECTED_LIST_KEYS = {};
+    for (var sli = 0; sli < params.reportSelectedLists.length; sli++) {
+      var sle = params.reportSelectedLists[sli] || {};
+      var slGuid = normalizeGuid(sle.listId || sle.ListId || sle.id);
+      if (!slGuid) continue;
+      var slSite = String(sle.siteUrl || "").replace(/\/$/, "").toLowerCase();
+      SELECTED_LIST_KEYS[slGuid] = true;
+      if (slSite) SELECTED_LIST_KEYS[slSite + "|" + slGuid] = true;
+    }
+  }
+  function listIsSelectedForMatrix(webUrl, listId) {
+    if (!SELECTED_LIST_KEYS) return true;
+    var guid = normalizeGuid(listId);
+    if (!guid) return false;
+    if (SELECTED_LIST_KEYS[guid]) return true;
+    var siteKey = String(webUrl || "").replace(/\/$/, "").toLowerCase();
+    return !!(siteKey && SELECTED_LIST_KEYS[siteKey + "|" + guid]);
+  }
   var INCLUDE_FOLDER_SHARING_LINKS = params.matrixIncludeFolderSharingLinks !== false;
   var SHARING_LINK_FETCH_ALL = params.matrixSharingLinkFetchAll !== false;
   var REQUEST_PACE_MS = 60;
@@ -721,11 +931,13 @@
   async function fetchWithRetry(url, opts, tries) {
     tries = tries || 8;
     var normalized = normalizeApiUrl(url);
+    checkCancelled();
     if (/throttle/i.test(normalized)) {
       await sleep(5000);
       throw new Error("SharePoint is throttling requests. Wait a minute and try again.");
     }
     for (var attempt = 1; attempt <= tries; attempt++) {
+      checkCancelled();
       var r = await fetch(normalized, opts);
       var finalUrl = (r.url || normalized || "").toString();
       if (/throttle/i.test(finalUrl)) {
@@ -797,7 +1009,10 @@
       }
     }
 
-    if (SELECTED_SITE_PATHS && SELECTED_SITE_PATHS.length) {
+    if (HAS_EXPLICIT_SITE_SELECTION) {
+      if (!SELECTED_SITE_PATHS || !SELECTED_SITE_PATHS.length) {
+        throw new Error("No lists selected for the permissions matrix. Load lists and select at least one list or library.");
+      }
       for (var spi = 0; spi < SELECTED_SITE_PATHS.length; spi++) {
         await addWebByPath(SELECTED_SITE_PATHS[spi], false);
       }
@@ -1156,10 +1371,10 @@
     if (!sharingQueue.length) return;
     var queue = sharingQueue.slice();
     sharingQueue = [];
-    logProgress("Permissions matrix: Fetching sharing links for " + queue.length + " item(s)" + (listTitle ? " in " + listTitle : "") + "…");
+    logProgress(progressMsg("Fetching sharing links for " + queue.length + " item(s)" + (listTitle ? " in " + listTitle : "") + "…"));
     for (var i = 0; i < queue.length; i++) {
       var entry = queue[i];
-      logProgress("Permissions matrix: Sharing links " + (i + 1) + "/" + queue.length + " — " + (entry.itemName || entry.itemPath));
+      logProgress(progressMsg("Sharing links " + (i + 1) + "/" + queue.length + " — " + (entry.itemName || entry.itemPath)));
       var links = [];
       if (SHARING_LINK_FETCH_ALL || entry.needsLinkApi) {
         links = await fetchSharingLinksForItem(entry.webUrl, entry.listId, entry.itemId);
@@ -1459,7 +1674,7 @@
         return;
       }
 
-      setProgress("Permissions matrix: Discovering site structure…", 2);
+      setProgress(progressMsg("Discovering site structure…"), 2);
       startProgressPulse();
       checkCancelled();
       var webs = await fetchAllWebs(siteUrl, INCLUDE_SUBSITES);
@@ -1472,18 +1687,22 @@
         reportDone(false, "No webs found to scan.");
         return;
       }
-      setProgress("Permissions matrix: Found " + webs.length + " site(s) to scan…", 5);
+      setProgress(progressMsg("Found " + webs.length + " site(s) to scan…"), 5);
 
       var roleNames = await fetchRoleNames(siteUrl);
       var matrixHeader = ["Site Name", "Name", "Item path", "Item Type", "Inheritance", "Details", "User/group", "Principal type", "Account name", "External user", "Given through"].concat(roleNames);
       var allItemsHeader = ["Site Name", "List/Library", "Item path", "Item Type", "Item Id", "Broken permissions", "Created", "Created By", "Modified", "Modified By"];
       var groupHeader = ["Site Name", "Site URL", "Site Path", "Group Name", "Group Login", "Group Id", "Member Name", "Member Login", "Member Email", "Member Type", "External user"];
+      var bagelFolderHeader = ["Site", "Library", "FolderPath", "FolderName", "FolderLevel", "DirectFoldersCount", "DirectFilesCount", "TotalNestedFolders", "LevelsDeep", "TotalItemsRecursive", "ServerRelativeUrl"];
+      var bagelPathHeader = ["Site", "Library", "Path", "EncodedPath", "FriendlyCharCount", "EncodedCharCount"];
+      var bagelFolderRows = [];
+      var bagelPathRows = [];
 
       var rootPath = webs[0].serverRelativeUrl;
       var accept = "application/json;odata=nometadata";
       var acceptVerbose = { Accept: "application/json;odata=verbose" };
 
-      setProgress("Permissions matrix: Inventorying lists…", 4);
+      setProgress(progressMsg("Inventorying lists…"), 4);
       var webScanPlans = [];
       progressPlan.websTotal = webs.length;
       for (var wpi = 0; wpi < webs.length; wpi++) {
@@ -1493,16 +1712,22 @@
         var invScannable = [];
         for (var ilsi = 0; ilsi < invLists.length; ilsi++) {
           var ilt = (invLists[ilsi].Title || invLists[ilsi].title || "").trim();
-          if (ilt && !EXCLUDED_LISTS[ilt]) {
-            invScannable.push(invLists[ilsi]);
-            progressPlan.totalItems += Math.max(0, parseInt(invLists[ilsi].ItemCount, 10) || 0);
-          }
+          if (!ilt || EXCLUDED_LISTS[ilt]) continue;
+          var invListId = normalizeGuid(invLists[ilsi].Id || invLists[ilsi].id);
+          if (!listIsSelectedForMatrix(invWeb.url, invListId)) continue;
+          invScannable.push(invLists[ilsi]);
+          progressPlan.totalItems += Math.max(0, parseInt(invLists[ilsi].ItemCount, 10) || 0);
         }
+        if (!invScannable.length && SELECTED_LIST_KEYS) continue;
         webScanPlans.push({ web: invWeb, lists: invScannable });
         progressPlan.totalLists += invScannable.length;
-        setProgress("Permissions matrix: " + invWeb.title + " — " + invScannable.length + " list(s)", 4 + ((wpi + 1) / webs.length) * 1);
+        setProgress(progressMsg(invWeb.title + " — " + invScannable.length + " list(s)"), 4 + ((wpi + 1) / webs.length) * 1);
       }
-      setProgress("Permissions matrix: Ready — " + webs.length + " site(s), " + progressPlan.totalLists + " list(s), " + fmtProgressCount(progressPlan.totalItems) + " item(s)", 5);
+      if (!webScanPlans.length) {
+        reportDone(false, "No selected lists/libraries found to scan.");
+        return;
+      }
+      setProgress(progressMsg("Ready — " + webScanPlans.length + " site(s), " + progressPlan.totalLists + " list(s), " + fmtProgressCount(progressPlan.totalItems) + " item(s)"), 5);
 
       for (var wi = 0; wi < webScanPlans.length; wi++) {
         checkCancelled();
@@ -1524,7 +1749,7 @@
           siteUniquePerms: web.hasUnique ? "Yes" : "No"
         };
 
-        logProgress("Permissions matrix: " + siteName + " (" + (wi + 1) + "/" + webs.length + ")…");
+        logProgress(progressMsg(siteName + " (" + (wi + 1) + "/" + webs.length + ")…"));
 
         if (!(webType === "Subsite" && !web.hasUnique)) {
           var webAssignments = await fetchRoleAssignments(webUrl + "/_api/web/roleassignments", accept);
@@ -1566,7 +1791,7 @@
             var nextUrl = listBase + "/items?$select=Id,FileRef,FileDirRef,FileLeafRef,FSObjType,HasUniqueRoleAssignments,Created,Modified,Author/Title,Editor/Title&$expand=Author,Editor&$top=" + PAGE_SIZE;
             var pageNum = 0;
             progressPlan.currentListLoaded = 0;
-            setProgress("Permissions matrix: Scanning " + listTitle + (itemCount ? " (~" + fmtProgressCount(itemCount) + " items)" : "") + "…", itemProgressPct(0));
+            setProgress(progressMsg("Scanning " + listTitle + (itemCount ? " (~" + fmtProgressCount(itemCount) + " items)" : "") + "…"), itemProgressPct(0));
             while (nextUrl) {
               checkCancelled();
               pageNum++;
@@ -1577,14 +1802,18 @@
               allItems = allItems.concat(batch);
               progressPlan.currentListLoaded = allItems.length;
               if (pageNum === 1 || pageNum % 3 === 0) {
-                setProgress("Permissions matrix: " + listTitle + " — loaded " + fmtProgressCount(allItems.length) + " item(s)…", itemProgressPct(allItems.length));
+                setProgress(progressMsg(listTitle + " — loaded " + fmtProgressCount(allItems.length) + " item(s)…"), itemProgressPct(allItems.length));
               }
               nextUrl = (d.d && d.d.__next) ? normalizeApiUrl(d.d.__next) : (d["@odata.nextLink"] ? normalizeApiUrl(d["@odata.nextLink"]) : null);
               if (!nextUrl || batch.length === 0) break;
               await sleep(80);
             }
             if (itemCount > 0 && allItems.length < itemCount && allItems.length < itemCount * 0.9) {
-              logProgress("Permissions matrix: " + listTitle + " returned " + allItems.length + " of ~" + itemCount + " items");
+              logProgress(progressMsg(listTitle + " returned " + allItems.length + " of ~" + itemCount + " items"));
+            }
+            if (IS_BAGEL && isLibrary && allItems.length) {
+              appendBagelFolderCountRows(bagelFolderRows, allItems, siteName, listTitle);
+              appendBagelPathLengthRows(bagelPathRows, allItems, siteName, listTitle);
             }
 
             var uniqueInList = 0;
@@ -1612,7 +1841,7 @@
               if (hasUnique) {
                 uniqueInList++;
                 if (uniqueInList === 1 || uniqueInList % 10 === 0) {
-                  logProgress("Permissions matrix: " + listTitle + " — unique permissions " + uniqueInList + "…");
+                  logProgress(progressMsg(listTitle + " — unique permissions " + uniqueInList + "…"));
                 }
                 var itemAssignments = await fetchRoleAssignments(listBase + "/items(" + itm.Id + ")/RoleAssignments", accept);
                 var itemPrincipals = await principalsFromAssignments(webUrl, itemAssignments, accept, groupCatalog, siteCtx);
@@ -1658,11 +1887,11 @@
             await flushSharingQueue(listTitle);
             progressPlan.doneItems += allItems.length;
             progressPlan.currentListLoaded = 0;
-            setProgress("Permissions matrix: Finished " + listTitle, itemProgressPct(0));
+            setProgress(progressMsg("Finished " + listTitle), itemProgressPct(0));
           } catch (listErr) {
             progressPlan.doneItems += itemCount;
             progressPlan.currentListLoaded = 0;
-            setProgress("Permissions matrix: Skipped " + listTitle + " (" + ((listErr && listErr.message) || listErr) + ")", itemProgressPct(0));
+            setProgress(progressMsg("Skipped " + listTitle + " (" + ((listErr && listErr.message) || listErr) + ")"), itemProgressPct(0));
           }
         }
         siteDetails.push(siteDetail);
@@ -1683,12 +1912,13 @@
       var summaryDashboard = buildSummaryDashboard(siteUrl, elapsedSec, stats, siteDetails);
 
       checkCancelled();
-      setProgress("Permissions matrix: Building workbook…", 98);
-      var siteLabel = (webs[0] && webs[0].title) ? webs[0].title.replace(/[^\w\s-]/g, "").trim() : "PermissionsMatrix";
+      setProgress(progressMsg("Building workbook…"), 98);
+      var defaultLabel = IS_BAGEL ? "EverythingBagel" : "PermissionsMatrix";
+      var siteLabel = (webs[0] && webs[0].title) ? webs[0].title.replace(/[^\w\s-]/g, "").trim() : defaultLabel;
       var ts = new Date();
       var tsPad = function (n) { return n < 10 ? "0" + n : String(n); };
       var stamp = ts.getFullYear() + tsPad(ts.getMonth() + 1) + tsPad(ts.getDate()) + "-" + tsPad(ts.getHours()) + tsPad(ts.getMinutes()) + tsPad(ts.getSeconds());
-      var fnBase = params.f ? params.f.replace(/\.(csv|xls|xlsx|xml)$/i, "") : (siteLabel + "-PermissionsMatrix-" + stamp);
+      var fnBase = params.f ? params.f.replace(/\.(csv|xls|xlsx|xml)$/i, "") : (siteLabel + "-" + defaultLabel + "-" + stamp);
 
       var sheets = [
         { name: "Summary", dashboard: summaryDashboard, tabColor: "FF0D9488" },
@@ -1697,11 +1927,22 @@
         { name: "Sharing Links", aoa: [SHARING_LINK_COLUMNS].concat(sharingRows), tableKind: "sharing", tabColor: "FFEA580C" },
         { name: "All Items", aoa: [allItemsHeader].concat(allItemRows), tableKind: "allItems", tabColor: "FF2563EB" }
       ];
+      if (IS_BAGEL) {
+        sheets.push(
+          { name: "Folder Counts", aoa: [bagelFolderHeader].concat(bagelFolderRows), tableKind: "folderCounts", tabColor: "FF059669" },
+          { name: "Path Lengths", aoa: [bagelPathHeader].concat(bagelPathRows), tableKind: "pathLengths", tabColor: "FF7C3AED" }
+        );
+      }
 
       await downloadWorkbook(sheets, fnBase);
       stopProgressPulse();
-      setProgress("Permissions matrix: Download complete.", 100);
-      reportDone(true, "Done! Permissions matrix downloaded (" + stats.matrixRows + " matrix rows, " + stats.sites + " site(s)).");
+      setProgress(progressMsg("Download complete."), 100);
+      reportDone(
+        true,
+        IS_BAGEL
+          ? ("Done! Everything Bagel downloaded (" + stats.matrixRows + " matrix rows, " + bagelFolderRows.length + " folder rows, " + bagelPathRows.length + " path rows, " + stats.sites + " site(s)).")
+          : ("Done! Permissions matrix downloaded (" + stats.matrixRows + " matrix rows, " + stats.sites + " site(s)).")
+      );
     } catch (e) {
       stopProgressPulse();
       if (exportCancelled || (e && e.message === "Export cancelled.")) {

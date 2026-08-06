@@ -1263,6 +1263,21 @@ html.dark-mode .site-contents-status {
 .column-creator-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .column-creator-submit { padding: 7px 12px; border-radius: var(--r-sm); border: none; background: var(--brand); color: #fff; font-size: .78rem; font-weight: 600; cursor: pointer; }
 .column-creator-submit:disabled { opacity: .55; cursor: not-allowed; }
+.column-creator-submit[hidden] { display: none !important; }
+.column-creator-cancel {
+  padding: 7px 12px;
+  border-radius: var(--r-sm);
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--txt-mid);
+  font-size: .78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.column-creator-cancel:hover {
+  border-color: var(--txt-soft);
+  color: var(--txt);
+}
 .column-creator-status { font-size: .72rem; color: var(--txt-soft); }
 .column-creator-status.err { color: #9F1239; }
 .column-creator-status.ok { color: var(--green); }
@@ -1458,15 +1473,28 @@ body.reports-settings-visible #reportsPanel { min-height: 260px; }
   gap: 10px;
   flex-shrink: 0;
 }
-.export-progress-cancel {
+.export-progress-cancel,
+.export-progress-open-worker {
   display: none;
   padding: 2px 8px;
   font-size: .65rem;
   line-height: 1.4;
   min-height: 0;
 }
-.export-progress-console.export-progress-active .export-progress-cancel {
+.export-progress-console.export-progress-active .export-progress-cancel,
+.export-progress-console.export-progress-active .export-progress-open-worker {
   display: inline-flex;
+}
+#status .export-worker-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+#status .export-worker-link:hover {
+  text-decoration-color: currentColor;
+  color: var(--brand, #37ae1c);
 }
 .export-progress-elapsed {
   font-size: .68rem;
@@ -1493,13 +1521,85 @@ body.reports-settings-visible #reportsPanel { min-height: 260px; }
   max-height: 180px;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0 8px 8px;
+  padding: 4px 8px 8px;
   font-family: ui-monospace, Consolas, monospace;
   font-size: .68rem;
-  line-height: 1.35;
+  line-height: 1.4;
   color: var(--txt-soft);
-  white-space: pre-wrap;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
+.export-log-line {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+  padding: 2px 5px;
+  border-radius: 5px;
+  border-left: 2px solid transparent;
+}
+.export-log-ts {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--txt-soft) 70%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+.export-log-msg {
+  min-width: 0;
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--txt-soft);
+}
+.export-tok-kw { color: #7c3aed; font-weight: 500; }
+.export-tok-verb { color: #6d28d9; }
+.export-tok-scan { color: #0891b2; }
+.export-tok-ok { color: #15803d; }
+.export-tok-skip { color: #b45309; }
+.export-tok-name { color: var(--txt); }
+.export-tok-num { color: #a16207; font-variant-numeric: tabular-nums; }
+.export-tok-meta { color: #64748b; }
+.export-tok-sep { color: #94a3b8; }
+.export-tok-err { color: #b91c1c; font-weight: 600; }
+.export-log-start {
+  border-left-color: color-mix(in srgb, #38bdf8 55%, transparent);
+  background: color-mix(in srgb, #38bdf8 8%, transparent);
+}
+.export-log-action {
+  border-left-color: color-mix(in srgb, #a78bfa 55%, transparent);
+  background: color-mix(in srgb, #a78bfa 8%, transparent);
+}
+.export-log-progress {
+  border-left-color: color-mix(in srgb, #22d3ee 50%, transparent);
+  background: color-mix(in srgb, #22d3ee 7%, transparent);
+}
+.export-log-ok {
+  border-left-color: color-mix(in srgb, #37ae1c 55%, transparent);
+  background: color-mix(in srgb, #37ae1c 8%, transparent);
+}
+.export-log-skip {
+  border-left-color: color-mix(in srgb, #f59e0b 55%, transparent);
+  background: color-mix(in srgb, #f59e0b 8%, transparent);
+}
+.export-log-warn {
+  border-left-color: color-mix(in srgb, #f97316 55%, transparent);
+  background: color-mix(in srgb, #f97316 9%, transparent);
+}
+.export-log-error {
+  border-left-color: color-mix(in srgb, #ef4444 55%, transparent);
+  background: color-mix(in srgb, #ef4444 9%, transparent);
+}
+html.dark-mode .export-log-ts { color: rgba(100, 116, 139, .9); }
+html.dark-mode .export-log-msg { color: rgba(203, 213, 225, .88); }
+html.dark-mode .export-tok-kw { color: #a78bfa; }
+html.dark-mode .export-tok-verb { color: #c4b5fd; }
+html.dark-mode .export-tok-scan { color: #67e8f9; }
+html.dark-mode .export-tok-ok { color: #86efac; }
+html.dark-mode .export-tok-skip { color: #fbbf24; }
+html.dark-mode .export-tok-name { color: #e2e8f0; }
+html.dark-mode .export-tok-num { color: #fcd34d; }
+html.dark-mode .export-tok-meta { color: #94a3b8; }
+html.dark-mode .export-tok-sep { color: #64748b; }
+html.dark-mode .export-tok-err { color: #fca5a5; }
 
 #downloadMain {
   display: flex;
@@ -2193,6 +2293,10 @@ body.universal-search-open .universal-search-dialog {
       <span>Remember last tab when opening popout</span>
     </label>
     <label class="checkbox-row">
+      <input type="checkbox" id="chkExportWorkerSillyMode" />
+      <span>Silly mode (snake icon + joke title)</span>
+    </label>
+    <label class="checkbox-row">
       <input type="checkbox" id="chkUniversalSearchHotkeyEnabled" />
       <span>Enable keyboard shortcut for Universal Settings Search</span>
     </label>
@@ -2321,6 +2425,7 @@ body.universal-search-open .universal-search-dialog {
           </div>
           <div class="export-progress-meta">
             <span id="exportProgressElapsed" class="export-progress-elapsed"></span>
+            <button type="button" id="exportProgressOpenWorker" class="btn-ghost export-progress-open-worker" title="Open export worker tab">Open tab</button>
             <button type="button" id="exportProgressCancel" class="btn-ghost export-progress-cancel" title="Stop export">Cancel</button>
             <div id="exportProgressPct" class="export-progress-pct"></div>
           </div>
@@ -2340,6 +2445,7 @@ body.universal-search-open .universal-search-dialog {
         <option value="folderCount">Folder &amp; Item Counts</option>
         <option value="pathLengths">Path Length Report</option>
         <option value="permissionsMatrix">Permissions Matrix</option>
+        <option value="everythingBagel">Everything Bagel</option>
       </select>
     </div>
 
@@ -2437,7 +2543,7 @@ body.universal-search-open .universal-search-dialog {
       </div>
       <p class="settings-note">Used for the &quot;Export List/Library&quot; report. You can still change the format per run in the Reports tab.</p>
       <div id="matrixSettingsSection">
-        <label class="form-label">Permissions matrix</label>
+        <label class="form-label">Permissions matrix / Everything Bagel</label>
         <label class="checkbox-row">
           <input type="checkbox" id="chkMatrixIncludeSubsites" checked />
           <label for="chkMatrixIncludeSubsites">Include subsites when loading site list</label>

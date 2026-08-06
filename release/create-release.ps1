@@ -23,7 +23,7 @@ $files = @(
   "getPageContext.js", "getPageContextFull.js", "getPageContextJson.js", "getViewFormatContext.js", "getSiteLists.js",
   "compassColumnCreator.js", "compassToolkitPanels.js", "compassUniversalSearch.js", "matrixWorkerLock.js",
   "adminCenterWaitBanner.js", "recycleBinWaitBanner.js",
-  "jszip.min.js", "jszip-preload.js", "jszip-restore.js", "jszip-restore-define.js",
+  "jszip.min.js", "jszip-preload.js", "jszip-restore-define.js",
   "README.md", "OWSSVR-LISTS.md"
 )
 foreach ($f in $files) {

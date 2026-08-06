@@ -25,6 +25,18 @@
   var exportReport = params.report || "exportCSV";
   var exportOverallPct = 0;
   var multiListCtx = null;
+  var exportCancelled = false;
+  window.__SPOToolkitExportCancel = false;
+  window.addEventListener("message", function (ev) {
+    if (ev.data && ev.data.__spcsv === true && ev.data.type === "SPCSVExportCancel") exportCancelled = true;
+  });
+  try {
+    window.addEventListener("spotoolkit-export-cancel", function () { exportCancelled = true; });
+  } catch (_) {}
+
+  function checkCancelled() {
+    if (exportCancelled || window.__SPOToolkitExportCancel) throw new Error("Export cancelled.");
+  }
 
   try {
     window.postMessage({
@@ -57,6 +69,7 @@
   }
 
   function reportProgress(message, opts) {
+    checkCancelled();
     opts = opts || {};
     var detail = { message: message || "", logLine: message || "", report: exportReport };
     if (opts.logLine) detail.logLine = opts.logLine;
@@ -1658,7 +1671,6 @@
       if (oa !== ob) return oa - ob;
       return a.localeCompare(b);
     });
-    reportProgress("Exporting CSV");
     var fnBase = exportFilename.replace(/\.(csv|xls|xlsx|xml)$/i, "");
     downloadExport({ rows: rows, columns: columns }, fnBase, { sheetName: "Export" });
     reportDone(true, "Done! " + rows.length.toLocaleString() + " rows exported.");
@@ -1759,6 +1771,7 @@
     var pageDelayMs = fastFail ? 100 : 500;
 
     while (pageNum < MAX_PAGES) {
+      checkCancelled();
       pageNum++;
       var startId = baseStartId + (pageNum - 1) * PAGE_LIMIT;
       var endId = baseStartId + pageNum * PAGE_LIMIT;
@@ -2071,7 +2084,6 @@
       if (oa !== ob) return oa - ob;
       return a.localeCompare(b);
     });
-    reportProgress("Exporting CSV");
     var restRowsArr = Object.keys(rowMap).sort(function (a, b) { return parseInt(a, 10) - parseInt(b, 10); }).map(function (id) { return rowMap[id]; });
     var fnBaseRest = exportFilename.replace(/\.(csv|xls|xlsx|xml)$/i, "");
     downloadExport({ rows: restRowsArr, columns: columns }, fnBaseRest, { sheetName: "Export" });
@@ -3120,7 +3132,8 @@
       folderCount: "FolderCounts",
       pathLengths: "PathLengths",
       permissions: "Permissions",
-      permissionsMatrix: "PermissionsMatrix"
+      permissionsMatrix: "PermissionsMatrix",
+      everythingBagel: "EverythingBagel"
     };
     return map[report] || sanitizeFilenamePart(report || "Export");
   }
@@ -3200,7 +3213,8 @@
 
   function exportDownloadTimeoutMs(payload) {
     var bytes = exportDownloadPayloadBytes(payload);
-    return Math.min(120000, Math.max(45000, 45000 + Math.floor(bytes / (512 * 1024)) * 5000));
+    // Large zips/xlsx need headroom while the SW relays the file into chrome.downloads.
+    return Math.min(900000, Math.max(120000, 120000 + Math.floor(bytes / (256 * 1024)) * 5000));
   }
 
   function exportDownloadPayloadBytes(payload) {
@@ -3526,6 +3540,7 @@
     var libOnly = params.report === "folderCount" || params.report === "pathLengths";
     multiListCtx = { listIndex: 0, listTotal: targets.length };
     for (var ti = 0; ti < targets.length; ti++) {
+      checkCancelled();
       var t = targets[ti];
       if (libOnly && t.baseTemplate != null && t.baseTemplate !== 101) {
         skipped++;
@@ -3719,17 +3734,23 @@
         await exportPermissionsReport();
         return;
       }
-      if (params.report === "permissionsMatrix") {
-        reportDone(false, "Permissions matrix now runs via permissionsMatrixExport.js. Reload the extension and try again.");
+      if (params.report === "permissionsMatrix" || params.report === "everythingBagel") {
+        reportDone(false, "This report runs via permissionsMatrixExport.js. Reload the extension and try again.");
         return;
       }
       if (reportTargets.length === 0 && listId && !params.matrixWholeSite) {
         listBaseTemplate = await getListBaseTemplate();
         reportTargets = [buildSyntheticReportTarget()];
       }
-      if (isFolderBundleReport(params.report) && reportTargets.length >= 1) {
+      // Zip folder bundles are only for 2+ lists. A single selection downloads one CSV/XLSX.
+      if (isFolderBundleReport(params.report) && reportTargets.length > 1) {
         await runMultiListExport(reportTargets);
         return;
+      }
+      if (reportTargets.length === 1) {
+        siteUrl = String(reportTargets[0].siteUrl || siteUrl || "").replace(/\/$/, "");
+        listId = normalizeGuid(reportTargets[0].listId || listId || "");
+        if (!exportFilename) exportFilename = buildDefaultExportFilename();
       }
       if (!listId && !params.matrixWholeSite) {
         reportDone(false, "Could not detect list. Open a list/library page, load lists in Reports, and select at least one — or use Permissions matrix for site-wide scans.");
@@ -3743,6 +3764,10 @@
       }
       await runExportForCurrentList();
     } catch (e) {
+      if (exportCancelled || (e && e.message === "Export cancelled.")) {
+        reportDone(false, "Export cancelled.", "cancelled");
+        return;
+      }
       console.error("SharePoint CSV Export – Error:", e);
       reportDone(false, "Error: " + (e.message || String(e)));
     }
