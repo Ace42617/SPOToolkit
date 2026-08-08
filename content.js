@@ -4,6 +4,18 @@ const PROGRESS_BOX_ID = "sp-csv-export-progress";
 const SCRIPT_TIMEOUT = 15000;
 /** JSON script node read by getViewsData.js (page context). */
 const SP_VIEWS_PARAMS_SCRIPT_ID = "sp-views-params";
+/** JSON script node read by reportListPlan.js (page context). */
+const SP_REPORT_LIST_PLAN_PARAMS_SCRIPT_ID = "sp-report-list-plan-params-json";
+
+function getReportListPlanParamsScriptId(requestId) {
+  return requestId
+    ? SP_REPORT_LIST_PLAN_PARAMS_SCRIPT_ID + "-" + requestId
+    : SP_REPORT_LIST_PLAN_PARAMS_SCRIPT_ID;
+}
+
+function createReportListPlanRequestId() {
+  return "report-list-plan-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+}
 
 /** Injects/replaces #sp-views-params for View Manager REST (listId, optional viewId, webAbsoluteUrl). */
 function attachSpViewsParamsScript(message) {
@@ -16,6 +28,23 @@ function attachSpViewsParamsScript(message) {
   if (el) el.remove();
   el = document.createElement("script");
   el.id = SP_VIEWS_PARAMS_SCRIPT_ID;
+  el.type = "application/json";
+  el.textContent = JSON.stringify(payload);
+  (document.head || document.documentElement).appendChild(el);
+}
+
+/** Injects a request-scoped params node for Reports Load lists. */
+function attachReportListPlanParamsScript(message, requestId) {
+  const payload = {
+    requestId: requestId || null,
+    siteUrl: message.siteUrl || "",
+    includeSubsites: message.includeSubsites !== false,
+    librariesOnly: message.librariesOnly === true
+  };
+  let el = document.getElementById(getReportListPlanParamsScriptId(requestId));
+  if (el) el.remove();
+  el = document.createElement("script");
+  el.id = getReportListPlanParamsScriptId(requestId);
   el.type = "application/json";
   el.textContent = JSON.stringify(payload);
   (document.head || document.documentElement).appendChild(el);
@@ -4471,15 +4500,19 @@ function injectAndWait(scriptName, messageType, parseData, sendResponse, options
     done = true;
     clearTimeout(tid);
     window.removeEventListener("message", listener);
+    try {
+      if (options.afterFinish) options.afterFinish();
+    } catch (_) {}
     sendResponse(payload);
   }
   const listener = (ev) => {
     if (!ev.data || ev.data.__spcsv !== true || ev.data.type !== messageType) return;
+    if (options.matchesResponse && !options.matchesResponse(ev.data)) return;
     finish(parseData(ev.data));
   };
   if (options.beforeInject) options.beforeInject();
   const script = document.createElement("script");
-  script.src = chrome.runtime.getURL(scriptName) + "?cb=" + Date.now();
+  script.src = chrome.runtime.getURL(scriptName) + (options.urlSuffix || ("?cb=" + Date.now()));
   script.onload = () => script.remove();
   script.onerror = () => finish(errorPayload);
   window.addEventListener("message", listener);
@@ -5028,6 +5061,7 @@ function dispatchToolkitMessage(message, sendResponse) {
   }
 
   if (message.action === "getReportListPlan") {
+    const requestId = createReportListPlanRequestId();
     injectAndWait(
       "reportListPlan.js",
       "SPReportListPlanResult",
@@ -5036,17 +5070,15 @@ function dispatchToolkitMessage(message, sendResponse) {
       {
         timeoutMs: 120000,
         beforeInject() {
-          let el = document.getElementById("sp-report-list-plan-params-json");
+          attachReportListPlanParamsScript(message, requestId);
+        },
+        urlSuffix: "?spcsvRequestId=" + encodeURIComponent(requestId),
+        matchesResponse(data) {
+          return data.requestId === requestId;
+        },
+        afterFinish() {
+          const el = document.getElementById(getReportListPlanParamsScriptId(requestId));
           if (el) el.remove();
-          el = document.createElement("script");
-          el.id = "sp-report-list-plan-params-json";
-          el.type = "application/json";
-          el.textContent = JSON.stringify({
-            siteUrl: message.siteUrl || "",
-            includeSubsites: message.includeSubsites !== false,
-            librariesOnly: message.librariesOnly === true
-          });
-          (document.head || document.documentElement).appendChild(el);
         },
         errorPayload: { ok: false, error: "Timeout loading list inventory" }
       }
