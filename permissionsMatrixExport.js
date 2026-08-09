@@ -1335,6 +1335,7 @@
     var details = link.linkDetails || link.LinkDetails || {};
     var roles = link.roles || link.Roles;
     var rolesText = Array.isArray(roles) ? roles.join("|") : (roles == null ? "" : String(roles));
+    var shareId = details.shareId || details.ShareId || link.shareId || link.ShareId || link.id || link.Id || "";
     sharingRows.push([
       "SharingLink",
       linkUrl,
@@ -1346,7 +1347,7 @@
       link.expirationDateTime || link.ExpirationDateTime || details.expiration || details.Expiration || "",
       details.blocksDownload != null ? details.blocksDownload : (details.BlocksDownload != null ? details.BlocksDownload : ""),
       link.hasPassword != null ? link.hasPassword : (link.HasPassword != null ? link.HasPassword : ""),
-      link.id || link.Id || link.shareId || link.ShareId || "",
+      shareId,
       entry.siteUrl,
       entry.listTitle,
       entry.listUrl,
