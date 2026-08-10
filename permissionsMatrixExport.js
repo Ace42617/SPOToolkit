@@ -310,10 +310,11 @@
     return alt;
   }
 
+  /** Classic lookup/user display is "ID;#Value". Do not strip bare "#" (valid in SPO file/folder names). Keep in sync with lib/sharePointLookupValue.mjs. */
   function stripBagelPathPrefix(s) {
     if (!s || typeof s !== "string") return s || "";
-    var idx = s.indexOf("#");
-    return idx >= 0 ? s.slice(idx + 1).trim() : s;
+    var m = /^(\d+;#)/.exec(s);
+    return m ? s.slice(m[1].length).trim() : s;
   }
 
   function bagelItemPathAndType(itm, knownFolderPaths) {
@@ -1821,7 +1822,7 @@
               if (ii > 0 && ii % 25 === 0) checkCancelled();
               var itm = allItems[ii];
               var itemPath = itm.FileRef || (itm.FileDirRef && itm.FileLeafRef ? (itm.FileDirRef + "/" + itm.FileLeafRef).replace(/\/+/g, "/") : null) || itm.FileLeafRef || "";
-              if (itemPath && itemPath.indexOf("#") >= 0) itemPath = itemPath.slice(itemPath.indexOf("#") + 1).trim();
+              itemPath = stripBagelPathPrefix(itemPath);
               var itemType = itemTypeFromList(baseTemplate, itm.FSObjType);
               var hasUnique = itm.HasUniqueRoleAssignments === true;
               stats.itemsScanned++;

@@ -1447,10 +1447,11 @@
     return "";
   }
 
+  /** Classic lookup/user display is "ID;#Value". Do not strip bare "#" (valid in SPO file/folder names). Keep in sync with lib/sharePointLookupValue.mjs. */
   function stripIdHashPrefix(s) {
     if (!s || typeof s !== "string") return s || "";
-    var idx = s.indexOf("#");
-    return idx >= 0 ? s.slice(idx + 1).trim() : s;
+    var m = /^(\d+;#)/.exec(s);
+    return m ? s.slice(m[1].length).trim() : s;
   }
 
   function isDocumentSet(row) {
