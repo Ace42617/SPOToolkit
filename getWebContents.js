@@ -1,16 +1,47 @@
 // Injected page script: fetch lists + child webs for one SharePoint web URL.
 (function () {
+  var REQUEST_QUERY = "spcsvRequestId";
+  var activeRequestId = getCurrentRequestId();
+
+  function getCurrentRequestId() {
+    try {
+      var script = document.currentScript;
+      var src = script && script.src ? String(script.src) : "";
+      if (!src) return "";
+      return new URL(src, window.location.href).searchParams.get(REQUEST_QUERY) || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function findParamsElement(requestId) {
+    var nodes = document.querySelectorAll('script[data-sp-site-contents-web-params="1"]');
+    if (!nodes || !nodes.length) return null;
+    if (requestId) {
+      for (var i = 0; i < nodes.length; i++) {
+        if (nodes[i].getAttribute("data-request-id") === requestId) return nodes[i];
+      }
+      return null;
+    }
+    return nodes[nodes.length - 1] || null;
+  }
+
   function readParams() {
     try {
-      var nodes = document.querySelectorAll('script[data-sp-site-contents-web-params="1"]');
-      var el = nodes.length ? nodes[nodes.length - 1] : null;
-      if (el && el.textContent) return JSON.parse(el.textContent);
+      var el = findParamsElement(activeRequestId);
+      if (el && el.textContent) {
+        var parsed = JSON.parse(el.textContent);
+        if (!activeRequestId && parsed && parsed.requestId) {
+          activeRequestId = String(parsed.requestId);
+        }
+        return parsed;
+      }
     } catch (_) {}
     return {};
   }
 
   var params = readParams();
-  var requestId = params.requestId || "";
+  var requestId = activeRequestId || params.requestId || "";
   var siteUrl = String(params.webUrl || "").replace(/\/$/, "");
   var accept = "application/json;odata=nometadata";
   var typeLabels = {
