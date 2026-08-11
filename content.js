@@ -3046,6 +3046,13 @@ function mapSiteContentsSubsiteRows(subsites) {
   }).filter(function (s) { return !!s.viewUrl; });
 }
 
+function shouldSkipSiteContentsWebFetch(cache) {
+  if (!cache) return false;
+  if (cache.loading) return true;
+  if (cache.error) return false;
+  return Array.isArray(cache.lists);
+}
+
 function fetchSiteContentsWeb(webUrl, callback) {
   var key = normalizeSiteContentsWebUrl(webUrl);
   if (!key) {
@@ -3053,15 +3060,27 @@ function fetchSiteContentsWeb(webUrl, callback) {
     return;
   }
   var requestId = "scw_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9);
+  var done = false;
+  function finish(payload) {
+    if (done) return;
+    done = true;
+    clearTimeout(tid);
+    window.removeEventListener("message", onMsg);
+    try {
+      var nodes = document.querySelectorAll('script[data-sp-site-contents-web-params="1"]');
+      for (var i = 0; i < nodes.length; i++) {
+        if (nodes[i].getAttribute("data-request-id") === requestId) {
+          nodes[i].remove();
+          break;
+        }
+      }
+    } catch (_) {}
+    callback(payload);
+  }
   function onMsg(ev) {
     if (!ev.data || ev.data.__spcsv !== true || ev.data.type !== "SPCSVWebContentsResult") return;
     if (ev.data.requestId !== requestId) return;
-    window.removeEventListener("message", onMsg);
-    try {
-      var paramsEl = document.querySelector('script[data-sp-site-contents-web-params="1"][data-request-id="' + requestId + '"]');
-      if (paramsEl) paramsEl.remove();
-    } catch (_) {}
-    callback({
+    finish({
       ok: ev.data.ok !== false && !ev.data.error,
       error: ev.data.error || "",
       lists: Array.isArray(ev.data.lists) ? ev.data.lists : [],
@@ -3077,14 +3096,17 @@ function fetchSiteContentsWeb(webUrl, callback) {
   paramsEl.textContent = JSON.stringify({ webUrl: key, requestId: requestId });
   (document.documentElement || document.head || document.body).appendChild(paramsEl);
   var script = document.createElement("script");
-  script.src = chrome.runtime.getURL("getWebContents.js");
+  script.src = chrome.runtime.getURL("getWebContents.js")
+    + "?spcsvRequestId=" + encodeURIComponent(requestId)
+    + "&cb=" + Date.now();
   script.onload = function () { script.remove(); };
   script.onerror = function () {
-    window.removeEventListener("message", onMsg);
     script.remove();
-    try { paramsEl.remove(); } catch (_) {}
-    callback({ ok: false, error: "Failed to load web contents script", lists: [], subsites: [] });
+    finish({ ok: false, error: "Failed to load web contents script", lists: [], subsites: [] });
   };
+  var tid = setTimeout(function () {
+    finish({ ok: false, error: "Timed out loading web contents", lists: [], subsites: [] });
+  }, SCRIPT_TIMEOUT);
   (document.head || document.documentElement).appendChild(script);
 }
 
@@ -3553,7 +3575,8 @@ function toggleListsLauncher() {
             if (soft) tr.classList.add("sp-toolkit-sc-soft-in");
             rows.push(tr);
             if (item.isSubsite && childExpanded) {
-              if (!panel._siteContentsChildCache[childKey] || (!panel._siteContentsChildCache[childKey].lists && !panel._siteContentsChildCache[childKey].loading)) {
+              const nestedCache = panel._siteContentsChildCache[childKey];
+              if (!nestedCache || (!nestedCache.lists && !nestedCache.loading && !nestedCache.error)) {
                 ensureSiteContentsWebLoaded(childKey, true);
               }
               Array.prototype.push.apply(rows, buildSiteContentsChildRows(childKey, depth + 1, soft));
@@ -3585,7 +3608,8 @@ function toggleListsLauncher() {
           const key = normalizeSiteContentsWebUrl(webUrl);
           if (!key) return;
           const cache = panel._siteContentsChildCache[key];
-          if (cache && (cache.loading || cache.lists)) return;
+          // Empty lists [] are truthy — do not treat failed loads as cached success.
+          if (shouldSkipSiteContentsWebFetch(cache)) return;
           panel._siteContentsChildCache[key] = { loading: true, lists: null, subsites: null, error: "" };
           const parentTr = findSiteContentsSubsiteRow(key);
           if (parentTr && panel._siteContentsExpanded[key] && !quiet) {
@@ -3594,10 +3618,12 @@ function toggleListsLauncher() {
           fetchSiteContentsWeb(key, function (res) {
             panel._siteContentsChildCache[key] = {
               loading: false,
-              lists: (res.lists || []).map(function (item) {
-                return Object.assign({}, item, { webUrl: key });
-              }),
-              subsites: mapSiteContentsSubsiteRows(res.subsites || []),
+              lists: res.ok
+                ? (res.lists || []).map(function (item) {
+                    return Object.assign({}, item, { webUrl: key });
+                  })
+                : null,
+              subsites: res.ok ? mapSiteContentsSubsiteRows(res.subsites || []) : null,
               error: res.ok ? "" : (res.error || "Failed to load")
             };
             const row = findSiteContentsSubsiteRow(key);
@@ -3622,7 +3648,8 @@ function toggleListsLauncher() {
           panel._siteContentsExpanded[key] = true;
           setSiteContentsExpandState(parentTr, true);
           const cache = panel._siteContentsChildCache[key];
-          if (!cache || (!cache.lists && !cache.loading && !cache.error)) {
+          // Retry after error / timeout so a stranded node is not permanent.
+          if (!cache || cache.error || (!cache.lists && !cache.loading)) {
             ensureSiteContentsWebLoaded(key);
             return;
           }
