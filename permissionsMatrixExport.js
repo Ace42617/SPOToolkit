@@ -443,7 +443,41 @@
     }
   }
 
-  function appendBagelPathLengthRows(outRows, items, siteName, listTitle) {
+  // Keep in sync with lib/pathLengthLibraryRoot.mjs
+  function normalizeServerRelativePath(p) {
+    if (!p || typeof p !== "string") return "";
+    var s = p.replace(/\/+/g, "/");
+    if (s.length > 1 && s.charAt(s.length - 1) === "/") s = s.slice(0, -1);
+    return s || "";
+  }
+
+  function resolvePathLengthLibraryRoot(listRootUrl, parentPaths) {
+    var explicit = normalizeServerRelativePath(listRootUrl);
+    if (explicit) return explicit;
+    var shortest = "";
+    if (parentPaths && parentPaths.length) {
+      for (var i = 0; i < parentPaths.length; i++) {
+        var n = normalizeServerRelativePath(parentPaths[i]);
+        if (!n || n === "/") continue;
+        if (!shortest || n.length < shortest.length) shortest = n;
+      }
+    }
+    return shortest || "/";
+  }
+
+  function pathRelativeToLibraryRoot(fullPath, libraryRoot) {
+    var path = normalizeServerRelativePath(fullPath);
+    var normRoot = normalizeServerRelativePath(libraryRoot) || "/";
+    if (!path) return "";
+    if (normRoot === "/") return path.replace(/^\/+/, "") || "";
+    if (path === normRoot) return "";
+    if (path.indexOf(normRoot + "/") === 0) {
+      return path.slice(normRoot.length).replace(/^\/+/, "") || "";
+    }
+    return path;
+  }
+
+  function appendBagelPathLengthRows(outRows, items, siteName, listTitle, listRootUrl) {
     if (!items || !items.length) return;
     var knownFolderPaths = {};
     for (var i = 0; i < items.length; i++) {
@@ -454,20 +488,19 @@
         if (dirRef) knownFolderPaths[dirRef] = true;
       }
     }
-    var shortestPath = null;
+    var parentPaths = [];
+    var filePaths = [];
     for (var j = 0; j < items.length; j++) {
       var x = bagelItemPathAndType(items[j], knownFolderPaths);
-      if (!x || x.isFolder) continue;
-      if (!shortestPath || x.path.length < shortestPath.length) shortestPath = x.path;
+      if (!x) continue;
+      if (x.parentPath) parentPaths.push(x.parentPath);
+      if (!x.isFolder) filePaths.push(x.path);
     }
-    var normRoot = (shortestPath ? shortestPath.replace(/\/[^/]+$/, "").replace(/\/+$/, "") : "") || "/";
+    var normRoot = resolvePathLengthLibraryRoot(listRootUrl, parentPaths);
     var fileEntries = [];
-    for (var k = 0; k < items.length; k++) {
-      var y = bagelItemPathAndType(items[k], knownFolderPaths);
-      if (!y || y.isFolder) continue;
-      var path = y.path;
-      var pathAfterLibrary = (normRoot === "/" || path.indexOf(normRoot + "/") !== 0) ? path : path.slice(normRoot.length).replace(/^\/+/, "") || "";
-      if (normRoot !== "/" && path === normRoot) pathAfterLibrary = "";
+    for (var k = 0; k < filePaths.length; k++) {
+      var path = filePaths[k];
+      var pathAfterLibrary = pathRelativeToLibraryRoot(path, normRoot);
       var encodedPath = encodeURIComponent(pathAfterLibrary);
       fileEntries.push({
         pathAfterLibrary: pathAfterLibrary,
@@ -1813,7 +1846,7 @@
             }
             if (IS_BAGEL && isLibrary && allItems.length) {
               appendBagelFolderCountRows(bagelFolderRows, allItems, siteName, listTitle);
-              appendBagelPathLengthRows(bagelPathRows, allItems, siteName, listTitle);
+              appendBagelPathLengthRows(bagelPathRows, allItems, siteName, listTitle, listRootUrl);
             }
 
             var uniqueInList = 0;
