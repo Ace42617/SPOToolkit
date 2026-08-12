@@ -1588,7 +1588,41 @@
     return "\ufeff" + lines.join("\r\n");
   }
 
-  function buildPathLengthsReportFromRows(rows) {
+  // Keep in sync with lib/pathLengthLibraryRoot.mjs
+  function normalizeServerRelativePath(p) {
+    if (!p || typeof p !== "string") return "";
+    var s = p.replace(/\/+/g, "/");
+    if (s.length > 1 && s.charAt(s.length - 1) === "/") s = s.slice(0, -1);
+    return s || "";
+  }
+
+  function resolvePathLengthLibraryRoot(listRootUrl, parentPaths) {
+    var explicit = normalizeServerRelativePath(listRootUrl);
+    if (explicit) return explicit;
+    var shortest = "";
+    if (parentPaths && parentPaths.length) {
+      for (var i = 0; i < parentPaths.length; i++) {
+        var n = normalizeServerRelativePath(parentPaths[i]);
+        if (!n || n === "/") continue;
+        if (!shortest || n.length < shortest.length) shortest = n;
+      }
+    }
+    return shortest || "/";
+  }
+
+  function pathRelativeToLibraryRoot(fullPath, libraryRoot) {
+    var path = normalizeServerRelativePath(fullPath);
+    var normRoot = normalizeServerRelativePath(libraryRoot) || "/";
+    if (!path) return "";
+    if (normRoot === "/") return path.replace(/^\/+/, "") || "";
+    if (path === normRoot) return "";
+    if (path.indexOf(normRoot + "/") === 0) {
+      return path.slice(normRoot.length).replace(/^\/+/, "") || "";
+    }
+    return path;
+  }
+
+  function buildPathLengthsReportFromRows(rows, listRootUrl) {
     var knownFolderPaths = {};
     for (var i = 0; i < rows.length; i++) {
       var dirRef = stripIdHashPrefix(getRowVal(rows[i], ["FileDirRef"]));
@@ -1598,20 +1632,19 @@
         if (dirRef) knownFolderPaths[dirRef] = true;
       }
     }
-    var shortestPath = null;
+    var parentPaths = [];
+    var filePaths = [];
     for (var i = 0; i < rows.length; i++) {
       var x = getItemPathAndType(rows[i], knownFolderPaths);
-      if (!x || x.isFolder) continue;
-      if (!shortestPath || x.path.length < shortestPath.length) shortestPath = x.path;
+      if (!x) continue;
+      if (x.parentPath) parentPaths.push(x.parentPath);
+      if (!x.isFolder) filePaths.push(x.path);
     }
-    var normRoot = (shortestPath ? shortestPath.replace(/\/[^/]+$/, "").replace(/\/+$/, "") : "") || "/";
+    var normRoot = resolvePathLengthLibraryRoot(listRootUrl, parentPaths);
     var fileEntries = [];
-    for (var j = 0; j < rows.length; j++) {
-      var y = getItemPathAndType(rows[j], knownFolderPaths);
-      if (!y || y.isFolder) continue;
-      var path = y.path;
-      var pathAfterLibrary = (normRoot === "/" || path.indexOf(normRoot + "/") !== 0) ? path : path.slice(normRoot.length).replace(/^\/+/, "") || "";
-      if (normRoot !== "/" && path === normRoot) pathAfterLibrary = "";
+    for (var j = 0; j < filePaths.length; j++) {
+      var path = filePaths[j];
+      var pathAfterLibrary = pathRelativeToLibraryRoot(path, normRoot);
       var encodedPath = encodeURIComponent(pathAfterLibrary);
       var friendlyLen = pathAfterLibrary.length;
       var encodedLen = encodedPath.length;
@@ -1629,7 +1662,7 @@
     return "\ufeff" + lines.join("\r\n");
   }
 
-  function finishOwssvrExport(parsed) {
+  async function finishOwssvrExport(parsed) {
     if (params.report === "folderCount") {
       var csv = buildFolderCountReportFromRows(parsed.rows);
       var fnBase = (exportFilename || "FolderCounts").replace(/\.(csv|xls|xlsx|xml)$/i, "") + "_FolderCounts";
@@ -1638,7 +1671,7 @@
       return;
     }
     if (params.report === "pathLengths") {
-      var pathCsv = buildPathLengthsReportFromRows(parsed.rows);
+      var pathCsv = buildPathLengthsReportFromRows(parsed.rows, await resolveListRootServerRelativeUrl());
       var pathFnBase = (exportFilename || "PathLengths").replace(/\.(csv|xls|xlsx|xml)$/i, "") + "_PathLengths";
       downloadExport({ csv: pathCsv }, pathFnBase, { sheetName: "PathLengths" });
       reportDone(true, "Done! Path lengths report downloaded.");
@@ -1730,7 +1763,7 @@
         logLine: "Read-only view returned " + rowsToExport.length + " of ~" + itemCount + " items (library view limits apply)."
       });
     }
-    finishOwssvrExport({ rows: rowsToExport, columns: [] });
+    await finishOwssvrExport({ rows: rowsToExport, columns: [] });
     return true;
   }
 
@@ -1864,7 +1897,7 @@
     if (rowsToExport.length === 0) {
       return false;
     }
-    finishOwssvrExport({ rows: rowsToExport, columns: [] });
+    await finishOwssvrExport({ rows: rowsToExport, columns: [] });
     return true;
   }
 
@@ -1993,7 +2026,7 @@
         return;
       }
       if (params.report === "pathLengths") {
-        var pathCsvVer = buildPathLengthsReportFromRows(rows);
+        var pathCsvVer = buildPathLengthsReportFromRows(rows, await resolveListRootServerRelativeUrl());
         var pathFnBaseVer = (exportFilename || "PathLengths").replace(/\.(csv|xls|xlsx|xml)$/i, "") + "_PathLengths";
         downloadExport({ csv: pathCsvVer }, pathFnBaseVer, { sheetName: "PathLengths" });
         reportDone(true, "Done! Path lengths report downloaded.");
@@ -2063,7 +2096,7 @@
     }
     if (params.report === "pathLengths") {
       var pathRestRows = Object.keys(rowMap).sort(function (a, b) { return parseInt(a, 10) - parseInt(b, 10); }).map(function (id) { return rowMap[id]; });
-      var pathCsvRest = buildPathLengthsReportFromRows(pathRestRows);
+      var pathCsvRest = buildPathLengthsReportFromRows(pathRestRows, await resolveListRootServerRelativeUrl());
       var pathFnBaseRest = (exportFilename || "PathLengths").replace(/\.(csv|xls|xlsx|xml)$/i, "") + "_PathLengths";
       downloadExport({ csv: pathCsvRest }, pathFnBaseRest, { sheetName: "PathLengths" });
       reportDone(true, "Done! Path lengths report downloaded.");
