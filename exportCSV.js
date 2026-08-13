@@ -960,7 +960,7 @@
   async function tryConfigureRpcView(viewId, fieldNames) {
     var sf = await setViewFieldsBatch(viewId, fieldNames);
     if (sf.ok) return { ok: true, fieldsConfigured: true };
-    return { ok: true, fieldsConfigured: false, error: sf.error || "View field setup skipped" };
+    return { ok: false, fieldsConfigured: false, error: sf.error || "View field setup failed. No file downloaded. Try refreshing the page and run the export again." };
   }
 
   async function getOrCreateRpcViewForDownload() {
@@ -970,7 +970,8 @@
     var existingRpc = await findViewByTitle(RPC_VIEW_TITLE);
 
     if (existingRpc) {
-      await tryConfigureRpcView(existingRpc.id, fieldNames);
+      var cfgExisting = await tryConfigureRpcView(existingRpc.id, fieldNames);
+      if (!cfgExisting.ok) return cfgExisting;
       return {
         ok: true,
         viewId: existingRpc.id,
@@ -982,7 +983,8 @@
 
     var created = await createRpcViewRecord(false);
     if (created.ok) {
-      await tryConfigureRpcView(created.viewId, fieldNames);
+      var cfgCreated = await tryConfigureRpcView(created.viewId, fieldNames);
+      if (!cfgCreated.ok) return cfgCreated;
       return {
         ok: true,
         viewId: created.viewId,
@@ -994,7 +996,8 @@
 
     created = await createRpcViewRecord(true);
     if (created.ok) {
-      await tryConfigureRpcView(created.viewId, fieldNames);
+      var cfgPersonal = await tryConfigureRpcView(created.viewId, fieldNames);
+      if (!cfgPersonal.ok) return cfgPersonal;
       return {
         ok: true,
         viewId: created.viewId,
@@ -1014,7 +1017,7 @@
       };
     }
 
-    await tryConfigureRpcView(borrowed.viewId, fieldNames);
+    // Borrowed All Documents / default views are read-only: do not RemoveAllViewFields.
     reportProgress(
       "Using library view \"" + (borrowed.title || "default") + "\" (read-only)…",
       { logLine: "Cannot create RPC view here — using existing library view via owssvr." }
@@ -3511,7 +3514,7 @@
     }
 
     var vr = await getOrCreateRpcViewForDownload();
-    if (!vr.ok) throw new Error("RPC view creation failed: " + (vr.error || "unknown"));
+    if (!vr.ok) throw new Error(vr.error || "RPC view creation failed: unknown");
     var rpcViewIdLocal = vr.viewId;
     var rpcOwnView = vr.ownView !== false;
     try {
