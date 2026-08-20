@@ -1,15 +1,44 @@
 // Injected: creates a SharePoint field from SchemaXml (site or list).
 (function () {
-  var paramsEl = document.getElementById("sp-column-create-params");
-  var params = {};
-  try {
-    params = paramsEl ? JSON.parse(paramsEl.textContent || "{}") : {};
-  } catch (_) {
-    params = {};
+  var PARAMS_SCRIPT_ID = "sp-column-create-params";
+  var activeRequestId = getCurrentRequestId();
+
+  function getCurrentRequestId() {
+    try {
+      var script = document.currentScript;
+      var src = script && script.src ? String(script.src) : "";
+      if (!src) return "";
+      return new URL(src, window.location.href).searchParams.get("spcsvRequestId") || "";
+    } catch (e) {
+      return "";
+    }
   }
 
+  function getParamsScriptId(requestId) {
+    return requestId ? PARAMS_SCRIPT_ID + "-" + requestId : PARAMS_SCRIPT_ID;
+  }
+
+  function readParams() {
+    try {
+      var el = document.getElementById(getParamsScriptId(activeRequestId));
+      if (!el && activeRequestId) el = document.getElementById(PARAMS_SCRIPT_ID);
+      if (el && el.textContent) {
+        var parsed = JSON.parse(el.textContent);
+        if (!activeRequestId && parsed && parsed.requestId) {
+          activeRequestId = String(parsed.requestId);
+        }
+        return parsed;
+      }
+    } catch (_) {}
+    return {};
+  }
+
+  var params = readParams();
+
   function post(payload) {
-    window.postMessage(Object.assign({ __spcsv: true, type: "SPCSVCreateColumnResult" }, payload), "*");
+    var msg = Object.assign({ __spcsv: true, type: "SPCSVCreateColumnResult" }, payload);
+    if (activeRequestId) msg.requestId = activeRequestId;
+    window.postMessage(msg, "*");
   }
 
   function withTimeout(promise, ms, label) {
