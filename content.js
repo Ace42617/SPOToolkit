@@ -4444,18 +4444,30 @@ function onPageMessage(e) {
 /** JSON script node read by createColumn.js (page context). */
 const SP_COLUMN_CREATE_PARAMS_SCRIPT_ID = "sp-column-create-params";
 
-function attachSpColumnCreateParamsScript(message) {
+function getColumnCreateParamsScriptId(requestId) {
+  return requestId
+    ? SP_COLUMN_CREATE_PARAMS_SCRIPT_ID + "-" + requestId
+    : SP_COLUMN_CREATE_PARAMS_SCRIPT_ID;
+}
+
+function createColumnRequestId() {
+  return "create-column-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+}
+
+function attachSpColumnCreateParamsScript(message, requestId) {
   const payload = {
+    requestId: requestId || null,
     siteUrl: message.siteUrl || "",
     listId: message.listId || "",
     target: message.target || "list",
     schemaXml: message.schemaXml || "",
     siteFieldInternal: message.siteFieldInternal || "",
   };
-  let el = document.getElementById(SP_COLUMN_CREATE_PARAMS_SCRIPT_ID);
+  const scriptId = getColumnCreateParamsScriptId(requestId);
+  let el = document.getElementById(scriptId);
   if (el) el.remove();
   el = document.createElement("script");
-  el.id = SP_COLUMN_CREATE_PARAMS_SCRIPT_ID;
+  el.id = scriptId;
   el.type = "application/json";
   el.textContent = JSON.stringify(payload);
   (document.head || document.documentElement).appendChild(el);
@@ -4471,15 +4483,19 @@ function injectAndWait(scriptName, messageType, parseData, sendResponse, options
     done = true;
     clearTimeout(tid);
     window.removeEventListener("message", listener);
+    try {
+      if (options.afterFinish) options.afterFinish();
+    } catch (_) {}
     sendResponse(payload);
   }
   const listener = (ev) => {
     if (!ev.data || ev.data.__spcsv !== true || ev.data.type !== messageType) return;
+    if (options.matchesResponse && !options.matchesResponse(ev.data)) return;
     finish(parseData(ev.data));
   };
   if (options.beforeInject) options.beforeInject();
   const script = document.createElement("script");
-  script.src = chrome.runtime.getURL(scriptName) + "?cb=" + Date.now();
+  script.src = chrome.runtime.getURL(scriptName) + (options.urlSuffix || ("?cb=" + Date.now()));
   script.onload = () => script.remove();
   script.onerror = () => finish(errorPayload);
   window.addEventListener("message", listener);
@@ -4984,6 +5000,7 @@ function dispatchToolkitMessage(message, sendResponse) {
   }
 
   if (message.action === "createColumn") {
+    const requestId = createColumnRequestId();
     injectAndWait(
       "createColumn.js",
       "SPCSVCreateColumnResult",
@@ -4991,7 +5008,15 @@ function dispatchToolkitMessage(message, sendResponse) {
       sendResponse,
       {
         beforeInject() {
-          attachSpColumnCreateParamsScript(message);
+          attachSpColumnCreateParamsScript(message, requestId);
+        },
+        urlSuffix: "?spcsvRequestId=" + encodeURIComponent(requestId),
+        matchesResponse(data) {
+          return data.requestId === requestId;
+        },
+        afterFinish() {
+          const el = document.getElementById(getColumnCreateParamsScriptId(requestId));
+          if (el) el.remove();
         },
         timeoutMs: 60000,
         errorPayload: { ok: false, error: "Creating the column timed out." },
