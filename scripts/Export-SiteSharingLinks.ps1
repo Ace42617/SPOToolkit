@@ -298,6 +298,10 @@ function Get-LinksForPath {
     }
 }
 
+$scanCompletedOk = $false
+$scanError = $null
+
+try {
 foreach ($list in $lists) {
     $listUrl = $list.RootFolder.ServerRelativeUrl
     Write-Host ("  -> {0,-50} ({1:N0} items)" -f $list.Title, $list.ItemCount) -ForegroundColor DarkGray
@@ -322,8 +326,11 @@ foreach ($list in $lists) {
             $response = Invoke-PnPSPRestMethod -Url $url -Method Get
         }
         catch {
-            Write-Warning "REST enumeration failed for list '$($list.Title)': $($_.Exception.Message)"
-            break
+            # Fail closed: do not skip a failed list and still write a "complete" CSV.
+            $detail = $_.Exception.Message
+            if ([string]::IsNullOrWhiteSpace($detail)) { $detail = [string]$_ }
+            throw ("Sharing-links export failed while scanning list '{0}': {1}. No CSV downloaded. Resolve access or throttling, then retry." -f `
+                $list.Title, $detail)
         }
 
         if ($response.value) {
@@ -376,7 +383,22 @@ foreach ($list in $lists) {
     } while ($url)
 }
 
-Write-Progress -Activity 'Scanning items for sharing links' -Completed
+    $scanCompletedOk = $true
+}
+catch {
+    # Capture then rethrow after finally so Export-Csv cannot run on a partial scan.
+    $scanError = $_
+}
+finally {
+    Write-Progress -Activity 'Scanning items for sharing links' -Completed
+}
+
+if ($null -ne $scanError) {
+    throw $scanError
+}
+if (-not $scanCompletedOk) {
+    throw 'Sharing-links scan did not complete successfully. No CSV downloaded.'
+}
 
 $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $csvPath   = Join-Path $ScriptDir "SiteSharingLinks-$timestamp.csv"
