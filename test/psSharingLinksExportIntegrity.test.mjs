@@ -64,7 +64,7 @@ describe("Export-SiteSharingLinks.ps1 stays fail-closed on list REST scan", () =
   it("keeps CSV write and Done behind the scan-completed guard", () => {
     const errGuardIdx = psSource.indexOf("if ($null -ne $scanError)");
     const okGuardIdx = psSource.indexOf("if (-not $scanCompletedOk)");
-    const exportIdx = psSource.indexOf("Export-Csv");
+    const exportIdx = psSource.indexOf("Export-Csv -Path");
     const doneIdx = psSource.indexOf('Write-Host "Done."');
     assert.ok(errGuardIdx > 0, "expected scanError rethrow guard");
     assert.ok(okGuardIdx > errGuardIdx, "expected scanCompletedOk guard");
