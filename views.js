@@ -935,6 +935,44 @@
     }
   }
 
+  // Keep in sync with lib/viewManagerSave.mjs (source-sync asserts in test/viewManagerSave.test.mjs).
+  var VIEW_SCOPE_DEFAULT = 0;
+  var VIEW_SCOPE_RECURSIVE = 1;
+  var VIEW_SCOPE_RECURSIVE_ALL = 2;
+  var VIEW_SCOPE_FILES_ONLY = 3;
+
+  function normalizeViewScopeValue(raw) {
+    if (raw == null || raw === "") return VIEW_SCOPE_DEFAULT;
+    if (typeof raw === "string") {
+      const t = raw.trim().toLowerCase();
+      if (t === "default") return VIEW_SCOPE_DEFAULT;
+      if (t === "recursive") return VIEW_SCOPE_RECURSIVE;
+      if (t === "recursiveall") return VIEW_SCOPE_RECURSIVE_ALL;
+      if (t === "filesonly") return VIEW_SCOPE_FILES_ONLY;
+    }
+    const n = typeof raw === "number" ? raw : parseInt(String(raw), 10);
+    if (
+      n === VIEW_SCOPE_DEFAULT ||
+      n === VIEW_SCOPE_RECURSIVE ||
+      n === VIEW_SCOPE_RECURSIVE_ALL ||
+      n === VIEW_SCOPE_FILES_ONLY
+    ) {
+      return n;
+    }
+    return VIEW_SCOPE_DEFAULT;
+  }
+
+  function buildViewSaveBody(opts) {
+    const body = {
+      Title: opts.title,
+      RowLimit: opts.rowLimit,
+      Scope: normalizeViewScopeValue(opts.scope),
+      ViewQuery: opts.viewQuery
+    };
+    if (opts.isCreate) body.PersonalView = !!opts.personalView;
+    return body;
+  }
+
   async function loadViewDetails(viewId) {
     if (!viewId) return;
     try {
@@ -989,11 +1027,7 @@
         }
         const sc = metaRes.data.Scope != null ? metaRes.data.Scope : metaRes.data.scope;
         const scopeEl = document.getElementById("viewScope");
-        if (scopeEl) {
-          if (sc === 1 || sc === "1") scopeEl.value = "1";
-          else if (sc === 2 || sc === "2") scopeEl.value = "2";
-          else scopeEl.value = "2";
-        }
+        if (scopeEl) scopeEl.value = String(normalizeViewScopeValue(sc));
       }
       const rlEl = document.getElementById("viewRowLimit");
       if (!rlEl.value) rlEl.value = "100";
@@ -1019,7 +1053,7 @@
     document.getElementById("viewName").value = "";
     document.getElementById("viewPersonal").checked = false;
     document.getElementById("viewRowLimit").value = "100";
-    document.getElementById("viewScope").value = "2";
+    document.getElementById("viewScope").value = "0";
     document.getElementById("btnDelete").classList.add("hide");
     document.getElementById("btnSetDefault").classList.add("hide");
     document.getElementById("btnDuplicate").classList.add("hide");
@@ -1486,7 +1520,7 @@
 
     const personal = document.getElementById("viewPersonal").checked;
     const rowLimit = parseInt(document.getElementById("viewRowLimit").value, 10) || 100;
-    const scope = parseInt(document.getElementById("viewScope").value, 10) || 2;
+    const scope = normalizeViewScopeValue(document.getElementById("viewScope").value);
     const viewQuery = buildViewQuery();
 
     document.getElementById("btnSave").disabled = true;
@@ -1495,26 +1529,22 @@
     try {
       const lb = sitePath + "/_api/web/lists(guid'" + listId.replace(/'/g, "''") + "')";
       let viewId = selectedViewId;
+      const saveBody = buildViewSaveBody({
+        title: name,
+        rowLimit: rowLimit,
+        scope: scope,
+        viewQuery: viewQuery,
+        personalView: personal,
+        isCreate: !viewId
+      });
 
       if (!viewId) {
-        const createRes = await rest("POST", lb + "/views", {
-          Title: name,
-          PersonalView: personal,
-          RowLimit: rowLimit,
-          Scope: scope,
-          ViewQuery: viewQuery
-        });
+        const createRes = await rest("POST", lb + "/views", saveBody);
         if (!createRes || !createRes.ok) throw new Error(createRes && createRes.error ? (typeof createRes.error === "string" ? createRes.error : JSON.stringify(createRes.error)) : "Create failed");
         const created = createRes.data;
         viewId = (created.Id || created.id || "").replace(/[{}]/g, "").trim();
       } else {
-        const patchRes = await rest("PATCH", lb + "/views(guid'" + viewId.replace(/'/g, "''") + "')", {
-          Title: name,
-          PersonalView: personal,
-          RowLimit: rowLimit,
-          Scope: scope,
-          ViewQuery: viewQuery
-        });
+        const patchRes = await rest("PATCH", lb + "/views(guid'" + viewId.replace(/'/g, "''") + "')", saveBody);
         if (!patchRes || !patchRes.ok) throw new Error(patchRes && patchRes.error ? String(patchRes.error) : "Update failed");
       }
 
