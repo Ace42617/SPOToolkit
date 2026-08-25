@@ -94,6 +94,10 @@
   let filters = [];
   let groupByColumn = "";
   let groupExpand = true;
+  let groupByAscending = true;
+  let groupByExtraLevels = [];
+  let groupLimit = null;
+  let loadedGroupByPrimary = "";
 
   const LIST_TYPE_LABELS = {
     100: "List",
@@ -403,6 +407,40 @@
     const tree = parseWhereExpr(wm[1].trim());
     if (!tree) return null;
     return binTreeToFilterRows(tree);
+  }
+
+  function editorQueryStateFromViewDetails(viewDetails) {
+    const d = viewDetails || {};
+    let sortLevels;
+    if (d.orderByLevels && d.orderByLevels.length) {
+      sortLevels = d.orderByLevels.map(function (s) {
+        return { field: s.field, ascending: s.ascending !== false };
+      });
+    } else {
+      sortLevels = d.orderBy ? [{ field: d.orderBy.field, ascending: d.orderBy.ascending !== false }] : [];
+    }
+    const groupByLevels = d.groupByLevels && d.groupByLevels.length ? d.groupByLevels : [];
+    const groupByColumn = d.groupBy || (groupByLevels[0] && groupByLevels[0].field) || "";
+    return {
+      sortLevels: sortLevels,
+      groupByColumn: groupByColumn,
+      groupExpand: groupByColumn ? d.groupExpand !== false : true,
+      groupByAscending: groupByLevels[0] ? groupByLevels[0].ascending !== false : true,
+      groupByExtraLevels: groupByLevels.slice(1).map(function (s) {
+        return { field: s.field, ascending: s.ascending !== false };
+      }),
+      groupLimit: d.groupLimit != null && d.groupLimit !== "" ? d.groupLimit : null,
+    };
+  }
+
+  function applyEditorQueryState(state) {
+    sortLevels = state.sortLevels || [];
+    groupByColumn = state.groupByColumn || "";
+    groupExpand = state.groupExpand !== false;
+    groupByAscending = state.groupByAscending !== false;
+    groupByExtraLevels = state.groupByExtraLevels || [];
+    groupLimit = state.groupLimit != null ? state.groupLimit : null;
+    loadedGroupByPrimary = groupByColumn;
   }
 
   function escapeHtml(s) {
@@ -955,7 +993,7 @@
       otherFields.sort(function (a, b) { return (a.title || "").localeCompare(b.title || ""); });
       columnOrder = viewFields.slice();
       otherFields.forEach(function (f) { columnOrder.push(f.internalName); });
-      sortLevels = viewDetails.orderBy ? [{ field: viewDetails.orderBy.field, ascending: viewDetails.orderBy.ascending }] : [];
+      applyEditorQueryState(editorQueryStateFromViewDetails(viewDetails));
       const parsedFq = parseViewQueryToFilterRows(viewDetails.viewQuery || "");
       if (parsedFq && parsedFq.length) {
         filters = parsedFq.map(function (row) {
@@ -975,8 +1013,6 @@
         });
       }
       normalizeFilterJoins(filters);
-      groupByColumn = viewDetails.groupBy || "";
-      groupExpand = true;
       document.getElementById("viewName").value = viewDetails.viewTitle || "";
       const viewMetaPath = sitePath + "/_api/web/lists(guid'" + listId.replace(/'/g, "''") + "')/views(guid'" + viewId.replace(/'/g, "''") + "')?$select=RowLimit,Scope";
       const metaRes = await rest("GET", viewMetaPath);
@@ -1016,6 +1052,10 @@
     filters = [];
     groupByColumn = "";
     groupExpand = true;
+    groupByAscending = true;
+    groupByExtraLevels = [];
+    groupLimit = null;
+    loadedGroupByPrimary = "";
     document.getElementById("viewName").value = "";
     document.getElementById("viewPersonal").checked = false;
     document.getElementById("viewRowLimit").value = "100";
@@ -1351,6 +1391,10 @@
 
   document.getElementById("groupByColumn").addEventListener("change", function () {
     groupByColumn = document.getElementById("groupByColumn").value || "";
+    if (groupByColumn !== loadedGroupByPrimary) {
+      groupByExtraLevels = [];
+      groupByAscending = true;
+    }
   });
   document.getElementById("groupExpand").addEventListener("change", function () {
     groupExpand = document.getElementById("groupExpand").checked;
@@ -1441,7 +1485,16 @@
     }
     if (groupByColumn) {
       const collapse = groupExpand ? "FALSE" : "TRUE";
-      parts.push("<GroupBy Collapse=\"" + collapse + "\"><FieldRef Name=\"" + escapeAttr(groupByColumn) + "\"/></GroupBy>");
+      const limitAttr = groupLimit != null && groupLimit !== "" ? " GroupLimit=\"" + String(groupLimit) + "\"" : "";
+      const refs = [];
+      refs.push("<FieldRef Name=\"" + escapeAttr(groupByColumn) + "\" Ascending=\"" + (groupByAscending ? "True" : "False") + "\"/>");
+      if (groupByColumn === loadedGroupByPrimary) {
+        groupByExtraLevels.forEach(function (s) {
+          if (!s || !s.field || s.field === groupByColumn) return;
+          refs.push("<FieldRef Name=\"" + escapeAttr(s.field) + "\" Ascending=\"" + (s.ascending ? "True" : "False") + "\"/>");
+        });
+      }
+      parts.push("<GroupBy Collapse=\"" + collapse + "\"" + limitAttr + ">" + refs.join("") + "</GroupBy>");
     }
     return parts.join("");
   }

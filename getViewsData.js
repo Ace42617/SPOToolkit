@@ -50,7 +50,7 @@
     return false;
   }
 
-  function mergeStubFieldsForView(fieldsArr, viewFields, filters, orderBy, groupBy) {
+  function mergeStubFieldsForView(fieldsArr, viewFields, filters, orderBy, groupBy, orderByLevels, groupByLevels) {
     var known = Object.create(null);
     for (var i = 0; i < fieldsArr.length; i++) known[fieldsArr[i].internalName] = true;
     function addStub(name) {
@@ -61,8 +61,15 @@
     var j;
     if (viewFields) for (j = 0; j < viewFields.length; j++) addStub(viewFields[j]);
     if (filters) for (j = 0; j < filters.length; j++) if (filters[j].field) addStub(filters[j].field);
-    if (orderBy && orderBy.field) addStub(orderBy.field);
-    if (groupBy) addStub(groupBy);
+    if (orderByLevels && orderByLevels.length) {
+      for (j = 0; j < orderByLevels.length; j++) if (orderByLevels[j] && orderByLevels[j].field) addStub(orderByLevels[j].field);
+    } else if (orderBy && orderBy.field) addStub(orderBy.field);
+    if (groupByLevels && groupByLevels.length) {
+      for (j = 0; j < groupByLevels.length; j++) {
+        var g = groupByLevels[j];
+        addStub(g && g.field ? g.field : g);
+      }
+    } else if (groupBy) addStub(groupBy);
   }
 
   function mapODataViewRow(v) {
@@ -172,15 +179,53 @@
       });
   }
 
+  function parseCamlFieldRefs(xml) {
+    var refs = [];
+    var re = /<FieldRef\b([^>]*?)\/?\s*>/gi;
+    var m;
+    while ((m = re.exec(String(xml || ""))) !== null) {
+      var attrs = m[1] || "";
+      var nameM = /\bName\s*=\s*["']([^"']+)["']/i.exec(attrs);
+      if (!nameM) continue;
+      var ascM = /\bAscending\s*=\s*["'](True|False)["']/i.exec(attrs);
+      refs.push({
+        field: nameM[1],
+        ascending: ascM ? ascM[1].toLowerCase() === "true" : true,
+      });
+    }
+    return refs;
+  }
+
+  function camlAttrTrueFalse(attrs, name) {
+    var re = new RegExp("\\b" + name + "\\s*=\\s*[\"'](True|False)[\"']", "i");
+    var m = re.exec(attrs || "");
+    if (!m) return null;
+    return m[1].toLowerCase() === "true";
+  }
+
   function parseViewQueryParts(viewQuery) {
     var q = String(viewQuery || "").replace(/\s+/g, " ");
-    var orderBy = null;
-    var groupBy = null;
     var filters = [];
-    var orderMatch = /<OrderBy>\s*<FieldRef\s+Name="([^"]+)"\s+Ascending="(True|False)"/i.exec(q);
-    if (orderMatch) orderBy = { field: orderMatch[1], ascending: orderMatch[2].toLowerCase() === "true" };
-    var groupMatch = /<GroupBy>\s*<FieldRef\s+Name="([^"]+)"/i.exec(q);
-    if (groupMatch) groupBy = groupMatch[1];
+    var orderByLevels = [];
+    var orderBlock = /<OrderBy\b[^>]*>([\s\S]*?)<\/OrderBy>/i.exec(q);
+    if (orderBlock) orderByLevels = parseCamlFieldRefs(orderBlock[1]);
+    var orderBy = orderByLevels.length ? orderByLevels[0] : null;
+
+    var groupBy = null;
+    var groupByLevels = [];
+    var groupExpand = true;
+    var groupLimit = null;
+    var groupBlock = /<GroupBy\b([^>]*)>([\s\S]*?)<\/GroupBy>/i.exec(q);
+    if (groupBlock) {
+      var gAttrs = groupBlock[1] || "";
+      var collapse = camlAttrTrueFalse(gAttrs, "Collapse");
+      groupExpand = collapse === false;
+      var lim = /\bGroupLimit\s*=\s*["'](\d+)["']/i.exec(gAttrs);
+      if (lim) groupLimit = parseInt(lim[1], 10);
+      groupByLevels = parseCamlFieldRefs(groupBlock[2]);
+      if (groupByLevels.length) groupBy = groupByLevels[0].field;
+    }
+
     var condRegex =
       /<(Eq|Neq|Gt|Geq|Lt|Leq|Contains|BeginsWith)>\s*<FieldRef\s+Name="([^"]+)"\s*\/>\s*<Value\s+Type="([^"]*)">([^<]*)<\/Value>/gi;
     var m;
@@ -192,7 +237,16 @@
         value: (m[4] || "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">"),
       });
     }
-    return { viewQuery: q, orderBy: orderBy, filters: filters, groupBy: groupBy };
+    return {
+      viewQuery: q,
+      orderBy: orderBy,
+      orderByLevels: orderByLevels,
+      filters: filters,
+      groupBy: groupBy,
+      groupByLevels: groupByLevels,
+      groupExpand: groupExpand,
+      groupLimit: groupLimit,
+    };
   }
 
   function loadSingleViewDetails(siteUrl, ctx, viewId, fields, fetchImpl, accept) {
@@ -210,17 +264,25 @@
       var viewTitle = metaJson.Title || "";
       var parsed = parseViewQueryParts(viewQuery);
       var orderBy = parsed.orderBy;
+      var orderByLevels = parsed.orderByLevels;
       var filters = parsed.filters;
       var groupBy = parsed.groupBy;
+      var groupByLevels = parsed.groupByLevels;
+      var groupExpand = parsed.groupExpand;
+      var groupLimit = parsed.groupLimit;
       var fieldsOut = fields.slice();
-      mergeStubFieldsForView(fieldsOut, viewFields, filters, orderBy, groupBy);
+      mergeStubFieldsForView(fieldsOut, viewFields, filters, orderBy, groupBy, orderByLevels, groupByLevels);
       return {
         viewFields: viewFields,
         viewQuery: viewQuery,
         viewTitle: viewTitle,
         orderBy: orderBy,
+        orderByLevels: orderByLevels,
         filters: filters,
         groupBy: groupBy,
+        groupByLevels: groupByLevels,
+        groupExpand: groupExpand,
+        groupLimit: groupLimit,
         fieldsOut: fieldsOut,
       };
     });
@@ -282,8 +344,12 @@
           viewQuery: details.viewQuery,
           viewTitle: details.viewTitle,
           orderBy: details.orderBy,
+          orderByLevels: details.orderByLevels,
           filters: details.filters,
           groupBy: details.groupBy,
+          groupByLevels: details.groupByLevels,
+          groupExpand: details.groupExpand,
+          groupLimit: details.groupLimit,
         },
       });
     } catch (err) {
