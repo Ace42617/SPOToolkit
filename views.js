@@ -112,7 +112,11 @@
     return LIST_TYPE_LABELS[n] || "List";
   }
 
-  const FILTER_OPS = [
+  function viewQueryFiltersApi() {
+    return typeof window !== "undefined" && window.SPViewQueryFilters ? window.SPViewQueryFilters : null;
+  }
+
+  const FILTER_OPS = (viewQueryFiltersApi() && viewQueryFiltersApi().FILTER_OPS) || [
     { value: "Eq", label: "equals" },
     { value: "Neq", label: "not equals" },
     { value: "Gt", label: "greater than" },
@@ -120,7 +124,9 @@
     { value: "Lt", label: "less than" },
     { value: "Leq", label: "less or equal" },
     { value: "Contains", label: "contains" },
-    { value: "BeginsWith", label: "begins with" }
+    { value: "BeginsWith", label: "begins with" },
+    { value: "IsNull", label: "is empty" },
+    { value: "IsNotNull", label: "is not empty" }
   ];
 
   function filterTypeaheadApi() {
@@ -297,112 +303,12 @@
     });
   }
 
-  function matchBalancedOuter(s, tag) {
-    const openRe = new RegExp("^<" + tag + "\\s*>", "i");
-    const om = s.match(openRe);
-    if (!om) return null;
-    let i = om[0].length;
-    let depth = 1;
-    while (i < s.length && depth > 0) {
-      const rest = s.slice(i);
-      const no = rest.match(new RegExp("^<" + tag + "\\s*>", "i"));
-      const nc = rest.match(new RegExp("^</" + tag + "\\s*>", "i"));
-      if (nc && (!no || nc.index < no.index)) {
-        depth--;
-        i += nc[0].length;
-        if (depth === 0) return s.slice(0, i);
-        continue;
-      }
-      if (no) {
-        depth++;
-        i += no[0].length;
-        continue;
-      }
-      i++;
-    }
-    return null;
-  }
-
-  function takeFirstFilterSegment(s) {
-    s = s.trim();
-    const leafTags = ["Eq", "Neq", "Gt", "Geq", "Lt", "Leq", "Contains", "BeginsWith"];
-    for (let t = 0; t < leafTags.length; t++) {
-      const tag = leafTags[t];
-      const re = new RegExp("^<" + tag + "\\s*>[\\s\\S]*?</" + tag + "\\s*>", "i");
-      const m = s.match(re);
-      if (m) return [m[0], s.slice(m[0].length).trim()];
-    }
-    const tries = ["And", "Or"];
-    for (let t = 0; t < tries.length; t++) {
-      const block = matchBalancedOuter(s, tries[t]);
-      if (block) return [block, s.slice(block.length).trim()];
-    }
-    return null;
-  }
-
-  function takeAllFilterSegments(body) {
-    const segs = [];
-    let rest = body.trim();
-    while (rest.length) {
-      const seg = takeFirstFilterSegment(rest);
-      if (!seg) return null;
-      segs.push(seg[0].trim());
-      rest = seg[1].trim();
-    }
-    return segs.length ? segs : null;
-  }
-
-  function parseLeafCondString(s) {
-    const norm = s.replace(/\s+/g, " ").trim();
-    const re = /^<(Eq|Neq|Gt|Geq|Lt|Leq|Contains|BeginsWith)\s*>\s*<FieldRef\s+Name="([^"]+)"\s*\/>\s*<Value\s+Type="([^"]*)">([^<]*)<\/Value>\s*<\/\1\s*>$/i;
-    const m = norm.match(re);
-    if (!m) return null;
-    const v = (m[4] || "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
-    return { type: "leaf", field: m[2], op: m[1], value: v };
-  }
-
-  function parseWhereExpr(inner) {
-    inner = inner.trim();
-    const leaf = parseLeafCondString(inner);
-    if (leaf) return leaf;
-    const tries = ["And", "Or"];
-    for (let ti = 0; ti < tries.length; ti++) {
-      const tag = tries[ti];
-      const full = matchBalancedOuter(inner, tag);
-      if (!full || full.length !== inner.length) continue;
-      const openM = inner.match(new RegExp("^<" + tag + "\\s*>", "i"));
-      const body = inner.slice(openM[0].length, inner.length - ("</" + tag + ">").length).trim();
-      const segs = takeAllFilterSegments(body);
-      if (!segs || segs.length === 0) return null;
-      const nodes = segs.map(function (seg) { return parseWhereExpr(seg); });
-      if (nodes.some(function (n) { return !n; })) return null;
-      let acc = nodes[0];
-      for (let k = 1; k < nodes.length; k++) {
-        acc = { type: "bin", op: tag, left: acc, right: nodes[k] };
-      }
-      return acc;
-    }
-    return null;
-  }
-
-  function binTreeToFilterRows(node) {
-    if (node.type === "leaf") {
-      return [{ field: node.field, op: node.op, value: node.value }];
-    }
-    const L = binTreeToFilterRows(node.left);
-    const R = binTreeToFilterRows(node.right);
-    if (R.length === 0) return L;
-    R[0].join = node.op;
-    return L.concat(R);
-  }
-
   function parseViewQueryToFilterRows(viewQuery) {
-    if (!viewQuery || typeof viewQuery !== "string") return null;
-    const wm = viewQuery.replace(/\s+/g, " ").match(/<Where>\s*([\s\S]*?)\s*<\/Where>/i);
-    if (!wm) return null;
-    const tree = parseWhereExpr(wm[1].trim());
-    if (!tree) return null;
-    return binTreeToFilterRows(tree);
+    const api = viewQueryFiltersApi();
+    if (api && typeof api.parseViewQueryToFilterRows === "function") {
+      return api.parseViewQueryToFilterRows(viewQuery);
+    }
+    return null;
   }
 
   function escapeHtml(s) {
@@ -1266,36 +1172,39 @@
         if (o.value === f.op) opt.selected = true;
         opSel.appendChild(opt);
       });
+      const unaryOp = !!(viewQueryFiltersApi() && viewQueryFiltersApi().isUnaryFilterOp(f.op));
       const valueWrap = document.createElement("span");
       valueWrap.className = "filter-value-wrap";
-      if (isBooleanFieldName(f.field)) {
-        const valSel = document.createElement("select");
-        valSel.className = "filter-value filter-value-bool";
-        [["", "—"], ["Yes", "Yes"], ["No", "No"]].forEach(function (pair) {
-          const opt = document.createElement("option");
-          opt.value = pair[0];
-          opt.textContent = pair[1];
-          valSel.appendChild(opt);
-        });
-        const cur = (f.value || "").trim();
-        valSel.value = cur === "Yes" || cur === "No" ? cur : "";
-        valSel.addEventListener("change", function () { filters[i].value = valSel.value; });
-        valueWrap.appendChild(valSel);
-      } else {
-        const valInput = document.createElement("input");
-        valInput.type = "text";
-        valInput.className = "filter-value";
-        valInput.autocomplete = "off";
-        valInput.spellcheck = false;
-        valInput.value = f.value || "";
-        valInput.placeholder = filterValuePlaceholderForField(f.field);
-        valueWrap.appendChild(valInput);
-        const kinds = filterTypeaheadKindsForField(f.field);
-        if (kinds.length > 0 && filterTypeaheadApi()) {
-          valueWrap.classList.add("filter-value-typeahead-wrap");
-          attachFilterValueTypeahead(valInput, i);
+      if (!unaryOp) {
+        if (isBooleanFieldName(f.field)) {
+          const valSel = document.createElement("select");
+          valSel.className = "filter-value filter-value-bool";
+          [["", "—"], ["Yes", "Yes"], ["No", "No"]].forEach(function (pair) {
+            const opt = document.createElement("option");
+            opt.value = pair[0];
+            opt.textContent = pair[1];
+            valSel.appendChild(opt);
+          });
+          const cur = (f.value || "").trim();
+          valSel.value = cur === "Yes" || cur === "No" ? cur : "";
+          valSel.addEventListener("change", function () { filters[i].value = valSel.value; });
+          valueWrap.appendChild(valSel);
         } else {
-          valInput.addEventListener("input", function () { filters[i].value = valInput.value; });
+          const valInput = document.createElement("input");
+          valInput.type = "text";
+          valInput.className = "filter-value";
+          valInput.autocomplete = "off";
+          valInput.spellcheck = false;
+          valInput.value = f.value || "";
+          valInput.placeholder = filterValuePlaceholderForField(f.field);
+          valueWrap.appendChild(valInput);
+          const kinds = filterTypeaheadKindsForField(f.field);
+          if (kinds.length > 0 && filterTypeaheadApi()) {
+            valueWrap.classList.add("filter-value-typeahead-wrap");
+            attachFilterValueTypeahead(valInput, i);
+          } else {
+            valInput.addEventListener("input", function () { filters[i].value = valInput.value; });
+          }
         }
       }
       const btn = document.createElement("button");
@@ -1309,7 +1218,7 @@
       });
       row.appendChild(fieldSel);
       row.appendChild(opSel);
-      row.appendChild(valueWrap);
+      if (!unaryOp) row.appendChild(valueWrap);
       row.appendChild(btn);
       block.appendChild(row);
       container.appendChild(block);
@@ -1320,7 +1229,14 @@
         }
         renderFilterConditions();
       });
-      opSel.addEventListener("change", function () { filters[i].op = opSel.value; });
+      opSel.addEventListener("change", function () {
+        const api = viewQueryFiltersApi();
+        const wasUnary = api && api.isUnaryFilterOp(filters[i].op);
+        filters[i].op = opSel.value;
+        const nowUnary = api && api.isUnaryFilterOp(opSel.value);
+        if (nowUnary) filters[i].value = "";
+        if (wasUnary !== nowUnary) renderFilterConditions();
+      });
     });
   }
 
@@ -1396,37 +1312,14 @@
     return "Text";
   }
 
-  function buildOneFilterCondXml(f) {
-    let type = getValueTypeForField(f.field).replace(/"/g, "");
-    let inner;
-    if (isBooleanFieldName(f.field)) {
-      const camlInt = booleanFilterDisplayToCamlInteger(f.value);
-      if (camlInt == null) return null;
-      inner = camlInt;
-      type = "Integer";
-    } else {
-      inner = String(f.value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
-    return "<" + f.op + "><FieldRef Name=\"" + escapeAttr(f.field) + "\"/><Value Type=\"" + type + "\">" + inner + "</Value></" + f.op + ">";
-  }
-
-  /** Left-associative And/Or chain matching rows with non-blank values (skips blank rows). */
   function buildFilterWhereXml() {
-    const chunks = [];
-    for (let i = 0; i < filters.length; i++) {
-      const f = filters[i];
-      if (!(f.value || "").trim()) continue;
-      const xml = buildOneFilterCondXml(f);
-      if (!xml) continue;
-      chunks.push({ xml: xml, join: chunks.length === 0 ? null : (f.join || "And") });
-    }
-    if (chunks.length === 0) return "";
-    let acc = chunks[0].xml;
-    for (let k = 1; k < chunks.length; k++) {
-      const op = chunks[k].join || "And";
-      acc = "<" + op + ">" + acc + chunks[k].xml + "</" + op + ">";
-    }
-    return "<Where>" + acc + "</Where>";
+    const api = viewQueryFiltersApi();
+    if (!api || typeof api.buildFilterWhereXml !== "function") return "";
+    return api.buildFilterWhereXml(filters, {
+      getValueType: getValueTypeForField,
+      isBooleanField: isBooleanFieldName,
+      booleanDisplayToCamlInteger: booleanFilterDisplayToCamlInteger
+    });
   }
 
   function buildViewQuery() {

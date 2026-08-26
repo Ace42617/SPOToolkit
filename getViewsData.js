@@ -172,6 +172,20 @@
       });
   }
 
+  function camlValueInnerToEditorFallback(inner) {
+    var s = String(inner == null ? "" : inner).trim();
+    var todayOff = /^<Today\b[^>]*\bOffsetDays="(-?\d+)"[^>]*\/\s*>$/i.exec(s);
+    if (todayOff) {
+      var n = parseInt(todayOff[1], 10);
+      if (!n) return "[Today]";
+      return n > 0 ? "[Today]+" + n : "[Today]" + n;
+    }
+    if (/^<Today\b/i.test(s)) return "[Today]";
+    if (/^<Now\b/i.test(s)) return "[Now]";
+    if (/^<UserID\b/i.test(s)) return "[Me]";
+    return s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+  }
+
   function parseViewQueryParts(viewQuery) {
     var q = String(viewQuery || "").replace(/\s+/g, " ");
     var orderBy = null;
@@ -182,14 +196,24 @@
     var groupMatch = /<GroupBy>\s*<FieldRef\s+Name="([^"]+)"/i.exec(q);
     if (groupMatch) groupBy = groupMatch[1];
     var condRegex =
-      /<(Eq|Neq|Gt|Geq|Lt|Leq|Contains|BeginsWith)>\s*<FieldRef\s+Name="([^"]+)"\s*\/>\s*<Value\s+Type="([^"]*)">([^<]*)<\/Value>/gi;
+      /<(Eq|Neq|Gt|Geq|Lt|Leq|Contains|BeginsWith)\s*>\s*<FieldRef\b[^>]*\bName="([^"]+)"[^>]*(?:\/>|>\s*<\/FieldRef\s*>)\s*<Value\b([^>]*)>([\s\S]*?)<\/Value>/gi;
     var m;
     while ((m = condRegex.exec(q)) !== null) {
+      var typeM = /\bType\s*=\s*"([^"]*)"/i.exec(m[3] || "");
       filters.push({
         op: m[1],
         field: m[2],
-        valueType: m[3] || "Text",
-        value: (m[4] || "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">"),
+        valueType: (typeM && typeM[1]) || "Text",
+        value: camlValueInnerToEditorFallback(m[4]),
+      });
+    }
+    var unaryRegex = /<(IsNull|IsNotNull)\s*>\s*<FieldRef\b[^>]*\bName="([^"]+)"/gi;
+    while ((m = unaryRegex.exec(q)) !== null) {
+      filters.push({
+        op: m[1],
+        field: m[2],
+        valueType: "",
+        value: "",
       });
     }
     return { viewQuery: q, orderBy: orderBy, filters: filters, groupBy: groupBy };
