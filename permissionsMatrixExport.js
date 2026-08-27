@@ -1062,6 +1062,62 @@
     return all;
   }
 
+  // Keep in sync with lib/matrixInheritanceSource.mjs and Get-InheritanceSource
+  // in Export-SitePermissionsMatrix.ps1. Injected classic scripts cannot import.
+  function normalizeServerRelativePath(path) {
+    if (path == null) return "";
+    var s = String(path).replace(/\\/g, "/").trim();
+    if (!s) return "";
+    s = s.replace(/\/+/g, "/");
+    if (s.length > 1) s = s.replace(/\/$/, "");
+    return s;
+  }
+
+  function parentServerRelativePath(path) {
+    var n = normalizeServerRelativePath(path);
+    if (!n || n === "/") return "";
+    var i = n.lastIndexOf("/");
+    if (i <= 0) return "";
+    return n.slice(0, i);
+  }
+
+  function getInheritanceSourcePath(itemPath, uniquePermPaths, listRootUrl) {
+    var root = normalizeServerRelativePath(listRootUrl);
+    var lookup = {};
+    var list = Array.isArray(uniquePermPaths) ? uniquePermPaths : [];
+    for (var ui = 0; ui < list.length; ui++) {
+      var u = normalizeServerRelativePath(list[ui]);
+      if (u) lookup[u.toLowerCase()] = u;
+    }
+    var parent = parentServerRelativePath(itemPath);
+    while (parent && (!root || parent.length >= root.length)) {
+      var hit = lookup[parent.toLowerCase()];
+      if (hit) return hit;
+      if (root && parent.toLowerCase() === root.toLowerCase()) break;
+      parent = parentServerRelativePath(parent);
+    }
+    return root;
+  }
+
+  function inheritedRoleAssignmentKind(sourcePath, listRootUrl, listHasUnique, sourceItemId) {
+    var src = normalizeServerRelativePath(sourcePath);
+    var root = normalizeServerRelativePath(listRootUrl);
+    var atRoot = !!src && !!root && src.toLowerCase() === root.toLowerCase();
+    var srcId = sourceItemId != null && String(sourceItemId).trim() !== "" && String(sourceItemId) !== "0"
+      ? sourceItemId
+      : 0;
+    if (atRoot) srcId = 0;
+    if (atRoot && !listHasUnique && !srcId) return "web";
+    if (!atRoot && srcId) return "item";
+    return "list";
+  }
+
+  function inheritedRoleAssignmentUrl(kind, listBase, webUrl, sourceItemId) {
+    if (kind === "web") return String(webUrl || "").replace(/\/$/, "") + "/_api/web/roleassignments";
+    if (kind === "item") return String(listBase || "") + "/items(" + sourceItemId + ")/RoleAssignments";
+    return String(listBase || "") + "/roleassignments";
+  }
+
   async function fetchGroupUsers(webUrl, groupId, accept) {
     if (!groupId) return [];
     var cacheKey = webUrl + "|" + groupId;
@@ -1816,6 +1872,21 @@
               appendBagelPathLengthRows(bagelPathRows, allItems, siteName, listTitle);
             }
 
+            var uniquePermPaths = [];
+            var pathToItemId = {};
+            var inheritedPrincipalCache = {};
+            var inheritedAssignmentCache = {};
+            if (INCLUDE_ALL_INHERITED) {
+              for (var upi = 0; upi < allItems.length; upi++) {
+                var uItm = allItems[upi];
+                var uPath = uItm.FileRef || (uItm.FileDirRef && uItm.FileLeafRef ? (uItm.FileDirRef + "/" + uItm.FileLeafRef).replace(/\/+/g, "/") : null) || uItm.FileLeafRef || "";
+                if (uPath && uPath.indexOf("#") >= 0) uPath = uPath.slice(uPath.indexOf("#") + 1).trim();
+                if (!uPath) continue;
+                pathToItemId[normalizeServerRelativePath(uPath).toLowerCase()] = uItm.Id;
+                if (uItm.HasUniqueRoleAssignments === true) uniquePermPaths.push(uPath);
+              }
+            }
+
             var uniqueInList = 0;
             for (var ii = 0; ii < allItems.length; ii++) {
               if (ii > 0 && ii % 25 === 0) checkCancelled();
@@ -1873,14 +1944,34 @@
                 });
                 if (uniqueInList % 5 === 0) await sleep(120);
               } else if (!skipNonUniqueMatrix && INCLUDE_ALL_INHERITED) {
-                var inhUrl = listHasUnique ? listBase + "/roleassignments" : webUrl + "/_api/web/roleassignments";
-                var inhAssignments = await fetchRoleAssignments(inhUrl, accept);
-                var inhPrincipals = await principalsFromAssignments(webUrl, inhAssignments, accept, groupCatalog, siteCtx);
+                var inhSrc = getInheritanceSourcePath(itemPath, uniquePermPaths, listRootUrl);
+                var inhSrcId = pathToItemId[normalizeServerRelativePath(inhSrc).toLowerCase()];
+                var inhKind = inheritedRoleAssignmentKind(inhSrc, listRootUrl, listHasUnique, inhSrcId);
+                var inhCacheKey = inhKind === "item" ? "item:" + inhSrcId : inhKind;
+                var inhPrincipals = inheritedPrincipalCache[inhCacheKey];
+                if (!inhPrincipals) {
+                  var inhAssignments = inheritedAssignmentCache[inhCacheKey];
+                  if (!inhAssignments) {
+                    inhAssignments = await fetchRoleAssignments(
+                      inheritedRoleAssignmentUrl(inhKind, listBase, webUrl, inhSrcId),
+                      accept
+                    );
+                    inheritedAssignmentCache[inhCacheKey] = inhAssignments;
+                  }
+                  inhPrincipals = await principalsFromAssignments(webUrl, inhAssignments, accept, groupCatalog, siteCtx);
+                  inheritedPrincipalCache[inhCacheKey] = inhPrincipals;
+                }
+                var inhLabeled = [];
                 for (var ip = 0; ip < inhPrincipals.length; ip++) {
-                  inhPrincipals[ip].givenThrough = "Inherited (From ItemPath: " + (listHasUnique ? listRootUrl : webPath) + ")";
+                  var ipCopy = {};
+                  for (var ipk in inhPrincipals[ip]) {
+                    if (Object.prototype.hasOwnProperty.call(inhPrincipals[ip], ipk)) ipCopy[ipk] = inhPrincipals[ip][ipk];
+                  }
+                  ipCopy.givenThrough = "Inherited (From ItemPath: " + inhSrc + ")";
+                  inhLabeled.push(ipCopy);
                 }
                 var iib = matrixRows.length;
-                pushMatrixRows(matrixRows, siteName, itemPath, itemType, "Inherited", "", inhPrincipals, roleNames);
+                pushMatrixRows(matrixRows, siteName, itemPath, itemType, "Inherited", "", inhLabeled, roleNames);
                 if (matrixRows.length > iib) matrixPathSet[itemPath] = true;
               }
             }
