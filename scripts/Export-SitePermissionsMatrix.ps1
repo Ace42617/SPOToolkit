@@ -4041,15 +4041,62 @@ function Get-AssignmentRoles($Assignment) {
 
 function Get-GroupMembers([int] $GroupId) {
     if ($S.GroupMembers.ContainsKey($GroupId)) { return $S.GroupMembers[$GroupId] }
+
+    # SharePoint REST defaults to 100 users. SiteGroups/Users often omits
+    # @odata.nextLink, so page with $top=5000, follow Get-ODataNextLink when
+    # present, and $skip when a full page has no next link. Stop if a page
+    # adds no new Ids ($skip ignored) so this cannot loop forever.
+    # Keep in sync with lib/groupUsersPaging.mjs and fetchGroupUsers in
+    # permissionsMatrixExport.js.
+    $members = [System.Collections.Generic.List[object]]::new()
+    $seen = @{}
+    $pageSize = 5000
+    $received = 0
+    $url = "/_api/web/sitegroups($GroupId)/users?`$select=Id,Title,LoginName,Email,PrincipalType&`$top=$pageSize"
+    $pages = 0
     try {
-        $r = Invoke-SPRestGet "/_api/web/sitegroups($GroupId)/users?`$select=Id,Title,LoginName,Email,PrincipalType"
-        $members = @($r.value)
+        while ($url -and $pages -lt 50) {
+            $pages++
+            $r = Invoke-SPRestGet $url
+            $page = Get-RestPropertyValue $r 'value'
+            if ($null -eq $page) { $page = Get-RestPropertyValue $r 'results' }
+            if ($null -eq $page) { $page = Get-RestPropertyValue (Get-RestPropertyValue $r 'd') 'results' }
+            $pageItems = @($page | Where-Object { $_ })
+            $added = 0
+            foreach ($u in $pageItems) {
+                $id = [string](Get-RestPropertyValue $u 'Id')
+                $login = [string](Get-RestPropertyValue $u 'LoginName')
+                $key = if (-not [string]::IsNullOrWhiteSpace($id)) { "id:$id" } elseif (-not [string]::IsNullOrWhiteSpace($login)) { "login:$($login.ToLowerInvariant())" } else { '' }
+                if ($key -and $seen.ContainsKey($key)) { continue }
+                if ($key) { $seen[$key] = $true }
+                $members.Add($u) | Out-Null
+                $added++
+            }
+            if ($added -eq 0) { break }
+            $next = Get-ODataNextLink $r
+            if ($next) {
+                $url = $next
+                $received += $pageItems.Count
+                continue
+            }
+            if ($pageItems.Count -ge $pageSize) {
+                $received += $pageItems.Count
+                $url = "/_api/web/sitegroups($GroupId)/users?`$select=Id,Title,LoginName,Email,PrincipalType&`$top=$pageSize&`$skip=$received"
+            }
+            else {
+                $url = $null
+            }
+        }
     } catch {
         Write-Warning "Group members failed (group $GroupId): $($_.Exception.Message)"
-        $members = @()
+        if ($members.Count -eq 0) {
+            $S.GroupMembers[$GroupId] = @()
+            return @()
+        }
     }
-    $S.GroupMembers[$GroupId] = $members
-    return $members
+    $out = @($members)
+    $S.GroupMembers[$GroupId] = $out
+    return $out
 }
 
 function Register-SharePointGroup($Member) {
