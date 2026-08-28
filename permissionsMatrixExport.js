@@ -1062,14 +1062,51 @@
     return all;
   }
 
+  // Keep in sync with lib/groupUsersPaging.mjs and Get-GroupMembers in
+  // Export-SitePermissionsMatrix.ps1. Injected classic scripts cannot import.
+  // /users defaults to 100 rows; SiteGroups/Users often omits @odata.nextLink.
   async function fetchGroupUsers(webUrl, groupId, accept) {
     if (!groupId) return [];
     var cacheKey = webUrl + "|" + groupId;
     if (Object.prototype.hasOwnProperty.call(groupUsersCache, cacheKey)) {
       return groupUsersCache[cacheKey];
     }
-    var j = await fetchJsonOptional(webUrl + "/_api/web/sitegroups/GetById(" + groupId + ")/users?$select=Id,Title,LoginName,Email,PrincipalType", accept);
-    var users = (j && (j.value || j.results)) || [];
+    var users = [];
+    var seen = {};
+    var pageSize = 5000;
+    var received = 0;
+    var pages = 0;
+    var next = webUrl + "/_api/web/sitegroups/GetById(" + groupId + ")/users?$select=Id,Title,LoginName,Email,PrincipalType&$top=" + pageSize;
+    while (next && pages < 50) {
+      pages++;
+      var j = await fetchJsonOptional(next, accept);
+      if (!j) break;
+      var page = (j && (j.value || j.results)) || [];
+      if (j.d && !(j.value || j.results)) page = j.d.results || j.d.value || [];
+      var added = 0;
+      for (var ui = 0; ui < page.length; ui++) {
+        var u = page[ui];
+        if (!u) continue;
+        var key = (u.Id != null && String(u.Id).trim() !== "") ? ("id:" + String(u.Id).trim()) : String(u.LoginName || u.loginName || "").trim().toLowerCase();
+        if (key && Object.prototype.hasOwnProperty.call(seen, key)) continue;
+        if (key) seen[key] = true;
+        users.push(u);
+        added++;
+      }
+      if (added === 0) break;
+      var nl = j["@odata.nextLink"] || j["odata.nextLink"] || (j.d && (j.d.__next || j.d["odata.nextLink"])) || null;
+      if (nl) {
+        next = normalizeApiUrl(nl);
+        received += page.length;
+        continue;
+      }
+      if (page.length >= pageSize) {
+        received += page.length;
+        next = webUrl + "/_api/web/sitegroups/GetById(" + groupId + ")/users?$select=Id,Title,LoginName,Email,PrincipalType&$top=" + pageSize + "&$skip=" + received;
+      } else {
+        next = null;
+      }
+    }
     groupUsersCache[cacheKey] = users;
     return users;
   }
