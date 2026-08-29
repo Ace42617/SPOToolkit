@@ -4622,6 +4622,7 @@ function New-MatrixRow {
     )
     $row = [ordered]@{
         'Site Name'      = $S.SiteName
+        'Site URL'       = $S.ConnectedWebUrl
         'Name'           = (Get-MatrixItemName $ItemPath $ItemType $S.SiteName)
         'Item path'      = $ItemPath
         'Item Type'      = $ItemType
@@ -5832,7 +5833,7 @@ function Export-Workbook {
     )
 
     $cols = @(
-        'Site Name', 'Name', 'Item path', 'Item Type', 'Inheritance', 'Details',
+        'Site Name', 'Site URL', 'Name', 'Item path', 'Item Type', 'Inheritance', 'Details',
         'User/group', 'Principal type', 'Account name', 'External user', 'Given through'
     ) + @($RoleColumns)
 
