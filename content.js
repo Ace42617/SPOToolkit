@@ -4,6 +4,18 @@ const PROGRESS_BOX_ID = "sp-csv-export-progress";
 const SCRIPT_TIMEOUT = 15000;
 /** JSON script node read by getViewsData.js (page context). */
 const SP_VIEWS_PARAMS_SCRIPT_ID = "sp-views-params";
+/** JSON script node read by matrixScanPlan.js (page context). */
+const SP_MATRIX_SCAN_PARAMS_SCRIPT_ID = "sp-matrix-scan-params-json";
+
+function getMatrixScanParamsScriptId(requestId) {
+  return requestId
+    ? SP_MATRIX_SCAN_PARAMS_SCRIPT_ID + "-" + requestId
+    : SP_MATRIX_SCAN_PARAMS_SCRIPT_ID;
+}
+
+function createMatrixScanRequestId() {
+  return "matrix-scan-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+}
 
 /** Injects/replaces #sp-views-params for View Manager REST (listId, optional viewId, webAbsoluteUrl). */
 function attachSpViewsParamsScript(message) {
@@ -16,6 +28,22 @@ function attachSpViewsParamsScript(message) {
   if (el) el.remove();
   el = document.createElement("script");
   el.id = SP_VIEWS_PARAMS_SCRIPT_ID;
+  el.type = "application/json";
+  el.textContent = JSON.stringify(payload);
+  (document.head || document.documentElement).appendChild(el);
+}
+
+/** Injects a request-scoped params node for Permissions Matrix Load sites. */
+function attachMatrixScanParamsScript(message, requestId) {
+  const payload = {
+    requestId: requestId || null,
+    siteUrl: message.siteUrl || "",
+    includeSubsites: message.includeSubsites !== false
+  };
+  let el = document.getElementById(getMatrixScanParamsScriptId(requestId));
+  if (el) el.remove();
+  el = document.createElement("script");
+  el.id = getMatrixScanParamsScriptId(requestId);
   el.type = "application/json";
   el.textContent = JSON.stringify(payload);
   (document.head || document.documentElement).appendChild(el);
@@ -4471,15 +4499,19 @@ function injectAndWait(scriptName, messageType, parseData, sendResponse, options
     done = true;
     clearTimeout(tid);
     window.removeEventListener("message", listener);
+    try {
+      if (options.afterFinish) options.afterFinish();
+    } catch (_) {}
     sendResponse(payload);
   }
   const listener = (ev) => {
     if (!ev.data || ev.data.__spcsv !== true || ev.data.type !== messageType) return;
+    if (options.matchesResponse && !options.matchesResponse(ev.data)) return;
     finish(parseData(ev.data));
   };
   if (options.beforeInject) options.beforeInject();
   const script = document.createElement("script");
-  script.src = chrome.runtime.getURL(scriptName) + "?cb=" + Date.now();
+  script.src = chrome.runtime.getURL(scriptName) + (options.urlSuffix || ("?cb=" + Date.now()));
   script.onload = () => script.remove();
   script.onerror = () => finish(errorPayload);
   window.addEventListener("message", listener);
@@ -5055,6 +5087,7 @@ function dispatchToolkitMessage(message, sendResponse) {
   }
 
   if (message.action === "getMatrixScanPlan") {
+    const requestId = createMatrixScanRequestId();
     injectAndWait(
       "matrixScanPlan.js",
       "SPMatrixScanPlanResult",
@@ -5063,16 +5096,15 @@ function dispatchToolkitMessage(message, sendResponse) {
       {
         timeoutMs: 120000,
         beforeInject() {
-          let el = document.getElementById("sp-matrix-scan-params-json");
+          attachMatrixScanParamsScript(message, requestId);
+        },
+        urlSuffix: "?spcsvRequestId=" + encodeURIComponent(requestId),
+        matchesResponse(data) {
+          return data.requestId === requestId;
+        },
+        afterFinish() {
+          const el = document.getElementById(getMatrixScanParamsScriptId(requestId));
           if (el) el.remove();
-          el = document.createElement("script");
-          el.id = "sp-matrix-scan-params-json";
-          el.type = "application/json";
-          el.textContent = JSON.stringify({
-            siteUrl: message.siteUrl || "",
-            includeSubsites: message.includeSubsites !== false
-          });
-          (document.head || document.documentElement).appendChild(el);
         },
         errorPayload: { ok: false, error: "Timeout loading site scan plan" }
       }
