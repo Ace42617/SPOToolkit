@@ -1985,9 +1985,11 @@ function Show-RemediationPicker {
         param([string] $Kind, [object[]] $Trackers)
 
         $unchecked = $script:RemediationPickerUncheckedKeys[$Kind]
-        $unchecked.Clear()
         foreach ($t in @($Trackers)) {
-            if (-not (Get-TrackerChecked $t)) {
+            if (Get-TrackerChecked $t) {
+                [void]$unchecked.Remove([string]$t.PlanKey)
+            }
+            else {
                 [void]$unchecked.Add([string]$t.PlanKey)
             }
         }
@@ -1996,16 +1998,13 @@ function Show-RemediationPicker {
     function Save-UniqueTreeCheckState {
         $parentUnchecked = $script:RemediationPickerUncheckedKeys.Unique
         $childUnchecked = $script:RemediationPickerUncheckedKeys.UniqueChild
-        $parentUnchecked.Clear()
-        $childUnchecked.Clear()
         foreach ($t in @($script:RemediationPickerUniqueItems)) {
-            if (-not (Get-TrackerChecked $t)) {
-                if ($t.IsParent) {
-                    [void]$parentUnchecked.Add([string]$t.PlanKey)
-                }
-                else {
-                    [void]$childUnchecked.Add([string]$t.PlanKey)
-                }
+            $unchecked = if ($t.IsParent) { $parentUnchecked } else { $childUnchecked }
+            if (Get-TrackerChecked $t) {
+                [void]$unchecked.Remove([string]$t.PlanKey)
+            }
+            else {
+                [void]$unchecked.Add([string]$t.PlanKey)
             }
         }
     }
@@ -2384,9 +2383,11 @@ function Show-RemediationPicker {
         $ListView.BeginUpdate()
         $ListView.Items.Clear()
         $Tracker.Clear()
+        $unchecked = $script:RemediationPickerUncheckedKeys[$TabKey]
         try {
             foreach ($row in $rows) {
-                $item = New-ListViewItemFromCells -Cells $row.Cells -Checked $row.Checked
+                $item = New-ListViewItemFromCells -Cells $row.Cells `
+                    -Checked (-not $unchecked.Contains([string]$row.PlanKey))
                 [void]$ListView.Items.Add($item)
                 $Tracker.Add([pscustomobject]@{
                     ListItem = $item
@@ -3092,7 +3093,6 @@ function Show-RemediationPicker {
     })
 
     $btnAllExt.Add_Click({
-        $script:RemediationPickerUncheckedKeys.External.Clear()
         Set-ListViewChecks -ListView $lvExternal -Checked $true -Trackers $script:RemediationPickerExternalItems
         Update-SelectionSummary
     })
@@ -3102,7 +3102,6 @@ function Show-RemediationPicker {
         Update-SelectionSummary
     })
     $btnAllLinks.Add_Click({
-        $script:RemediationPickerUncheckedKeys.Links.Clear()
         Set-ListViewChecks -ListView $lvLinks -Checked $true -Trackers $script:RemediationPickerLinkItems
         Update-SelectionSummary
     })
@@ -3119,18 +3118,10 @@ function Show-RemediationPicker {
             $t.ListItem.Checked = $Checked
         }
         $script:SuppressTargetSave = $false
-        if ($Checked) {
-            $script:RemediationPickerUncheckedKeys.Unique.Clear()
-            $script:RemediationPickerUncheckedKeys.UniqueChild.Clear()
-        }
-        else {
-            Save-UniqueTreeCheckState
-        }
+        Save-UniqueTreeCheckState
     }
 
     $btnAllUnique.Add_Click({
-        $script:RemediationPickerUncheckedKeys.Unique.Clear()
-        $script:RemediationPickerUncheckedKeys.UniqueChild.Clear()
         Set-UniqueTreeChecks -Checked $true
         Update-SelectionSummary
     })
