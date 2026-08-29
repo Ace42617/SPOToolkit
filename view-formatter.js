@@ -1,3 +1,5 @@
+import { isSharePointOnlineUrl } from "./lib/sharePointUrl.mjs";
+
 (function () {
   function escHtml(s) {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -356,7 +358,7 @@
   } catch (_) {
     previewUrl = rawSrc;
   }
-  if (previewUrl && /^https:\/\/[^/]*\.sharepoint\.com/i.test(previewUrl) === false) {
+  if (previewUrl && !isSharePointOnlineUrl(previewUrl, { allowTenantAdmin: false })) {
     previewUrl = "";
   }
 
