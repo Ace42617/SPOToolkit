@@ -94,6 +94,40 @@
   let filters = [];
   let groupByColumn = "";
   let groupExpand = true;
+  /** Calendar / board / gallery / gantt — View Manager must not PATCH these. */
+  let specialViewKind = "";
+
+  function classifySpecialView(input) {
+    const src = input || {};
+    const type2Map = {
+      kanban: "board",
+      tiles: "gallery",
+      gallery: "gallery",
+      moderncalendar: "calendar",
+      calendar: "calendar",
+      gantt: "gantt"
+    };
+    const t2 = String(src.viewType2 || "").trim().toLowerCase();
+    if (t2 && type2Map[t2]) return type2Map[t2];
+    const query = String(src.viewQuery || "");
+    if (/DateRangesOverlap/i.test(query)) return "calendar";
+    const cal = src.calendarSettings;
+    if (cal != null && String(cal).trim() !== "") return "calendar";
+    const viewData = String(src.viewData || "");
+    if (/Type\s*=\s*"Gantt/i.test(viewData) || /Gantt(?:Title|Start|End)/i.test(viewData)) {
+      return "gantt";
+    }
+    return "";
+  }
+
+  function specialViewSaveBlockMessage(kind) {
+    if (!kind) return "";
+    return (
+      "View Manager cannot save " +
+      kind +
+      " views. Saving would replace this view's query and columns with a standard list-view definition, which breaks the calendar/board layout. Select a standard list view, or choose Create new view."
+    );
+  }
 
   const LIST_TYPE_LABELS = {
     100: "List",
@@ -978,8 +1012,12 @@
       groupByColumn = viewDetails.groupBy || "";
       groupExpand = true;
       document.getElementById("viewName").value = viewDetails.viewTitle || "";
-      const viewMetaPath = sitePath + "/_api/web/lists(guid'" + listId.replace(/'/g, "''") + "')/views(guid'" + viewId.replace(/'/g, "''") + "')?$select=RowLimit,Scope";
-      const metaRes = await rest("GET", viewMetaPath);
+      specialViewKind = classifySpecialView({ viewQuery: viewDetails.viewQuery || "" });
+      const viewMetaBase = sitePath + "/_api/web/lists(guid'" + listId.replace(/'/g, "''") + "')/views(guid'" + viewId.replace(/'/g, "''") + "')";
+      let metaRes = await rest("GET", viewMetaBase + "?$select=RowLimit,Scope,ViewType2,CalendarSettings,ViewData");
+      if (!metaRes || !metaRes.ok) {
+        metaRes = await rest("GET", viewMetaBase + "?$select=RowLimit,Scope");
+      }
       if (metaRes && metaRes.ok && metaRes.data) {
         const rl = (metaRes.data.RowLimit != null ? metaRes.data.RowLimit : metaRes.data.rowLimit);
         if (rl != null) {
@@ -997,17 +1035,30 @@
       }
       const rlEl = document.getElementById("viewRowLimit");
       if (!rlEl.value) rlEl.value = "100";
+      const metaData = metaRes && metaRes.ok && metaRes.data ? metaRes.data : {};
+      specialViewKind = classifySpecialView({
+        viewType2: metaData.ViewType2 || metaData.viewType2,
+        viewQuery: viewDetails.viewQuery || "",
+        calendarSettings: metaData.CalendarSettings != null ? metaData.CalendarSettings : metaData.calendarSettings,
+        viewData: metaData.ViewData || metaData.viewData
+      });
       renderColumnList();
       renderSortLevels();
       renderFilterConditions();
       renderGroupBy();
       updateSetDefaultVisibility();
+      if (specialViewKind) {
+        showSaveStatus(specialViewSaveBlockMessage(specialViewKind), true);
+      } else {
+        showSaveStatus("", false);
+      }
     } catch (e) {
       showSaveStatus(e && e.message ? e.message : "Failed to load view.", true);
     }
   }
 
   function setNewViewDefaults() {
+    specialViewKind = "";
     viewDetails = null;
     inViewSet = new Set();
     const sorted = (fields || []).slice().sort(function (a, b) { return (a.title || "").localeCompare(b.title || ""); });
@@ -1470,6 +1521,10 @@
   }
 
   async function saveView() {
+    if (selectedViewId && specialViewKind) {
+      showSaveStatus(specialViewSaveBlockMessage(specialViewKind), true);
+      return;
+    }
     const name = (document.getElementById("viewName").value || "").trim();
     if (!name) {
       showSaveStatus("Enter a view name.", true);
