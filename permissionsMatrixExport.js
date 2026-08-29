@@ -975,6 +975,19 @@
     }
   }
 
+  /** Follow @odata.nextLink for /_api/web/webs (keep in sync with lib/websDiscovery.mjs). */
+  async function fetchAllChildWebs(webUrl, accept) {
+    var all = [];
+    var next = String(webUrl || "").replace(/\/$/, "") + "/_api/web/webs?$select=Title,ServerRelativeUrl,Url&$top=500";
+    while (next) {
+      var j = await fetchJson(next, accept);
+      var page = j.value || j.results || [];
+      for (var pi = 0; pi < page.length; pi++) all.push(page[pi]);
+      next = j["@odata.nextLink"] ? normalizeApiUrl(j["@odata.nextLink"]) : (j["odata.nextLink"] ? normalizeApiUrl(j["odata.nextLink"]) : null);
+    }
+    return all;
+  }
+
   async function fetchAllWebs(startUrl, includeSubsites) {
     var accept = "application/json;odata=nometadata";
     var webs = [];
@@ -998,8 +1011,7 @@
         absoluteUrl: (j.Url || j.url || webApiUrl).trim()
       });
       if (walkSubs === false || !includeSubsites) return;
-      var subs = await fetchJson(webUrlFromPath(srUrl) + "/_api/web/webs?$select=Title,ServerRelativeUrl,Url&$top=500", accept);
-      var items = subs.value || subs.results || [];
+      var items = await fetchAllChildWebs(webUrlFromPath(srUrl), accept);
       for (var i = 0; i < items.length; i++) {
         var subPath = items[i].ServerRelativeUrl || items[i].serverRelativeUrl;
         if (!subPath && (items[i].Url || items[i].url)) {
