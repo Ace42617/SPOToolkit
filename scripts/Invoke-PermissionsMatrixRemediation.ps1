@@ -769,45 +769,6 @@ function Build-ExternalUserPlan {
         }
     }
 
-    foreach ($target in @($plan)) {
-        if ($target.ItemType -notmatch '^(File|Folder|List item)$') { continue }
-
-        $siteUrl = [string]$target.SiteUrl
-        $login = [string]$target.Login
-        $webPath = Normalize-ServerRelativePath ([Uri]$siteUrl).AbsolutePath
-
-        $siteKey = "user|$siteUrl|Site|$webPath|$login"
-        if ($seen.Add($siteKey)) {
-            $plan.Add([pscustomobject]@{
-                Action    = 'RemoveUserPermission'
-                SiteUrl   = $siteUrl
-                ItemPath  = $webPath
-                ItemType  = 'Site'
-                Login     = $login
-                Group     = ''
-                Roles     = ''
-                Detail    = "Remove site-level grants for external user $login (sharing cleanup)"
-            }) | Out-Null
-        }
-
-        $listPath = Get-ParentServerRelativePath ([string]$target.ItemPath)
-        if ($listPath) {
-            $listKey = "user|$siteUrl|Library|$listPath|$login"
-            if ($seen.Add($listKey)) {
-                $plan.Add([pscustomobject]@{
-                    Action    = 'RemoveUserPermission'
-                    SiteUrl   = $siteUrl
-                    ItemPath  = $listPath
-                    ItemType  = 'Library'
-                    Login     = $login
-                    Group     = ''
-                    Roles     = ''
-                    Detail    = "Remove library-level grants for external user $login (sharing cleanup)"
-                }) | Out-Null
-            }
-        }
-    }
-
     return @($plan)
 }
 
@@ -821,7 +782,7 @@ function Build-SharingLinkPlan {
         if ([string]$row.RecordType -ne 'SharingLink') { continue }
         $shareId = [string]$row.ShareId
         $rel = Get-ServerRelativePath ([string]$row.RelativeUrl)
-        if (-not $shareId -and -not $rel) { continue }
+        if (-not $shareId -or -not $rel) { continue }
 
         $siteUrl = Get-NormalizedSiteUrl ([string]$row.SiteUrl)
         $key = "$siteUrl|$shareId|$rel"
@@ -1209,12 +1170,6 @@ function Invoke-RemoveExternalUserTarget {
             if (Remove-ExternalUserAssignmentAtScope -Login $login -ScopeKind ListItem -List $list -ItemId $ctx.ItemId) {
                 $removedAny = $true
             }
-            if (Remove-ExternalUserAssignmentAtScope -Login $login -ScopeKind List -List $list) {
-                $removedAny = $true
-            }
-            if (Remove-ExternalUserAssignmentAtScope -Login $login -ScopeKind Web) {
-                $removedAny = $true
-            }
         }
         default {
             Write-Warning "Skipped unsupported external-user target type '$itemType' for $login"
@@ -1236,21 +1191,15 @@ function Invoke-RemoveSharingLinkTarget {
     $shareId = [string]$Target.ShareId
     $itemType = [string]$Target.ItemType
 
+    if ([string]::IsNullOrWhiteSpace($shareId)) {
+        throw "Skipping sharing link removal for '$rel': the report row does not include a ShareId."
+    }
+
     if ($itemType -eq 'Folder') {
-        if ($shareId) {
-            Remove-PnPFolderSharingLink -Folder $rel -Identity $shareId -Force -ErrorAction Stop
-        }
-        else {
-            Remove-PnPFolderSharingLink -Folder $rel -Force -ErrorAction Stop
-        }
+        Remove-PnPFolderSharingLink -Folder $rel -Identity $shareId -Force -ErrorAction Stop
     }
     else {
-        if ($shareId) {
-            Remove-PnPFileSharingLink -FileUrl $rel -Identity $shareId -Force -ErrorAction Stop
-        }
-        else {
-            Remove-PnPFileSharingLink -FileUrl $rel -Force -ErrorAction Stop
-        }
+        Remove-PnPFileSharingLink -FileUrl $rel -Identity $shareId -Force -ErrorAction Stop
     }
 }
 
