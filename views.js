@@ -94,6 +94,20 @@
   let filters = [];
   let groupByColumn = "";
   let groupExpand = true;
+  /** Original <Where> when the editor cannot represent In / Membership / Includes / etc. */
+  let preservedWhereXml = "";
+
+  function extractViewQueryWhereXml(viewQuery) {
+    const q = String(viewQuery || "");
+    const m = q.match(/<Where\b[^>]*>[\s\S]*?<\/Where>/i);
+    return m ? m[0] : "";
+  }
+
+  function shouldPreserveUnparsedWhere(viewQuery, parsedFilterRows) {
+    const whereXml = extractViewQueryWhereXml(viewQuery);
+    if (!whereXml) return false;
+    return !(Array.isArray(parsedFilterRows) && parsedFilterRows.length > 0);
+  }
 
   const LIST_TYPE_LABELS = {
     100: "List",
@@ -937,6 +951,7 @@
 
   async function loadViewDetails(viewId) {
     if (!viewId) return;
+    preservedWhereXml = "";
     try {
       const res = await sendToTab({
         action: "getViewsData",
@@ -965,6 +980,12 @@
           if (row.join) o.join = row.join;
           return o;
         });
+        preservedWhereXml = "";
+      } else if (shouldPreserveUnparsedWhere(viewDetails.viewQuery || "", parsedFq)) {
+        // Do not use the Eq/Neq regex fallback — it can pick one leaf out of an
+        // <In> / <Membership> tree and Save would drop the rest of the filter.
+        preservedWhereXml = extractViewQueryWhereXml(viewDetails.viewQuery || "");
+        filters = [];
       } else {
         filters = (viewDetails.filters || []).map(function (f, idx) {
           let val = f.value || "";
@@ -973,6 +994,7 @@
           if (idx > 0) o.join = "And";
           return o;
         });
+        preservedWhereXml = "";
       }
       normalizeFilterJoins(filters);
       groupByColumn = viewDetails.groupBy || "";
@@ -1002,12 +1024,19 @@
       renderFilterConditions();
       renderGroupBy();
       updateSetDefaultVisibility();
+      if (preservedWhereXml) {
+        showSaveStatus(
+          "This view has a filter View Manager cannot edit (for example \"is one of\", group membership, or multi-value includes). Save will keep the existing filter as-is.",
+          false
+        );
+      }
     } catch (e) {
       showSaveStatus(e && e.message ? e.message : "Failed to load view.", true);
     }
   }
 
   function setNewViewDefaults() {
+    preservedWhereXml = "";
     viewDetails = null;
     inViewSet = new Set();
     const sorted = (fields || []).slice().sort(function (a, b) { return (a.title || "").localeCompare(b.title || ""); });
@@ -1431,8 +1460,12 @@
 
   function buildViewQuery() {
     const parts = [];
-    const whereXml = buildFilterWhereXml();
-    if (whereXml) parts.push(whereXml);
+    if (preservedWhereXml && filters.length === 0) {
+      parts.push(preservedWhereXml);
+    } else {
+      const whereXml = buildFilterWhereXml();
+      if (whereXml) parts.push(whereXml);
+    }
     if (sortLevels.length > 0) {
       const refs = sortLevels.filter(function (s) { return s.field; }).map(function (s) {
         return "<FieldRef Name=\"" + escapeAttr(s.field) + "\" Ascending=\"" + (s.ascending ? "True" : "False") + "\"/>";
@@ -1470,6 +1503,13 @@
   }
 
   async function saveView() {
+    if (preservedWhereXml && filters.length > 0) {
+      showSaveStatus(
+        "Cannot save: this view's existing filter cannot be edited here. Remove the new filter rows to keep the original filter, or change the filter in SharePoint.",
+        true
+      );
+      return;
+    }
     const name = (document.getElementById("viewName").value || "").trim();
     if (!name) {
       showSaveStatus("Enter a view name.", true);
