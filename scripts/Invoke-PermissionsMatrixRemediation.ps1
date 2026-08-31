@@ -719,6 +719,9 @@ function Build-ExternalUserPlan {
         $login = [string]$row.'Account name'
         if (-not $login) { $login = [string]$row.'User/group' }
         if (-not $login) { continue }
+        # Browser exports before this fix labeled Azure AD groups (c:0t.c|) as external.
+        # Re-check the login so remediation cannot remove security groups from that column.
+        if (-not (Test-ExternalLogin -Login $login)) { continue }
 
         $siteUrl = Get-SiteUrlForRow -Row $row -FallbackSiteUrl $FallbackSiteUrl
         $itemPath = Normalize-ServerRelativePath ([string]$row.'Item path')
@@ -750,6 +753,7 @@ function Build-ExternalUserPlan {
         $login = [string]$g.'Member Login'
         if (-not $login) { $login = [string]$g.'Member Email' }
         if (-not $login) { continue }
+        if (-not (Test-ExternalLogin -Login $login -Email ([string]$g.'Member Email'))) { continue }
 
         $siteUrl = Get-NormalizedSiteUrl ([string]$g.'Site URL')
         if (-not $siteUrl) { $siteUrl = Get-NormalizedSiteUrl $FallbackSiteUrl }
