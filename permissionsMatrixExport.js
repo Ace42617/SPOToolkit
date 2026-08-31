@@ -853,8 +853,7 @@
   function isExternalUser(loginName, email) {
     if (email && /#EXT#@/i.test(String(email))) return true;
     if (!loginName) return false;
-    var ln = String(loginName).toLowerCase();
-    return ln.indexOf("#ext#") >= 0 || ln.indexOf("c:0t.c|") >= 0;
+    return /#ext#/i.test(String(loginName));
   }
 
   function testSharingLink(login, title) {

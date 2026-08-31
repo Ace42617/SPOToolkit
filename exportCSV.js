@@ -2108,10 +2108,10 @@
     } catch (_) { return null; }
   }
 
-  function isExternalUser(loginName) {
+  function isExternalUser(loginName, email) {
+    if (email && /#EXT#@/i.test(String(email))) return true;
     if (!loginName || typeof loginName !== "string") return false;
-    var ln = loginName.toLowerCase();
-    return ln.indexOf("#ext#") >= 0 || ln.indexOf("c:0t.c|") >= 0;
+    return /#ext#/i.test(loginName);
   }
 
   function getListTitleFromContext() {
@@ -2400,7 +2400,7 @@
         LoginName: u.loginName,
         Email: u.email,
         Group: (u.groups && u.groups.length) ? u.groups.join("; ") : "",
-        InternalOrExternal: isExternalUser(u.loginName) ? "External" : "Internal",
+        InternalOrExternal: isExternalUser(u.loginName, u.email) ? "External" : "Internal",
         UniquePermissionPaths: formatScopeStr(u.scopes)
       });
     }
@@ -2412,7 +2412,7 @@
           LoginName: pr.loginName || "",
           Email: pr.email || "",
           Group: (pr.principalType === 4 || pr.principalType === 8) ? "(group)" : "",
-          InternalOrExternal: isExternalUser(pr.loginName) ? "External" : "Internal",
+          InternalOrExternal: isExternalUser(pr.loginName, pr.email) ? "External" : "Internal",
           UniquePermissionPaths: formatScopeStr(pr.scopes)
         });
       }
