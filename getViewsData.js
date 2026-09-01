@@ -182,15 +182,19 @@
     var groupMatch = /<GroupBy>\s*<FieldRef\s+Name="([^"]+)"/i.exec(q);
     if (groupMatch) groupBy = groupMatch[1];
     var condRegex =
-      /<(Eq|Neq|Gt|Geq|Lt|Leq|Contains|BeginsWith)>\s*<FieldRef\s+Name="([^"]+)"\s*\/>\s*<Value\s+Type="([^"]*)">([^<]*)<\/Value>/gi;
+      /<(Eq|Neq|Gt|Geq|Lt|Leq|Contains|BeginsWith)\s*>\s*<FieldRef\b([^>]*?)(?:\s*\/>|><\/FieldRef\s*>)\s*<Value\s+Type="([^"]*)">([^<]*)<\/Value>/gi;
     var m;
     while ((m = condRegex.exec(q)) !== null) {
-      filters.push({
+      var frName = /\bName\s*=\s*"([^"]+)"/i.exec(m[2] || "");
+      if (!frName) continue;
+      var row = {
         op: m[1],
-        field: m[2],
+        field: frName[1],
         valueType: m[3] || "Text",
         value: (m[4] || "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">"),
-      });
+      };
+      if (/\bLookupId\s*=\s*"(TRUE|True|true|1)"/i.test(m[2] || "")) row.lookupId = true;
+      filters.push(row);
     }
     return { viewQuery: q, orderBy: orderBy, filters: filters, groupBy: groupBy };
   }

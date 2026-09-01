@@ -352,13 +352,40 @@
     return segs.length ? segs : null;
   }
 
+  function parseCamlFieldRefAttrs(attrStr) {
+    const s = String(attrStr || "");
+    const nameM = /\bName\s*=\s*"([^"]+)"/i.exec(s);
+    if (!nameM) return null;
+    const lookupM = /\bLookupId\s*=\s*"(TRUE|True|true|1)"/i.exec(s);
+    return { name: nameM[1], lookupId: Boolean(lookupM) };
+  }
+
+  function fieldTypeUsesLookupId(typeAsString) {
+    return /^(User|UserMulti|Lookup|LookupMulti)$/i.test(String(typeAsString || "").trim());
+  }
+
+  function isNumericLookupFilterValue(value) {
+    return /^\d+$/.test(String(value || "").trim());
+  }
+
+  function filterShouldWriteLookupId(filterRow) {
+    if (!filterRow || !isNumericLookupFilterValue(filterRow.value)) return false;
+    if (filterRow.lookupId) return true;
+    const fd = fields.find(function (f) { return f.internalName === filterRow.field; });
+    return fieldTypeUsesLookupId(fd && fd.typeAsString);
+  }
+
   function parseLeafCondString(s) {
     const norm = s.replace(/\s+/g, " ").trim();
-    const re = /^<(Eq|Neq|Gt|Geq|Lt|Leq|Contains|BeginsWith)\s*>\s*<FieldRef\s+Name="([^"]+)"\s*\/>\s*<Value\s+Type="([^"]*)">([^<]*)<\/Value>\s*<\/\1\s*>$/i;
+    const re = /^<(Eq|Neq|Gt|Geq|Lt|Leq|Contains|BeginsWith)\s*>\s*<FieldRef\b([^>]*?)(?:\s*\/>|><\/FieldRef\s*>)\s*<Value\s+Type="([^"]*)">([^<]*)<\/Value>\s*<\/\1\s*>$/i;
     const m = norm.match(re);
     if (!m) return null;
+    const fr = parseCamlFieldRefAttrs(m[2]);
+    if (!fr) return null;
     const v = (m[4] || "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
-    return { type: "leaf", field: m[2], op: m[1], value: v };
+    const leaf = { type: "leaf", field: fr.name, op: m[1], value: v, valueType: m[3] || "Text" };
+    if (fr.lookupId) leaf.lookupId = true;
+    return leaf;
   }
 
   function parseWhereExpr(inner) {
@@ -387,7 +414,10 @@
 
   function binTreeToFilterRows(node) {
     if (node.type === "leaf") {
-      return [{ field: node.field, op: node.op, value: node.value }];
+      const row = { field: node.field, op: node.op, value: node.value };
+      if (node.lookupId) row.lookupId = true;
+      if (node.valueType) row.valueType = node.valueType;
+      return [row];
     }
     const L = binTreeToFilterRows(node.left);
     const R = binTreeToFilterRows(node.right);
@@ -963,6 +993,8 @@
           if (isBooleanFieldName(row.field)) val = booleanFilterRawToDisplay(val);
           const o = { field: row.field, op: row.op, value: val };
           if (row.join) o.join = row.join;
+          if (row.lookupId) o.lookupId = true;
+          if (row.valueType) o.valueType = row.valueType;
           return o;
         });
       } else {
@@ -971,6 +1003,8 @@
           if (isBooleanFieldName(f.field)) val = booleanFilterRawToDisplay(val);
           const o = { field: f.field, op: f.op, value: val };
           if (idx > 0) o.join = "And";
+          if (f.lookupId) o.lookupId = true;
+          if (f.valueType) o.valueType = f.valueType;
           return o;
         });
       }
@@ -1315,6 +1349,8 @@
       container.appendChild(block);
       fieldSel.addEventListener("change", function () {
         filters[i].field = fieldSel.value;
+        delete filters[i].lookupId;
+        delete filters[i].valueType;
         if (isBooleanFieldName(fieldSel.value)) {
           filters[i].value = coerceBooleanFilterStoredValue(filters[i].value || "");
         }
@@ -1406,6 +1442,9 @@
       type = "Integer";
     } else {
       inner = String(f.value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+    if (filterShouldWriteLookupId(f)) {
+      return "<" + f.op + "><FieldRef Name=\"" + escapeAttr(f.field) + "\" LookupId=\"TRUE\"/><Value Type=\"Integer\">" + inner + "</Value></" + f.op + ">";
     }
     return "<" + f.op + "><FieldRef Name=\"" + escapeAttr(f.field) + "\"/><Value Type=\"" + type + "\">" + inner + "</Value></" + f.op + ">";
   }
