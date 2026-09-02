@@ -94,6 +94,8 @@
   let filters = [];
   let groupByColumn = "";
   let groupExpand = true;
+  /** Original <Where> when nested And/Or cannot round-trip through the linear editor. */
+  let preservedGroupedWhereXml = "";
 
   const LIST_TYPE_LABELS = {
     100: "List",
@@ -403,6 +405,64 @@
     const tree = parseWhereExpr(wm[1].trim());
     if (!tree) return null;
     return binTreeToFilterRows(tree);
+  }
+
+  function extractViewQueryWhereXml(viewQuery) {
+    const q = String(viewQuery || "");
+    const m = q.match(/<Where\b[^>]*>[\s\S]*?<\/Where>/i);
+    return m ? m[0] : "";
+  }
+
+  function filterRowsToLeftAssocTree(rows) {
+    if (!rows || !rows.length) return null;
+    let acc = { type: "leaf", field: rows[0].field, op: rows[0].op, value: rows[0].value };
+    for (let k = 1; k < rows.length; k++) {
+      const r = rows[k];
+      acc = {
+        type: "bin",
+        op: r.join || "And",
+        left: acc,
+        right: { type: "leaf", field: r.field, op: r.op, value: r.value }
+      };
+    }
+    return acc;
+  }
+
+  function whereTreesEqual(a, b) {
+    if (!a || !b) return a === b;
+    if (a.type !== b.type) return false;
+    if (a.type === "leaf") {
+      return a.field === b.field
+        && String(a.op).toLowerCase() === String(b.op).toLowerCase()
+        && a.value === b.value;
+    }
+    return String(a.op).toLowerCase() === String(b.op).toLowerCase()
+      && whereTreesEqual(a.left, b.left)
+      && whereTreesEqual(a.right, b.right);
+  }
+
+  function groupedWhereIsUniformAssoc(node) {
+    if (!node || node.type === "leaf") return true;
+    const op = String(node.op).toLowerCase();
+    function walk(n) {
+      if (!n || n.type === "leaf") return true;
+      if (String(n.op).toLowerCase() !== op) return false;
+      return walk(n.left) && walk(n.right);
+    }
+    return walk(node);
+  }
+
+  /** True when flatten+left-assoc rebuild would change mixed And/Or grouping. */
+  function shouldPreserveGroupedWhere(viewQuery) {
+    const xml = extractViewQueryWhereXml(viewQuery);
+    if (!xml) return false;
+    const innerM = xml.match(/^<Where\b[^>]*>([\s\S]*)<\/Where>$/i);
+    if (!innerM) return false;
+    const tree = parseWhereExpr(innerM[1].trim());
+    if (!tree) return false;
+    if (groupedWhereIsUniformAssoc(tree)) return false;
+    const rebuilt = filterRowsToLeftAssocTree(binTreeToFilterRows(tree));
+    return !whereTreesEqual(tree, rebuilt);
   }
 
   function escapeHtml(s) {
@@ -937,6 +997,7 @@
 
   async function loadViewDetails(viewId) {
     if (!viewId) return;
+    preservedGroupedWhereXml = "";
     try {
       const res = await sendToTab({
         action: "getViewsData",
@@ -958,13 +1019,20 @@
       sortLevels = viewDetails.orderBy ? [{ field: viewDetails.orderBy.field, ascending: viewDetails.orderBy.ascending }] : [];
       const parsedFq = parseViewQueryToFilterRows(viewDetails.viewQuery || "");
       if (parsedFq && parsedFq.length) {
-        filters = parsedFq.map(function (row) {
-          let val = row.value || "";
-          if (isBooleanFieldName(row.field)) val = booleanFilterRawToDisplay(val);
-          const o = { field: row.field, op: row.op, value: val };
-          if (row.join) o.join = row.join;
-          return o;
-        });
+        if (shouldPreserveGroupedWhere(viewDetails.viewQuery || "")) {
+          // Linear And/Or rows cannot represent A OR (B AND C); flattening
+          // would save (A OR B) AND C and change which items the view shows.
+          preservedGroupedWhereXml = extractViewQueryWhereXml(viewDetails.viewQuery || "");
+          filters = [];
+        } else {
+          filters = parsedFq.map(function (row) {
+            let val = row.value || "";
+            if (isBooleanFieldName(row.field)) val = booleanFilterRawToDisplay(val);
+            const o = { field: row.field, op: row.op, value: val };
+            if (row.join) o.join = row.join;
+            return o;
+          });
+        }
       } else {
         filters = (viewDetails.filters || []).map(function (f, idx) {
           let val = f.value || "";
@@ -1002,12 +1070,19 @@
       renderFilterConditions();
       renderGroupBy();
       updateSetDefaultVisibility();
+      if (preservedGroupedWhereXml) {
+        showSaveStatus(
+          "This view uses grouped And/Or filters that cannot be edited here without changing which items appear. Save will keep the existing filter as-is.",
+          false
+        );
+      }
     } catch (e) {
       showSaveStatus(e && e.message ? e.message : "Failed to load view.", true);
     }
   }
 
   function setNewViewDefaults() {
+    preservedGroupedWhereXml = "";
     viewDetails = null;
     inViewSet = new Set();
     const sorted = (fields || []).slice().sort(function (a, b) { return (a.title || "").localeCompare(b.title || ""); });
@@ -1431,8 +1506,12 @@
 
   function buildViewQuery() {
     const parts = [];
-    const whereXml = buildFilterWhereXml();
-    if (whereXml) parts.push(whereXml);
+    if (preservedGroupedWhereXml && filters.length === 0) {
+      parts.push(preservedGroupedWhereXml);
+    } else {
+      const whereXml = buildFilterWhereXml();
+      if (whereXml) parts.push(whereXml);
+    }
     if (sortLevels.length > 0) {
       const refs = sortLevels.filter(function (s) { return s.field; }).map(function (s) {
         return "<FieldRef Name=\"" + escapeAttr(s.field) + "\" Ascending=\"" + (s.ascending ? "True" : "False") + "\"/>";
@@ -1470,6 +1549,13 @@
   }
 
   async function saveView() {
+    if (preservedGroupedWhereXml && filters.length > 0) {
+      showSaveStatus(
+        "Cannot save: this view's filter uses grouped And/Or that View Manager cannot edit without changing which items appear. Remove the new filter rows to keep the original filter, or change the filter in SharePoint.",
+        true
+      );
+      return;
+    }
     const name = (document.getElementById("viewName").value || "").trim();
     if (!name) {
       showSaveStatus("Enter a view name.", true);
