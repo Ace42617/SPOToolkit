@@ -3404,6 +3404,10 @@ function Get-ODataNextLink($Response) {
             return ([string]$v.Value).Trim()
         }
     }
+    if ($Response.d -and $Response.d.__next) {
+        $n = [string]$Response.d.__next
+        if (-not [string]::IsNullOrWhiteSpace($n)) { return $n.Trim() }
+    }
     return $null
 }
 
@@ -3416,7 +3420,14 @@ function Invoke-SPRestGet([string] $Url) {
             $u = "$($S.SiteHostUrl)$base$u"
         }
     }
-    return Invoke-PnPSPRestMethod -Url $u -Method Get
+    # -Raw keeps `@odata.nextLink`. PnP's parsed object only copies JSON
+    # property `odata.nextLink` (no @), so nometadata item scans would stop
+    # after the first $top page (default 5000) while still writing a workbook.
+    $raw = Invoke-PnPSPRestMethod -Url $u -Method Get -Raw
+    if ([string]::IsNullOrWhiteSpace([string]$raw)) {
+        throw 'REST GET returned an empty body.'
+    }
+    return $raw | ConvertFrom-Json
 }
 
 function Invoke-SPRestGetWithRetry {

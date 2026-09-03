@@ -279,6 +279,22 @@ function Add-DirectPermissionRow {
     }) | Out-Null
 }
 
+function Get-SharingLinksODataNextLink {
+    param($Response)
+    if ($null -eq $Response) { return $null }
+    foreach ($name in @('@odata.nextLink', 'odata.nextLink')) {
+        $prop = $Response.PSObject.Properties[$name]
+        if ($prop -and -not [string]::IsNullOrWhiteSpace([string]$prop.Value)) {
+            return ([string]$prop.Value).Trim()
+        }
+    }
+    if ($Response.d -and $Response.d.__next) {
+        $n = [string]$Response.d.__next
+        if (-not [string]::IsNullOrWhiteSpace($n)) { return $n.Trim() }
+    }
+    return $null
+}
+
 function Get-LinksForPath {
     param(
         [string] $RelativeUrl,
@@ -319,14 +335,18 @@ foreach ($list in $lists) {
 
     do {
         try {
-            $response = Invoke-PnPSPRestMethod -Url $url -Method Get
+            # -Raw keeps `@odata.nextLink`. PnP's parsed object only copies JSON
+            # property `odata.nextLink` (no @), so nometadata paging would stop
+            # after the first $top=2000 page and still write a "Done." CSV.
+            $raw = Invoke-PnPSPRestMethod -Url $url -Method Get -Raw
+            $response = if ([string]::IsNullOrWhiteSpace([string]$raw)) { $null } else { $raw | ConvertFrom-Json }
         }
         catch {
             Write-Warning "REST enumeration failed for list '$($list.Title)': $($_.Exception.Message)"
             break
         }
 
-        if ($response.value) {
+        if ($response -and $response.value) {
             foreach ($item in $response.value) {
                 $processed++
 
@@ -371,8 +391,8 @@ foreach ($list in $lists) {
             }
         }
 
-        # SharePoint REST paginates by returning odata.nextLink (an absolute URL) when more items exist.
-        $url = $response.'odata.nextLink'
+        # SharePoint nometadata JSON uses @odata.nextLink; verbose uses d.__next.
+        $url = Get-SharingLinksODataNextLink $response
     } while ($url)
 }
 
