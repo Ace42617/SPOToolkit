@@ -3407,7 +3407,12 @@ function Get-ODataNextLink($Response) {
     return $null
 }
 
-function Invoke-SPRestGet([string] $Url) {
+function Invoke-SPRestGet {
+    param(
+        [string] $Url,
+        [switch] $Raw
+    )
+
     if ([string]::IsNullOrWhiteSpace($Url)) { throw 'REST URL was empty.' }
     $u = $Url.Trim()
     if ($u -notmatch '^https?://') {
@@ -3416,18 +3421,29 @@ function Invoke-SPRestGet([string] $Url) {
             $u = "$($S.SiteHostUrl)$base$u"
         }
     }
+    # -Raw keeps `@odata.nextLink`. PnP's parsed object only copies JSON
+    # property `odata.nextLink` (no @), so nometadata paging would stop after
+    # the first page. Used by Get-RoleAssignments; other callers stay parsed.
+    if ($Raw) {
+        $body = Invoke-PnPSPRestMethod -Url $u -Method Get -Raw
+        if ([string]::IsNullOrWhiteSpace([string]$body)) {
+            throw 'REST GET returned an empty body.'
+        }
+        return $body | ConvertFrom-Json
+    }
     return Invoke-PnPSPRestMethod -Url $u -Method Get
 }
 
 function Invoke-SPRestGetWithRetry {
     param(
         [string] $Url,
-        [int]    $MaxAttempts = 4
+        [int]    $MaxAttempts = 4,
+        [switch] $Raw
     )
 
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
         try {
-            return Invoke-SPRestGet $Url
+            return Invoke-SPRestGet -Url $Url -Raw:$Raw
         }
         catch {
             $msg = [string]$_.Exception.Message
@@ -4171,24 +4187,40 @@ function Get-RoleAssignments {
         # For item-level, $expand=.../RoleDefinition silently returns empty bindings in
         # SharePoint Online. Use $expand=RoleDefinitionBindings without the nested path
         # and resolve role names via $S.RoleDefById instead.
+        # SharePoint REST defaults to 100 roleassignments per page. Sites, lists,
+        # and uniquely permissioned items routinely exceed that (sharing-link
+        # principals, many named users). A single GET silently dropped the rest
+        # and the workbook still reported success.
         $url = switch -Wildcard ($Scope) {
-            'web' { '/_api/web/roleassignments?$expand=Member,RoleDefinitionBindings/RoleDefinition' }
+            'web' { '/_api/web/roleassignments?$expand=Member,RoleDefinitionBindings/RoleDefinition&$top=5000' }
             default {
                 if ($ItemId -gt 0) {
-                    "/_api/web/lists(guid'$ListId')/items($ItemId)/roleassignments?`$expand=Member,RoleDefinitionBindings"
+                    "/_api/web/lists(guid'$ListId')/items($ItemId)/roleassignments?`$expand=Member,RoleDefinitionBindings&`$top=5000"
                 } else {
-                    "/_api/web/lists(guid'$ListId')/roleassignments?`$expand=Member,RoleDefinitionBindings/RoleDefinition"
+                    "/_api/web/lists(guid'$ListId')/roleassignments?`$expand=Member,RoleDefinitionBindings/RoleDefinition&`$top=5000"
                 }
             }
         }
 
+        $collected = [System.Collections.Generic.List[object]]::new()
         try {
-            $assignments = Get-RestAssignmentItems (Invoke-SPRestGetWithRetry $url)
+            while ($url) {
+                # -Raw so Get-ODataNextLink can see `@odata.nextLink`.
+                $page = Invoke-SPRestGetWithRetry -Url $url -Raw
+                foreach ($item in (Get-RestAssignmentItems $page)) {
+                    $collected.Add($item) | Out-Null
+                }
+                $url = Get-ODataNextLink $page
+            }
         } catch {
-            Write-Warning "Role assignments failed ($Scope): $($_.Exception.Message)"
-            $assignments = @()
+            if ($collected.Count -lt 1) {
+                Write-Warning "Role assignments failed ($Scope): $($_.Exception.Message)"
+            } else {
+                Write-Warning "Role assignments paging stopped ($Scope): $($_.Exception.Message)"
+            }
         }
 
+        $assignments = @($collected)
         $assignments = Enrich-RoleAssignments -Assignments $assignments -Scope $Scope -ListId $ListId -ItemId $ItemId
         $S.AssignmentCache[$Scope] = @($assignments)
         return Get-NormalizedAssignmentArray $assignments
