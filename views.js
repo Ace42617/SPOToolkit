@@ -358,7 +358,10 @@
     const m = norm.match(re);
     if (!m) return null;
     const v = (m[4] || "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
-    return { type: "leaf", field: m[2], op: m[1], value: v };
+    const valueType = (m[3] || "").trim();
+    const leaf = { type: "leaf", field: m[2], op: m[1], value: v };
+    if (valueType) leaf.valueType = valueType;
+    return leaf;
   }
 
   function parseWhereExpr(inner) {
@@ -387,7 +390,9 @@
 
   function binTreeToFilterRows(node) {
     if (node.type === "leaf") {
-      return [{ field: node.field, op: node.op, value: node.value }];
+      const row = { field: node.field, op: node.op, value: node.value };
+      if (node.valueType) row.valueType = node.valueType;
+      return [row];
     }
     const L = binTreeToFilterRows(node.left);
     const R = binTreeToFilterRows(node.right);
@@ -963,6 +968,7 @@
           if (isBooleanFieldName(row.field)) val = booleanFilterRawToDisplay(val);
           const o = { field: row.field, op: row.op, value: val };
           if (row.join) o.join = row.join;
+          if (row.valueType && !isBooleanFieldName(row.field)) o.valueType = row.valueType;
           return o;
         });
       } else {
@@ -971,6 +977,7 @@
           if (isBooleanFieldName(f.field)) val = booleanFilterRawToDisplay(val);
           const o = { field: f.field, op: f.op, value: val };
           if (idx > 0) o.join = "And";
+          if (f.valueType && !isBooleanFieldName(f.field)) o.valueType = f.valueType;
           return o;
         });
       }
@@ -1315,6 +1322,7 @@
       container.appendChild(block);
       fieldSel.addEventListener("change", function () {
         filters[i].field = fieldSel.value;
+        delete filters[i].valueType;
         if (isBooleanFieldName(fieldSel.value)) {
           filters[i].value = coerceBooleanFilterStoredValue(filters[i].value || "");
         }
@@ -1387,17 +1395,39 @@
     return null;
   }
 
+  function camlTypeApi() {
+    return typeof window !== "undefined" && window.SPViewQueryCamlType ? window.SPViewQueryCamlType : null;
+  }
+
   function getValueTypeForField(fieldInternalName) {
     const fd = fields.find(function (f) { return f.internalName === fieldInternalName; });
     const t = (fd && fd.typeAsString) ? String(fd.typeAsString) : "";
+    const api = camlTypeApi();
+    if (api && api.camlValueTypeFromField) return api.camlValueTypeFromField(fieldInternalName, t);
+    const name = String(fieldInternalName || "");
+    if (name === "ContentTypeId" || /^ContentTypeId$/i.test(t)) return "ContentTypeId";
+    if (name === "FSObjType" || name === "EventType") return "Integer";
     if (/Integer|Counter|Boolean|YesNo/i.test(t)) return "Integer";
     if (/Number|Currency|Decimal/i.test(t)) return "Number";
     if (/DateTime|Date/i.test(t)) return "DateTime";
     return "Text";
   }
 
+  function resolveFilterValueType(f) {
+    if (isBooleanFieldName(f.field)) return "Integer";
+    const fd = fields.find(function (x) { return x.internalName === f.field; });
+    const t = (fd && fd.typeAsString) ? String(fd.typeAsString) : "";
+    const api = camlTypeApi();
+    if (api && api.resolveFilterCamlValueType) {
+      return api.resolveFilterCamlValueType(f.valueType, f.field, t);
+    }
+    const stored = String(f.valueType || "").trim();
+    if (/^[A-Za-z][A-Za-z0-9]{0,63}$/.test(stored)) return stored;
+    return getValueTypeForField(f.field);
+  }
+
   function buildOneFilterCondXml(f) {
-    let type = getValueTypeForField(f.field).replace(/"/g, "");
+    let type = resolveFilterValueType(f).replace(/"/g, "");
     let inner;
     if (isBooleanFieldName(f.field)) {
       const camlInt = booleanFilterDisplayToCamlInteger(f.value);
