@@ -202,14 +202,36 @@
     );
   }
 
+  // Lookup/Person is id;#value pairs; MultiChoice is ;#value;#value;# (no ids).
+  // Taking odd split parts drops every other MultiChoice value and REST arrays
+  // that were joined with ";#". Keep in sync with lib/exportValueClean.mjs.
   function cleanValue(val) {
     if (val == null || val === undefined) return "";
     var s = String(val);
-    if (s.indexOf(";#") >= 0) {
-      var parts = s.split(";#");
-      return parts.filter(function (_, i) { return i % 2 === 1; }).join(", ") || s;
+    if (s.indexOf(";#") < 0) return s;
+    var parts = s.split(";#");
+    var looksLikeLookupPairs = parts.length >= 2 && parts.length % 2 === 0;
+    if (looksLikeLookupPairs) {
+      var allIdsNumeric = true;
+      for (var i = 0; i < parts.length; i += 2) {
+        if (!/^-?\d+$/.test(String(parts[i] || "").trim())) {
+          allIdsNumeric = false;
+          break;
+        }
+      }
+      if (allIdsNumeric) {
+        var values = [];
+        for (var j = 1; j < parts.length; j += 2) {
+          if (String(parts[j] || "") !== "") values.push(parts[j]);
+        }
+        if (values.length) return values.join(", ");
+      }
     }
-    return s;
+    var choices = [];
+    for (var k = 0; k < parts.length; k++) {
+      if (String(parts[k] || "") !== "") choices.push(parts[k]);
+    }
+    return choices.length ? choices.join(", ") : s;
   }
 
   function escapeCSV(val) {
@@ -1343,7 +1365,7 @@
       if (Array.isArray(val)) {
         return val.map(function (v) {
           return (v && v.LookupValue != null) ? String(v.LookupValue) : String(v);
-        }).join(";#");
+        }).filter(function (v) { return v !== ""; }).join(", ");
       }
       return JSON.stringify(val);
     }
