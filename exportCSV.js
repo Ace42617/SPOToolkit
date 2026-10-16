@@ -387,7 +387,7 @@
   var exportCaptureMode = false;
   var exportCaptureQueue = [];
 
-  function downloadExport(data, filenameBase, opts) {
+  async function downloadExport(data, filenameBase, opts) {
     opts = opts || {};
     if (exportCaptureMode) {
       exportCaptureQueue.push({ data: data, filenameBase: filenameBase, opts: opts });
@@ -397,6 +397,7 @@
     var isXlsx = params.format === "xlsx";
     var ext = isXlsx ? ".xlsx" : (isXls ? ".xls" : ".csv");
     var fn = (filenameBase || "export").replace(/\.(csv|xls|xlsx|xml)$/i, "") + ext;
+    var blob;
     if (isXls || isXlsx) {
       var aoa;
       if (data.sheets && data.sheets.length > 0 && isXlsx) {
@@ -410,39 +411,24 @@
           aoa.push(cols.map(function (c) { return getCellValue(data.rows[i], c); }));
         }
       } else {
-        reportDone(false, "Excel: no data");
-        return;
+        throw new Error("Excel: no data");
       }
       if (isXlsx) {
         var xlsxSheets = data.sheets && data.sheets.length > 0 ? data.sheets : [{ name: opts.sheetName || "Sheet1", aoa: aoa }];
-        aoaToXlsxBlobMulti(xlsxSheets).then(function (blob) {
-          var link = document.createElement("a");
-          link.href = URL.createObjectURL(blob);
-          link.download = fn;
-          link.click();
-          URL.revokeObjectURL(link.href);
-        }).catch(function (err) {
-          reportDone(false, err && err.message ? err.message : "XLSX export failed.");
-        });
-        return;
+        blob = await aoaToXlsxBlobMulti(xlsxSheets);
+      } else {
+        var xml = aoaToExcelXml(aoa, opts.sheetName || "Sheet1");
+        blob = new Blob([xml], { type: "application/vnd.ms-excel" });
       }
-      var xml = aoaToExcelXml(aoa, opts.sheetName || "Sheet1");
-      var blob = new Blob([xml], { type: "application/vnd.ms-excel" });
-      var link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = fn;
-      link.click();
-      URL.revokeObjectURL(link.href);
     } else {
       var csv = data.csv != null ? data.csv : (data.rows && data.columns ? toCSVFromRows(data.rows, data.columns) : "");
       if (data.rows && data.columns && csv.indexOf("\ufeff") !== 0) csv = "\ufeff" + csv;
-      var blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-      var link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = fn;
-      link.click();
-      URL.revokeObjectURL(link.href);
+      blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     }
+    // Hand the file to chrome.downloads before the caller reports success.
+    // An in-page <a download> click returns before the workbook exists, and the
+    // worker tab is closed 5s after SPCSVExportDone.
+    await downloadBlobAs(blob, fn);
   }
 
   var SCHEMA_ATTRS = { "id": 1, "name": 1, "dt": 1, "rs": 1, "s": 1, "z": 1, "commandcontent": 1 };
@@ -1629,18 +1615,18 @@
     return "\ufeff" + lines.join("\r\n");
   }
 
-  function finishOwssvrExport(parsed) {
+  async function finishOwssvrExport(parsed) {
     if (params.report === "folderCount") {
       var csv = buildFolderCountReportFromRows(parsed.rows);
       var fnBase = (exportFilename || "FolderCounts").replace(/\.(csv|xls|xlsx|xml)$/i, "") + "_FolderCounts";
-      downloadExport({ csv: csv }, fnBase, { sheetName: "FolderCounts" });
+      await downloadExport({ csv: csv }, fnBase, { sheetName: "FolderCounts" });
       reportDone(true, "Done! Folder count report downloaded.");
       return;
     }
     if (params.report === "pathLengths") {
       var pathCsv = buildPathLengthsReportFromRows(parsed.rows);
       var pathFnBase = (exportFilename || "PathLengths").replace(/\.(csv|xls|xlsx|xml)$/i, "") + "_PathLengths";
-      downloadExport({ csv: pathCsv }, pathFnBase, { sheetName: "PathLengths" });
+      await downloadExport({ csv: pathCsv }, pathFnBase, { sheetName: "PathLengths" });
       reportDone(true, "Done! Path lengths report downloaded.");
       return;
     }
@@ -1672,7 +1658,7 @@
       return a.localeCompare(b);
     });
     var fnBase = exportFilename.replace(/\.(csv|xls|xlsx|xml)$/i, "");
-    downloadExport({ rows: rows, columns: columns }, fnBase, { sheetName: "Export" });
+    await downloadExport({ rows: rows, columns: columns }, fnBase, { sheetName: "Export" });
     reportDone(true, "Done! " + rows.length.toLocaleString() + " rows exported.");
   }
 
@@ -1730,7 +1716,7 @@
         logLine: "Read-only view returned " + rowsToExport.length + " of ~" + itemCount + " items (library view limits apply)."
       });
     }
-    finishOwssvrExport({ rows: rowsToExport, columns: [] });
+    await finishOwssvrExport({ rows: rowsToExport, columns: [] });
     return true;
   }
 
@@ -1864,7 +1850,7 @@
     if (rowsToExport.length === 0) {
       return false;
     }
-    finishOwssvrExport({ rows: rowsToExport, columns: [] });
+    await finishOwssvrExport({ rows: rowsToExport, columns: [] });
     return true;
   }
 
@@ -1988,14 +1974,14 @@
       if (params.report === "folderCount") {
         var folderCsvVer = buildFolderCountReportFromRows(rows);
         var folderFnBaseVer = (exportFilename || "FolderCounts").replace(/\.(csv|xls|xlsx|xml)$/i, "") + "_FolderCounts";
-        downloadExport({ csv: folderCsvVer }, folderFnBaseVer, { sheetName: "FolderCounts" });
+        await downloadExport({ csv: folderCsvVer }, folderFnBaseVer, { sheetName: "FolderCounts" });
         reportDone(true, "Done! Folder count report downloaded.");
         return;
       }
       if (params.report === "pathLengths") {
         var pathCsvVer = buildPathLengthsReportFromRows(rows);
         var pathFnBaseVer = (exportFilename || "PathLengths").replace(/\.(csv|xls|xlsx|xml)$/i, "") + "_PathLengths";
-        downloadExport({ csv: pathCsvVer }, pathFnBaseVer, { sheetName: "PathLengths" });
+        await downloadExport({ csv: pathCsvVer }, pathFnBaseVer, { sheetName: "PathLengths" });
         reportDone(true, "Done! Path lengths report downloaded.");
         return;
       }
@@ -2017,7 +2003,7 @@
           return a.localeCompare(b);
         });
         var fnBaseVer = exportFilename.replace(/\.(csv|xls|xlsx|xml)$/i, "");
-        downloadExport({ rows: rows, columns: columns }, fnBaseVer, { sheetName: "Export" });
+        await downloadExport({ rows: rows, columns: columns }, fnBaseVer, { sheetName: "Export" });
         reportDone(true, "Done! " + rows.length.toLocaleString() + " rows exported (with versions) via REST API.");
       } catch (err) {
         reportDone(false, "Failed to build or download CSV: " + (err.message || String(err)));
@@ -2057,7 +2043,7 @@
       var restRows = Object.keys(rowMap).sort(function (a, b) { return parseInt(a, 10) - parseInt(b, 10); }).map(function (id) { return rowMap[id]; });
       var folderCsv = buildFolderCountReportFromRows(restRows);
       var folderFnBase = (exportFilename || "FolderCounts").replace(/\.(csv|xls|xlsx|xml)$/i, "") + "_FolderCounts";
-      downloadExport({ csv: folderCsv }, folderFnBase, { sheetName: "FolderCounts" });
+      await downloadExport({ csv: folderCsv }, folderFnBase, { sheetName: "FolderCounts" });
       reportDone(true, "Done! Folder count report downloaded.");
       return;
     }
@@ -2065,7 +2051,7 @@
       var pathRestRows = Object.keys(rowMap).sort(function (a, b) { return parseInt(a, 10) - parseInt(b, 10); }).map(function (id) { return rowMap[id]; });
       var pathCsvRest = buildPathLengthsReportFromRows(pathRestRows);
       var pathFnBaseRest = (exportFilename || "PathLengths").replace(/\.(csv|xls|xlsx|xml)$/i, "") + "_PathLengths";
-      downloadExport({ csv: pathCsvRest }, pathFnBaseRest, { sheetName: "PathLengths" });
+      await downloadExport({ csv: pathCsvRest }, pathFnBaseRest, { sheetName: "PathLengths" });
       reportDone(true, "Done! Path lengths report downloaded.");
       return;
     }
@@ -2086,7 +2072,7 @@
     });
     var restRowsArr = Object.keys(rowMap).sort(function (a, b) { return parseInt(a, 10) - parseInt(b, 10); }).map(function (id) { return rowMap[id]; });
     var fnBaseRest = exportFilename.replace(/\.(csv|xls|xlsx|xml)$/i, "");
-    downloadExport({ rows: restRowsArr, columns: columns }, fnBaseRest, { sheetName: "Export" });
+    await downloadExport({ rows: restRowsArr, columns: columns }, fnBaseRest, { sheetName: "Export" });
     reportDone(true, "Done! " + totalRows.toLocaleString() + " rows exported via REST API.");
   }
 
@@ -2438,9 +2424,9 @@
         var d = uniquePermResults[id];
         itemsAoa.push([d.Item || "", d.Principals || ""]);
       }
-      downloadExport({ sheets: [{ name: "Permissions", aoa: mainAoa }, { name: "Items with unique permissions", aoa: itemsAoa }] }, fnBase, {});
+      await downloadExport({ sheets: [{ name: "Permissions", aoa: mainAoa }, { name: "Items with unique permissions", aoa: itemsAoa }] }, fnBase, {});
     } else {
-      downloadExport({ csv: csv }, fnBase, { sheetName: "Permissions" });
+      await downloadExport({ csv: csv }, fnBase, { sheetName: "Permissions" });
     }
     reportDone(true, "Done! Permissions report downloaded (" + rows.length + " rows).");
   }
@@ -2810,11 +2796,11 @@
       reportProgress("Permissions matrix: Building report…");
       var fnBaseWs = (exportFilename || "PermissionsMatrix").replace(/\.(csv|xls|xlsx|xml)$/i, "") + "_PermissionsMatrix_WholeSite";
       if (params.format === "xlsx") {
-        downloadExport({ sheets: [{ name: "Permissions Matrix", aoa: aoaWs }] }, fnBaseWs, {});
+        await downloadExport({ sheets: [{ name: "Permissions Matrix", aoa: aoaWs }] }, fnBaseWs, {});
       } else {
         var csvLinesWs = [headerWs.map(escapeCSV).join(",")];
         for (var c = 0; c < aoaWs.length - 1; c++) csvLinesWs.push(aoaWs[c + 1].map(escapeCSV).join(","));
-        downloadExport({ csv: "\ufeff" + csvLinesWs.join("\r\n") }, fnBaseWs, { sheetName: "Permissions Matrix" });
+        await downloadExport({ csv: "\ufeff" + csvLinesWs.join("\r\n") }, fnBaseWs, { sheetName: "Permissions Matrix" });
       }
       reportDone(true, "Done! Permissions matrix (whole site) downloaded (" + allMatrixRowsWs.length + " rows).");
       return;
@@ -3097,11 +3083,11 @@
     reportProgress("Permissions matrix: Building report…");
     var fnBase = (exportFilename || "PermissionsMatrix").replace(/\.(csv|xls|xlsx|xml)$/i, "") + "_PermissionsMatrix";
     if (params.format === "xlsx") {
-      downloadExport({ sheets: [{ name: "Permissions Matrix", aoa: aoa }] }, fnBase, {});
+      await downloadExport({ sheets: [{ name: "Permissions Matrix", aoa: aoa }] }, fnBase, {});
     } else {
       var csvLines = [header.map(escapeCSV).join(",")];
       for (var c = 0; c < aoa.length - 1; c++) csvLines.push(aoa[c + 1].map(escapeCSV).join(","));
-      downloadExport({ csv: "\ufeff" + csvLines.join("\r\n") }, fnBase, { sheetName: "Permissions Matrix" });
+      await downloadExport({ csv: "\ufeff" + csvLines.join("\r\n") }, fnBase, { sheetName: "Permissions Matrix" });
     }
     reportDone(true, "Done! Permissions matrix downloaded (" + matrixRows.length + " rows).");
   }
