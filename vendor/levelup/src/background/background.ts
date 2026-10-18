@@ -197,17 +197,15 @@ chrome.runtime.onInstalled.addListener(async () => {
   await impersonationService.initializeOnStartup();
 });
 
-// Also initialize on startup
+// Browser launch only. Session rules survive MV3 service-worker restarts, and
+// this worker is restarted constantly (SharePoint content-script messages, popup
+// opens, idle timeout). Wiping rules on every evaluation drops CallerObjectId
+// while the toolbar badge and sidebar still show impersonation, so later
+// Dataverse calls run as the signed-in user.
 chrome.runtime.onStartup.addListener(async () => {
   console.log('Level Up for Dynamics 365 extension startup');
   await impersonationService.initializeOnStartup();
 });
-
-// Initialize immediately when service worker becomes active
-(async () => {
-  console.log('Level Up for Dynamics 365 service worker active');
-  await impersonationService.initializeOnStartup();
-})();
 
 // Handle extension icon click to open sidebar directly
 chrome.action.onClicked.addListener(async tab => {
